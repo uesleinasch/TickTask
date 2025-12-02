@@ -72,7 +72,45 @@ const api = {
     }
     ipcRenderer.on('timer:stopped', handler)
     return () => ipcRenderer.removeListener('timer:stopped', handler)
-  }
+  },
+
+  // Statistics
+  getWeeklyStats: (): Promise<DailyStats[]> => ipcRenderer.invoke('stats:weekly'),
+  getTaskTimeStats: (): Promise<TaskTimeStats[]> => ipcRenderer.invoke('stats:taskTime'),
+  getStatusStats: (): Promise<StatusStats[]> => ipcRenderer.invoke('stats:status'),
+  getHeatmapData: (): Promise<HeatmapData[]> => ipcRenderer.invoke('stats:heatmap'),
+  getGeneralStats: (): Promise<GeneralStats> => ipcRenderer.invoke('stats:general')
+}
+
+// Types for statistics
+interface DailyStats {
+  date: string
+  dayOfWeek: number
+  totalSeconds: number
+}
+
+interface TaskTimeStats {
+  taskId: number
+  taskName: string
+  totalSeconds: number
+}
+
+interface StatusStats {
+  status: string
+  totalSeconds: number
+}
+
+interface HeatmapData {
+  date: string
+  count: number
+}
+
+interface GeneralStats {
+  totalTasks: number
+  completedTasks: number
+  totalTimeSeconds: number
+  totalSessions: number
+  avgSessionSeconds: number
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

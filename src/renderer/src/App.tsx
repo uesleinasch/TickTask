@@ -4,6 +4,7 @@ import { TaskListPage } from './pages/TaskListPage'
 import { SingleTaskPage } from './pages/SingleTaskPage'
 import { ArchivedTasksPage } from './pages/ArchivedTasksPage'
 import { FloatTimerPage } from './pages/FloatTimerPage'
+import { DashboardPage } from './pages/DashboardPage'
 import { TitleBar } from './components/TitleBar'
 import { FloatingTimer } from './components/FloatingTimer'
 import { Toaster } from './components/ui/sonner'
@@ -39,6 +40,7 @@ function FloatContent(): React.JSX.Element {
 function AppContent(): React.JSX.Element {
   const location = useLocation()
   const isTaskPage = location.pathname.startsWith('/task/')
+  const isDashboardPage = location.pathname === '/dashboard'
   const isFloatPage = location.pathname === '/float'
 
   // Se for a janela flutuante, renderizar apenas ela
@@ -58,10 +60,11 @@ function AppContent(): React.JSX.Element {
           <Route path="/" element={<TaskListPage />} />
           <Route path="/task/:id" element={<SingleTaskPage />} />
           <Route path="/archived" element={<ArchivedTasksPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/float" element={<FloatTimerPage />} />
         </Routes>
       </main>
-      {!isTaskPage && <FloatingTimer />}
+      {!isTaskPage && !isDashboardPage && <FloatingTimer />}
       <Toaster position="bottom-right" />
     </div>
   )

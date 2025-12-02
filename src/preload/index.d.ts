@@ -7,6 +7,36 @@ interface FloatTimerData {
   seconds: number
 }
 
+interface DailyStats {
+  date: string
+  dayOfWeek: number
+  totalSeconds: number
+}
+
+interface TaskTimeStats {
+  taskId: number
+  taskName: string
+  totalSeconds: number
+}
+
+interface StatusStats {
+  status: string
+  totalSeconds: number
+}
+
+interface HeatmapData {
+  date: string
+  count: number
+}
+
+interface GeneralStats {
+  totalTasks: number
+  completedTasks: number
+  totalTimeSeconds: number
+  totalSessions: number
+  avgSessionSeconds: number
+}
+
 interface API {
   // Window controls
   minimizeWindow: () => Promise<void>
@@ -39,6 +69,13 @@ interface API {
   stopFromFloat: (taskId: number) => Promise<void>
   onFloatUpdate: (callback: (data: FloatTimerData) => void) => () => void
   onTimerStopped: (callback: (taskId: number) => void) => () => void
+
+  // Statistics
+  getWeeklyStats: () => Promise<DailyStats[]>
+  getTaskTimeStats: () => Promise<TaskTimeStats[]>
+  getStatusStats: () => Promise<StatusStats[]>
+  getHeatmapData: () => Promise<HeatmapData[]>
+  getGeneralStats: () => Promise<GeneralStats>
 }
 
 declare global {

@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Plus, Archive } from 'lucide-react'
+import { Plus, Archive, BarChart3 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 
 // Importa o ícone da aplicação
@@ -28,6 +28,15 @@ export function TitleBar({ onNewTask }: TitleBarProps): React.JSX.Element {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => navigate('/dashboard')}
+            className="h-9 border-slate-200 text-slate-700 hover:bg-slate-100"
+          >
+            <BarChart3 className="mr-2 h-4 w-4" />
+            Dashboard
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => navigate('/archived')}
             className="h-9 border-slate-200 text-slate-700 hover:bg-slate-100"
           >
@@ -35,8 +44,8 @@ export function TitleBar({ onNewTask }: TitleBarProps): React.JSX.Element {
             Arquivadas
           </Button>
           {onNewTask && (
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               onClick={onNewTask}
               className="h-9 bg-slate-900 text-white hover:bg-slate-800 shadow-sm"
             >

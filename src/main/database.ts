@@ -274,6 +274,126 @@ export function setTaskTotalTime(taskId: number, totalSeconds: number): void {
   stmt.run(totalSeconds, taskId)
 }
 
+// ===================== ESTATÍSTICAS =====================
+
+export interface DailyStats {
+  date: string
+  dayOfWeek: number
+  totalSeconds: number
+}
+
+export interface TaskTimeStats {
+  taskId: number
+  taskName: string
+  totalSeconds: number
+}
+
+export interface StatusStats {
+  status: string
+  totalSeconds: number
+}
+
+export interface HeatmapData {
+  date: string
+  count: number
+}
+
+// Estatísticas por dia da semana (últimos 30 dias)
+export function getWeeklyStats(): DailyStats[] {
+  const stmt = db.prepare(`
+    SELECT 
+      date(start_time) as date,
+      strftime('%w', start_time) as dayOfWeek,
+      SUM(COALESCE(duration_seconds, 0)) as totalSeconds
+    FROM time_entries
+    WHERE start_time >= date('now', '-30 days')
+      AND end_time IS NOT NULL
+    GROUP BY date(start_time)
+    ORDER BY date(start_time)
+  `)
+  return stmt.all() as DailyStats[]
+}
+
+// Tempo por tarefa (top 10)
+export function getTaskTimeStats(): TaskTimeStats[] {
+  const stmt = db.prepare(`
+    SELECT 
+      t.id as taskId,
+      t.name as taskName,
+      t.total_seconds as totalSeconds
+    FROM tasks t
+    WHERE t.total_seconds > 0
+    ORDER BY t.total_seconds DESC
+    LIMIT 10
+  `)
+  return stmt.all() as TaskTimeStats[]
+}
+
+// Tempo por status
+export function getStatusStats(): StatusStats[] {
+  const stmt = db.prepare(`
+    SELECT 
+      status,
+      SUM(total_seconds) as totalSeconds
+    FROM tasks
+    WHERE total_seconds > 0
+    GROUP BY status
+  `)
+  return stmt.all() as StatusStats[]
+}
+
+// Heatmap - últimos 365 dias
+export function getHeatmapData(): HeatmapData[] {
+  const stmt = db.prepare(`
+    SELECT 
+      date(start_time) as date,
+      SUM(COALESCE(duration_seconds, 0)) as count
+    FROM time_entries
+    WHERE start_time >= date('now', '-365 days')
+      AND end_time IS NOT NULL
+    GROUP BY date(start_time)
+    ORDER BY date(start_time)
+  `)
+  return stmt.all() as HeatmapData[]
+}
+
+// Estatísticas gerais
+export interface GeneralStats {
+  totalTasks: number
+  completedTasks: number
+  totalTimeSeconds: number
+  totalSessions: number
+  avgSessionSeconds: number
+}
+
+export function getGeneralStats(): GeneralStats {
+  const tasksStmt = db.prepare(`
+    SELECT 
+      COUNT(*) as totalTasks,
+      SUM(CASE WHEN status = 'finalizada' THEN 1 ELSE 0 END) as completedTasks,
+      SUM(total_seconds) as totalTimeSeconds
+    FROM tasks
+  `)
+  const tasksResult = tasksStmt.get() as { totalTasks: number; completedTasks: number; totalTimeSeconds: number }
+
+  const sessionsStmt = db.prepare(`
+    SELECT 
+      COUNT(*) as totalSessions,
+      AVG(duration_seconds) as avgSessionSeconds
+    FROM time_entries
+    WHERE end_time IS NOT NULL
+  `)
+  const sessionsResult = sessionsStmt.get() as { totalSessions: number; avgSessionSeconds: number }
+
+  return {
+    totalTasks: tasksResult.totalTasks || 0,
+    completedTasks: tasksResult.completedTasks || 0,
+    totalTimeSeconds: tasksResult.totalTimeSeconds || 0,
+    totalSessions: sessionsResult.totalSessions || 0,
+    avgSessionSeconds: Math.round(sessionsResult.avgSessionSeconds || 0)
+  }
+}
+
 export function closeDatabase(): void {
   if (db) {
     db.close()

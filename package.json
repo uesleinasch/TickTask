@@ -38,6 +38,7 @@
     "electron-updater": "^6.3.9",
     "lucide-react": "^0.555.0",
     "react-router-dom": "^7.10.0",
+    "recharts": "^3.5.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.17",

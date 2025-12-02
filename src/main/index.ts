@@ -20,7 +20,12 @@ import {
   getActiveTimeEntry,
   resetTaskTimer,
   addManualTimeEntry,
-  setTaskTotalTime
+  setTaskTotalTime,
+  getWeeklyStats,
+  getTaskTimeStats,
+  getStatusStats,
+  getHeatmapData,
+  getGeneralStats
 } from './database'
 import type { CreateTaskInput, UpdateTaskInput, TaskStatus } from '../shared/types'
 
@@ -231,6 +236,13 @@ function setupIpcHandlers(): void {
     mainWindow?.webContents.send('timer:stopped', taskId)
     return result
   })
+
+  // Statistics
+  ipcMain.handle('stats:weekly', () => getWeeklyStats())
+  ipcMain.handle('stats:taskTime', () => getTaskTimeStats())
+  ipcMain.handle('stats:status', () => getStatusStats())
+  ipcMain.handle('stats:heatmap', () => getHeatmapData())
+  ipcMain.handle('stats:general', () => getGeneralStats())
 }
 
 // This method will be called when Electron has finished
