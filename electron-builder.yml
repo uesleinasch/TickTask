@@ -1,5 +1,5 @@
 appId: com.ticktask.app
-productName: TickTask
+productName: "TickTask App"
 directories:
   buildResources: build
 files:

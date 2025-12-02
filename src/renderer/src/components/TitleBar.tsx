@@ -18,8 +18,8 @@ export function TitleBar({ onNewTask }: TitleBarProps): React.JSX.Element {
     <header className="flex items-center justify-between h-14 px-6 bg-white border-b border-slate-200">
       {/* Lado Esquerdo: Logo + Nome */}
       <div className="flex items-center gap-2">
-        <img src={appIcon} alt="TickTask" className="w-8 h-8" />
-        <span className="text-xl font-bold text-slate-900">TickTask</span>
+        <img src={appIcon} alt="TickTask App" className="w-8 h-8" />
+        <span className="text-xl font-bold text-slate-900">TickTask App</span>
       </div>
 
       {/* Lado Direito: Ações */}

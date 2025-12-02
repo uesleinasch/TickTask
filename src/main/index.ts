@@ -120,7 +120,7 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
-    title: 'TickTask',
+    title: 'TickTask App',
     icon: icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -257,8 +257,16 @@ app.whenReady().then(() => {
   // Setup IPC handlers
   setupIpcHandlers()
 
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  // Set app user model id for windows (matches appId in electron-builder.yml)
+  electronApp.setAppUserModelId('com.ticktask.app')
+  // Set app name for macOS menus and about dialogs
+  try {
+    app.setName('TickTask App')
+  } catch (error) {
+    // setName isn't available on all platforms/versions
+  }
+
+  // (Already set above)
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.

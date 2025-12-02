@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'path'
-import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus, TaskCategory } from '@shared/types'
+import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus } from '@shared/types'
 
 const dbPath = path.join(app.getPath('userData'), 'ticktask.db')
 

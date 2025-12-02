@@ -1,9 +1,9 @@
 {
   "name": "ticktask",
-  "version": "1.0.0",
-  "description": "An Electron application with React and TypeScript",
+  "version": "2.0.0",
+  "description": "A simple and efficient task and time tracking application built with Electron, React, and Vite.",
   "main": "./out/main/index.js",
-  "author": "example.com",
+  "author": "https://ueslei.pro/",
   "homepage": "https://electron-vite.org",
   "scripts": {
     "format": "prettier --write .",
