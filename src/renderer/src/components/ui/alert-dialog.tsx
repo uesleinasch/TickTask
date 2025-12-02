@@ -18,7 +18,7 @@ function AlertDialogTrigger({
 
 function AlertDialogPortal({
   ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Portal>): null {
+}: React.ComponentProps<typeof AlertDialogPrimitive.Portal>): React.JSX.Element | null {
   return <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />
 }
 

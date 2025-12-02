@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Task, TimeEntry } from '../../../shared/types'
+import type { Task, TimeEntry } from '@shared/types'
 
 interface ActiveTimerState {
   // Estado do timer ativo

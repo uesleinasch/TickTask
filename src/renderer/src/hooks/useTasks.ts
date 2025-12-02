@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { Task, CreateTaskInput, TaskStatus } from '../../../shared/types'
+import type { Task, CreateTaskInput, TaskStatus } from '@shared/types'
 
 interface UseTasksReturn {
   tasks: Task[]
