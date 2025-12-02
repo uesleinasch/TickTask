@@ -24,6 +24,7 @@ import {
   getWeeklyStats,
   getTaskTimeStats,
   getStatusStats,
+  getCategoryStats,
   getHeatmapData,
   getGeneralStats
 } from './database'
@@ -241,6 +242,7 @@ function setupIpcHandlers(): void {
   ipcMain.handle('stats:weekly', () => getWeeklyStats())
   ipcMain.handle('stats:taskTime', () => getTaskTimeStats())
   ipcMain.handle('stats:status', () => getStatusStats())
+  ipcMain.handle('stats:category', () => getCategoryStats())
   ipcMain.handle('stats:heatmap', () => getHeatmapData())
   ipcMain.handle('stats:general', () => getGeneralStats())
 }

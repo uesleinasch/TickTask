@@ -9,7 +9,10 @@ import {
   Activity,
   Target,
   TrendingUp,
-  Calendar
+  Calendar,
+  AlertTriangle,
+  Flag,
+  Circle
 } from 'lucide-react'
 import { formatTime } from '@renderer/lib/utils'
 import {
@@ -48,6 +51,12 @@ interface HeatmapData {
   count: number
 }
 
+interface CategoryStats {
+  category: string
+  totalSeconds: number
+  taskCount: number
+}
+
 interface GeneralStats {
   totalTasks: number
   completedTasks: number
@@ -72,6 +81,20 @@ const STATUS_LABELS: Record<string, string> = {
   finalizada: 'Finalizada'
 }
 
+const CATEGORY_COLORS: Record<string, string> = {
+  urgente: '#ef4444',
+  prioridade: '#f59e0b',
+  normal: '#3b82f6',
+  time_leak: '#a855f7'
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  urgente: 'Urgente',
+  prioridade: 'Prioridade',
+  normal: 'Normal',
+  time_leak: 'Time Leak'
+}
+
 const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
 const CHART_COLORS = [
@@ -92,6 +115,7 @@ export function DashboardPage(): React.JSX.Element {
   const [weeklyStats, setWeeklyStats] = useState<DailyStats[]>([])
   const [taskTimeStats, setTaskTimeStats] = useState<TaskTimeStats[]>([])
   const [statusStats, setStatusStats] = useState<StatusStats[]>([])
+  const [categoryStats, setCategoryStats] = useState<CategoryStats[]>([])
   const [heatmapData, setHeatmapData] = useState<HeatmapData[]>([])
   const [generalStats, setGeneralStats] = useState<GeneralStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -99,10 +123,11 @@ export function DashboardPage(): React.JSX.Element {
   useEffect(() => {
     async function loadStats(): Promise<void> {
       try {
-        const [weekly, taskTime, status, heatmap, general] = await Promise.all([
+        const [weekly, taskTime, status, category, heatmap, general] = await Promise.all([
           window.api.getWeeklyStats(),
           window.api.getTaskTimeStats(),
           window.api.getStatusStats(),
+          window.api.getCategoryStats(),
           window.api.getHeatmapData(),
           window.api.getGeneralStats()
         ])
@@ -110,6 +135,7 @@ export function DashboardPage(): React.JSX.Element {
         setWeeklyStats(weekly)
         setTaskTimeStats(taskTime)
         setStatusStats(status)
+        setCategoryStats(category)
         setHeatmapData(heatmap)
         setGeneralStats(general)
       } catch (error) {
@@ -159,6 +185,16 @@ export function DashboardPage(): React.JSX.Element {
       color: CHART_COLORS[index % CHART_COLORS.length]
     }))
   }, [taskTimeStats])
+
+  // Dados para o gráfico de pizza (categorias)
+  const categoryPieData = useMemo(() => {
+    return categoryStats.map((stat) => ({
+      name: CATEGORY_LABELS[stat.category] || stat.category,
+      value: Math.round(stat.totalSeconds / 60), // converter para minutos
+      taskCount: stat.taskCount,
+      color: CATEGORY_COLORS[stat.category] || '#94a3b8'
+    }))
+  }, [categoryStats])
 
   // Gerar dados do heatmap
   const heatmapGrid = useMemo(() => {
@@ -359,6 +395,105 @@ export function DashboardPage(): React.JSX.Element {
             </div>
           </div>
 
+          {/* Categoria Stats Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Pie Chart - Por Categoria */}
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <AlertTriangle size={20} className="text-red-500" />
+                Tempo por Categoria
+              </h3>
+              {categoryPieData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={categoryPieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={80}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {categoryPieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number) => [`${value} min`, 'Tempo']}
+                      contentStyle={{
+                        backgroundColor: '#fff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[250px] flex items-center justify-center text-slate-400">
+                  Sem dados disponíveis
+                </div>
+              )}
+            </div>
+
+            {/* Category Details */}
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <Flag size={20} className="text-amber-500" />
+                Detalhes por Categoria
+              </h3>
+              {categoryStats.length > 0 ? (
+                <div className="space-y-4">
+                  {categoryStats.map((cat) => {
+                    const Icon =
+                      cat.category === 'urgente'
+                        ? AlertTriangle
+                        : cat.category === 'prioridade'
+                          ? Flag
+                          : cat.category === 'time_leak'
+                            ? Clock
+                            : Circle
+
+                    return (
+                      <div
+                        key={cat.category}
+                        className="flex items-center gap-4 p-3 rounded-lg bg-slate-50"
+                      >
+                        <div
+                          className="p-2 rounded-lg"
+                          style={{
+                            backgroundColor: `${CATEGORY_COLORS[cat.category]}20`
+                          }}
+                        >
+                          <Icon size={20} style={{ color: CATEGORY_COLORS[cat.category] }} />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-slate-900">
+                            {CATEGORY_LABELS[cat.category] || cat.category}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {cat.taskCount} tarefa{cat.taskCount !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-mono font-medium text-slate-900">
+                            {formatTime(cat.totalSeconds)}
+                          </p>
+                          <p className="text-xs text-slate-500">tempo total</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="h-[250px] flex items-center justify-center text-slate-400">
+                  Sem dados disponíveis
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Pie Chart - Tarefas mais trabalhadas */}
           <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">
@@ -404,7 +539,9 @@ export function DashboardPage(): React.JSX.Element {
                         className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
                       />
-                      <span className="flex-1 text-sm text-slate-700 truncate">{task.taskName}</span>
+                      <span className="flex-1 text-sm text-slate-700 truncate">
+                        {task.taskName}
+                      </span>
                       <span className="text-sm font-mono text-slate-500">
                         {formatTime(task.totalSeconds)}
                       </span>

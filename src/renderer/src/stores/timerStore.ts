@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import type { Task, TimeEntry } from '@shared/types'
 
+// Controle de notificações Time Leak
+let lastTimeLeakNotification = 0
+
 interface ActiveTimerState {
   // Estado do timer ativo
   activeTask: Task | null
@@ -92,6 +95,27 @@ export const useTimerStore = create<ActiveTimerState>((set, get) => ({
         taskName: activeTask.name,
         seconds: newSeconds
       })
+
+      // Time Leak: notificação a cada 5 minutos após 1 hora
+      if (activeTask.category === 'time_leak' && newSeconds >= 3600) {
+        const currentMinute = Math.floor(newSeconds / 60)
+        const lastNotifiedMinute = Math.floor(lastTimeLeakNotification / 60)
+        
+        // Notificar a cada 5 minutos (60, 65, 70, 75, ...)
+        if (
+          currentMinute >= 60 &&
+          currentMinute % 5 === 0 &&
+          currentMinute !== lastNotifiedMinute
+        ) {
+          lastTimeLeakNotification = newSeconds
+          const hours = Math.floor(newSeconds / 3600)
+          const minutes = Math.floor((newSeconds % 3600) / 60)
+          window.api.showNotification(
+            '⚠️ Time Leak Alert!',
+            `A tarefa "${activeTask.name}" já está em ${hours}h${minutes}min. Considere finalizá-la!`
+          )
+        }
+      }
     }
   },
 
@@ -175,21 +199,24 @@ export const useTimerStore = create<ActiveTimerState>((set, get) => ({
     }
 
     // Sem parâmetros, busca do banco
-    window.api.listTasks(false).then((tasks) => {
-      const runningTask = tasks.find((t) => t.is_running)
+    window.api
+      .listTasks(false)
+      .then((tasks) => {
+        const runningTask = tasks.find((t) => t.is_running)
 
-      if (runningTask) {
-        window.api.getActiveTimeEntry(runningTask.id).then((activeEntry) => {
-          if (activeEntry) {
-            get().setActiveTimer(runningTask, activeEntry)
-          }
-        })
-      } else {
-        get().clearActiveTimer()
-      }
-    }).catch((error) => {
-      console.error('Erro ao sincronizar timer:', error)
-    })
+        if (runningTask) {
+          window.api.getActiveTimeEntry(runningTask.id).then((activeEntry) => {
+            if (activeEntry) {
+              get().setActiveTimer(runningTask, activeEntry)
+            }
+          })
+        } else {
+          get().clearActiveTimer()
+        }
+      })
+      .catch((error) => {
+        console.error('Erro ao sincronizar timer:', error)
+      })
   }
 }))
 

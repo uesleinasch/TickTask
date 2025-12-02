@@ -5,11 +5,12 @@ import { Input } from '@renderer/components/ui/input'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Timer } from '@renderer/components/Timer'
 import { StatusSelect } from '@renderer/components/StatusSelect'
+import { CategorySelect } from '@renderer/components/CategorySelect'
 import { TimeEntryList } from '@renderer/components/TimeEntryList'
 import { DeleteConfirmDialog } from '@renderer/components/DeleteConfirmDialog'
 import { useTaskDetail } from '@renderer/hooks/useTaskDetail'
 import { formatTime, parseTimeInput } from '@renderer/lib/utils'
-import type { TaskStatus } from '../../../shared/types'
+import type { TaskStatus, TaskCategory } from '../../../shared/types'
 import { ArrowLeft, Archive, Trash2, AlertCircle, Plus, Edit3 } from 'lucide-react'
 import { toast } from '@renderer/components/ui/sonner'
 
@@ -64,6 +65,14 @@ export function SingleTaskPage(): React.JSX.Element {
       toast.success(`Status alterado para ${status}`)
     },
     [updateStatus]
+  )
+
+  const handleCategoryChange = useCallback(
+    async (category: TaskCategory): Promise<void> => {
+      await updateTask({ category })
+      toast.success(`Categoria alterada para ${category}`)
+    },
+    [updateTask]
   )
 
   const handleArchive = useCallback(async (): Promise<void> => {
@@ -148,8 +157,8 @@ export function SingleTaskPage(): React.JSX.Element {
         >
           <ArrowLeft size={18} className="mr-2" /> Voltar
         </Button>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-500 font-medium mr-2">Status:</span>
+        <div className="flex items-center gap-3">
+          <CategorySelect value={task.category || 'normal'} onChange={handleCategoryChange} />
           <StatusSelect value={task.status} onChange={handleStatusChange} />
         </div>
       </header>

@@ -24,6 +24,12 @@ interface StatusStats {
   totalSeconds: number
 }
 
+interface CategoryStats {
+  category: string
+  totalSeconds: number
+  taskCount: number
+}
+
 interface HeatmapData {
   date: string
   count: number
@@ -74,6 +80,7 @@ interface API {
   getWeeklyStats: () => Promise<DailyStats[]>
   getTaskTimeStats: () => Promise<TaskTimeStats[]>
   getStatusStats: () => Promise<StatusStats[]>
+  getCategoryStats: () => Promise<CategoryStats[]>
   getHeatmapData: () => Promise<HeatmapData[]>
   getGeneralStats: () => Promise<GeneralStats>
 }

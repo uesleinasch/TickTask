@@ -1,4 +1,5 @@
 export type TaskStatus = 'inbox' | 'aguardando' | 'proximas' | 'executando' | 'finalizada'
+export type TaskCategory = 'urgente' | 'prioridade' | 'normal' | 'time_leak'
 
 export interface Task {
   id: number
@@ -7,6 +8,7 @@ export interface Task {
   total_seconds: number
   time_limit_seconds?: number
   status: TaskStatus
+  category: TaskCategory
   is_running: boolean
   is_archived: boolean
   created_at: string
@@ -25,6 +27,7 @@ export interface CreateTaskInput {
   name: string
   description?: string
   time_limit_seconds?: number
+  category?: TaskCategory
 }
 
 export interface UpdateTaskInput {
@@ -32,6 +35,7 @@ export interface UpdateTaskInput {
   description?: string
   time_limit_seconds?: number
   status?: TaskStatus
+  category?: TaskCategory
 }
 
 export const STATUS_LABELS: Record<TaskStatus, string> = {
@@ -48,4 +52,18 @@ export const STATUS_COLORS: Record<TaskStatus, string> = {
   proximas: 'bg-blue-500',
   executando: 'bg-green-500',
   finalizada: 'bg-purple-500'
+}
+
+export const CATEGORY_LABELS: Record<TaskCategory, string> = {
+  urgente: 'Urgente',
+  prioridade: 'Prioridade',
+  normal: 'Normal',
+  time_leak: 'Time Leak'
+}
+
+export const CATEGORY_COLORS: Record<TaskCategory, string> = {
+  urgente: 'bg-red-500',
+  prioridade: 'bg-orange-500',
+  normal: 'bg-blue-500',
+  time_leak: 'bg-yellow-500'
 }

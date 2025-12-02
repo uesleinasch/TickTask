@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'path'
-import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus } from '@shared/types'
+import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus, TaskCategory } from '@shared/types'
 
 const dbPath = path.join(app.getPath('userData'), 'ticktask.db')
 
@@ -20,12 +20,20 @@ export function initDatabase(): void {
       total_seconds INTEGER DEFAULT 0,
       time_limit_seconds INTEGER,
       status TEXT DEFAULT 'inbox' CHECK(status IN ('inbox', 'aguardando', 'proximas', 'executando', 'finalizada')),
+      category TEXT DEFAULT 'normal' CHECK(category IN ('urgente', 'prioridade', 'normal', 'time_leak')),
       is_running INTEGER DEFAULT 0,
       is_archived INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `)
+
+  // Migração: adicionar coluna category se não existir
+  try {
+    db.exec(`ALTER TABLE tasks ADD COLUMN category TEXT DEFAULT 'normal' CHECK(category IN ('urgente', 'prioridade', 'normal', 'time_leak'))`)
+  } catch {
+    // Coluna já existe, ignorar
+  }
 
   // Criar tabela time_entries
   db.exec(`
@@ -42,10 +50,15 @@ export function initDatabase(): void {
 
 export function createTask(data: CreateTaskInput): Task {
   const stmt = db.prepare(`
-    INSERT INTO tasks (name, description, time_limit_seconds)
-    VALUES (?, ?, ?)
+    INSERT INTO tasks (name, description, time_limit_seconds, category)
+    VALUES (?, ?, ?, ?)
   `)
-  const result = stmt.run(data.name, data.description || null, data.time_limit_seconds || null)
+  const result = stmt.run(
+    data.name,
+    data.description || null,
+    data.time_limit_seconds || null,
+    data.category || 'normal'
+  )
   return getTask(result.lastInsertRowid as number)!
 }
 
@@ -56,6 +69,7 @@ export function listTasks(archived: boolean = false): Task[] {
   const rows = stmt.all(archived ? 1 : 0) as Task[]
   return rows.map((row) => ({
     ...row,
+    category: row.category || 'normal',
     is_running: Boolean(row.is_running),
     is_archived: Boolean(row.is_archived)
   }))
@@ -67,6 +81,7 @@ export function getTask(id: number): Task | undefined {
   if (row) {
     return {
       ...row,
+      category: row.category || 'normal',
       is_running: Boolean(row.is_running),
       is_archived: Boolean(row.is_archived)
     }
@@ -93,6 +108,10 @@ export function updateTask(id: number, data: UpdateTaskInput): void {
   if (data.status !== undefined) {
     updates.push('status = ?')
     values.push(data.status)
+  }
+  if (data.category !== undefined) {
+    updates.push('category = ?')
+    values.push(data.category)
   }
 
   if (updates.length > 0) {
@@ -293,6 +312,12 @@ export interface StatusStats {
   totalSeconds: number
 }
 
+export interface CategoryStats {
+  category: string
+  totalSeconds: number
+  taskCount: number
+}
+
 export interface HeatmapData {
   date: string
   count: number
@@ -327,6 +352,20 @@ export function getTaskTimeStats(): TaskTimeStats[] {
     LIMIT 10
   `)
   return stmt.all() as TaskTimeStats[]
+}
+
+// Tempo por categoria
+export function getCategoryStats(): CategoryStats[] {
+  const stmt = db.prepare(`
+    SELECT 
+      COALESCE(category, 'normal') as category,
+      SUM(total_seconds) as totalSeconds,
+      COUNT(*) as taskCount
+    FROM tasks
+    WHERE total_seconds > 0
+    GROUP BY category
+  `)
+  return stmt.all() as CategoryStats[]
 }
 
 // Tempo por status

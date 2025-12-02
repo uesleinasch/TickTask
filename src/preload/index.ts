@@ -78,6 +78,7 @@ const api = {
   getWeeklyStats: (): Promise<DailyStats[]> => ipcRenderer.invoke('stats:weekly'),
   getTaskTimeStats: (): Promise<TaskTimeStats[]> => ipcRenderer.invoke('stats:taskTime'),
   getStatusStats: (): Promise<StatusStats[]> => ipcRenderer.invoke('stats:status'),
+  getCategoryStats: (): Promise<CategoryStats[]> => ipcRenderer.invoke('stats:category'),
   getHeatmapData: (): Promise<HeatmapData[]> => ipcRenderer.invoke('stats:heatmap'),
   getGeneralStats: (): Promise<GeneralStats> => ipcRenderer.invoke('stats:general')
 }
@@ -98,6 +99,12 @@ interface TaskTimeStats {
 interface StatusStats {
   status: string
   totalSeconds: number
+}
+
+interface CategoryStats {
+  category: string
+  totalSeconds: number
+  taskCount: number
 }
 
 interface HeatmapData {

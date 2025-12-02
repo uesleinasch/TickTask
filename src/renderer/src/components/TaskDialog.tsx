@@ -10,7 +10,8 @@ import {
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { Textarea } from '@renderer/components/ui/textarea'
-import type { CreateTaskInput } from '../../../shared/types'
+import { CategorySelect } from './CategorySelect'
+import type { CreateTaskInput, TaskCategory } from '../../../shared/types'
 
 interface TaskDialogProps {
   open: boolean
@@ -22,6 +23,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [timeLimit, setTimeLimit] = useState('')
+  const [category, setCategory] = useState<TaskCategory>('normal')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
@@ -46,13 +48,15 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
       await onSubmit({
         name: name.trim(),
         description: description.trim() || undefined,
-        time_limit_seconds: timeLimitSeconds
+        time_limit_seconds: timeLimitSeconds,
+        category
       })
 
       // Reset form
       setName('')
       setDescription('')
       setTimeLimit('')
+      setCategory('normal')
       onOpenChange(false)
     } finally {
       setLoading(false)
@@ -93,17 +97,23 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
               className="border-slate-300 focus:ring-slate-900 resize-none"
             />
           </div>
-          <div className="space-y-2">
-            <label htmlFor="timeLimit" className="text-sm font-medium text-slate-700">
-              Tempo Limite (HH:MM:SS)
-            </label>
-            <Input
-              id="timeLimit"
-              value={timeLimit}
-              onChange={(e) => setTimeLimit(e.target.value)}
-              placeholder="00:00:00"
-              className="border-slate-300 focus:ring-slate-900 font-mono"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Categoria</label>
+              <CategorySelect value={category} onChange={setCategory} />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="timeLimit" className="text-sm font-medium text-slate-700">
+                Tempo Limite
+              </label>
+              <Input
+                id="timeLimit"
+                value={timeLimit}
+                onChange={(e) => setTimeLimit(e.target.value)}
+                placeholder="00:00:00"
+                className="border-slate-300 focus:ring-slate-900 font-mono h-8"
+              />
+            </div>
           </div>
           <DialogFooter className="pt-2">
             <Button
