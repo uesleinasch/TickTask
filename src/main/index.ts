@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, Notification } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Notification, screen } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/512.png?asset'
@@ -25,6 +25,85 @@ import {
 import type { CreateTaskInput, UpdateTaskInput, TaskStatus } from '../shared/types'
 
 let mainWindow: BrowserWindow | null = null
+let floatWindow: BrowserWindow | null = null
+let currentTimerData: { taskId: number; taskName: string; seconds: number } | null = null
+
+function createFloatWindow(): void {
+  if (floatWindow) {
+    floatWindow.show()
+    return
+  }
+
+  const display = screen.getPrimaryDisplay()
+  const { width } = display.workAreaSize
+
+  floatWindow = new BrowserWindow({
+    width: 280,
+    height: 70,
+    x: width - 300,
+    y: 20,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    focusable: false,
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false
+    }
+  })
+
+  // Carregar a mesma URL mas com hash para float
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    floatWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/float`)
+  } else {
+    floatWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/float' })
+  }
+
+  floatWindow.on('closed', () => {
+    floatWindow = null
+  })
+}
+
+function showFloatWindow(): void {
+  if (!floatWindow) {
+    createFloatWindow()
+  }
+  
+  // Aguardar a janela carregar antes de mostrar
+  if (floatWindow && !floatWindow.isVisible()) {
+    floatWindow.once('ready-to-show', () => {
+      floatWindow?.show()
+      // Enviar dados do timer atual
+      if (currentTimerData) {
+        floatWindow?.webContents.send('float:update', currentTimerData)
+      }
+    })
+    
+    // Se já está pronta, apenas mostrar
+    if (floatWindow.webContents.isLoading() === false) {
+      floatWindow.show()
+      if (currentTimerData) {
+        floatWindow.webContents.send('float:update', currentTimerData)
+      }
+    }
+  }
+}
+
+function hideFloatWindow(): void {
+  if (floatWindow) {
+    floatWindow.hide()
+  }
+}
+
+function updateFloatWindow(data: { taskId: number; taskName: string; seconds: number }): void {
+  currentTimerData = data
+  if (floatWindow && floatWindow.isVisible()) {
+    floatWindow.webContents.send('float:update', data)
+  }
+}
 
 function createWindow(): void {
   // Create the browser window.
@@ -45,6 +124,22 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
+  })
+
+  // Mostrar float window quando minimizar (se houver timer ativo)
+  mainWindow.on('minimize', () => {
+    if (currentTimerData) {
+      showFloatWindow()
+    }
+  })
+
+  // Esconder float window quando restaurar
+  mainWindow.on('restore', () => {
+    hideFloatWindow()
+  })
+
+  mainWindow.on('focus', () => {
+    hideFloatWindow()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -108,6 +203,33 @@ function setupIpcHandlers(): void {
       title,
       body
     }).show()
+  })
+
+  // Float window controls
+  ipcMain.handle('float:updateTimer', (_, data: { taskId: number; taskName: string; seconds: number }) => {
+    updateFloatWindow(data)
+  })
+
+  ipcMain.handle('float:clearTimer', () => {
+    currentTimerData = null
+    hideFloatWindow()
+  })
+
+  ipcMain.handle('float:restore', () => {
+    if (mainWindow) {
+      mainWindow.restore()
+      mainWindow.focus()
+    }
+    hideFloatWindow()
+  })
+
+  ipcMain.handle('float:stopTimer', async (_, taskId: number) => {
+    const result = await stopTask(taskId)
+    currentTimerData = null
+    hideFloatWindow()
+    // Notificar a janela principal para atualizar
+    mainWindow?.webContents.send('timer:stopped', taskId)
+    return result
   })
 }
 

@@ -1,6 +1,12 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus } from '../shared/types'
 
+interface FloatTimerData {
+  taskId: number
+  taskName: string
+  seconds: number
+}
+
 interface API {
   // Window controls
   minimizeWindow: () => Promise<void>
@@ -25,6 +31,14 @@ interface API {
   getTimeEntries: (taskId: number) => Promise<TimeEntry[]>
   getActiveTimeEntry: (taskId: number) => Promise<TimeEntry | undefined>
   showNotification: (title: string, body: string) => void
+
+  // Float window controls
+  updateFloatTimer: (data: FloatTimerData) => Promise<void>
+  clearFloatTimer: () => Promise<void>
+  restoreFromFloat: () => Promise<void>
+  stopFromFloat: (taskId: number) => Promise<void>
+  onFloatUpdate: (callback: (data: FloatTimerData) => void) => () => void
+  onTimerStopped: (callback: (taskId: number) => void) => () => void
 }
 
 declare global {

@@ -48,12 +48,23 @@ export const useTimerStore = create<ActiveTimerState>((set, get) => ({
       isRunning: true
     })
 
+    // Atualizar a janela flutuante
+    window.api.updateFloatTimer({
+      taskId: task.id,
+      taskName: task.name,
+      seconds: totalSeconds
+    })
+
     // Iniciar o intervalo
     get().startInterval()
   },
 
   clearActiveTimer: () => {
     get().stopInterval()
+    
+    // Limpar a janela flutuante
+    window.api.clearFloatTimer()
+    
     set({
       activeTask: null,
       activeEntry: null,
@@ -72,7 +83,15 @@ export const useTimerStore = create<ActiveTimerState>((set, get) => ({
       const startTime = new Date(activeEntry.start_time).getTime()
       const now = Date.now()
       const elapsed = Math.floor((now - startTime) / 1000)
-      set({ displaySeconds: activeTask.total_seconds + elapsed })
+      const newSeconds = activeTask.total_seconds + elapsed
+      set({ displaySeconds: newSeconds })
+      
+      // Atualizar a janela flutuante
+      window.api.updateFloatTimer({
+        taskId: activeTask.id,
+        taskName: activeTask.name,
+        seconds: newSeconds
+      })
     }
   },
 

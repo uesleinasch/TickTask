@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 
 interface UseTimerProps {
   taskId: number
+  taskName: string
   initialSeconds: number
   timeLimit?: number
   initialIsRunning: boolean
@@ -20,6 +21,7 @@ interface UseTimerReturn {
 
 export function useTimer({
   taskId,
+  taskName,
   initialSeconds,
   timeLimit,
   initialIsRunning,
@@ -43,6 +45,20 @@ export function useTimer({
       onTimeLimitReached?.()
     }
   }, [seconds, timeLimit, onTimeLimitReached])
+
+  // Atualizar a janela flutuante quando o timer está rodando
+  useEffect(() => {
+    if (isRunning) {
+      window.api.updateFloatTimer({ taskId, taskName, seconds })
+    }
+  }, [isRunning, taskId, taskName, seconds])
+
+  // Limpar a janela flutuante quando o timer para
+  useEffect(() => {
+    if (!isRunning) {
+      window.api.clearFloatTimer()
+    }
+  }, [isRunning])
 
   // Gerenciar intervalo do timer
   useEffect(() => {

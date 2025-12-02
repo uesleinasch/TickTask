@@ -45,6 +45,33 @@ const api = {
   // Notifications
   showNotification: (title: string, body: string): void => {
     ipcRenderer.invoke('notification:show', title, body)
+  },
+
+  // Float window controls
+  updateFloatTimer: (data: { taskId: number; taskName: string; seconds: number }): Promise<void> =>
+    ipcRenderer.invoke('float:updateTimer', data),
+  clearFloatTimer: (): Promise<void> => ipcRenderer.invoke('float:clearTimer'),
+  restoreFromFloat: (): Promise<void> => ipcRenderer.invoke('float:restore'),
+  stopFromFloat: (taskId: number): Promise<void> => ipcRenderer.invoke('float:stopTimer', taskId),
+
+  // Float window events
+  onFloatUpdate: (
+    callback: (data: { taskId: number; taskName: string; seconds: number }) => void
+  ): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, data: { taskId: number; taskName: string; seconds: number }): void => {
+      callback(data)
+    }
+    ipcRenderer.on('float:update', handler)
+    return () => ipcRenderer.removeListener('float:update', handler)
+  },
+
+  // Timer stopped event (from float window)
+  onTimerStopped: (callback: (taskId: number) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, taskId: number): void => {
+      callback(taskId)
+    }
+    ipcRenderer.on('timer:stopped', handler)
+    return () => ipcRenderer.removeListener('timer:stopped', handler)
   }
 }
 

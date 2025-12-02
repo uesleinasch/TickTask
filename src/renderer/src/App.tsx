@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { TaskListPage } from './pages/TaskListPage'
 import { SingleTaskPage } from './pages/SingleTaskPage'
 import { ArchivedTasksPage } from './pages/ArchivedTasksPage'
+import { FloatTimerPage } from './pages/FloatTimerPage'
 import { TitleBar } from './components/TitleBar'
 import { FloatingTimer } from './components/FloatingTimer'
 import { Toaster } from './components/ui/sonner'
@@ -26,9 +27,24 @@ const eventEmitter = {
 
 export { eventEmitter }
 
+// Componente para a janela flutuante
+function FloatContent(): React.JSX.Element {
+  return (
+    <div className="w-full h-full p-1">
+      <FloatTimerPage />
+    </div>
+  )
+}
+
 function AppContent(): React.JSX.Element {
   const location = useLocation()
   const isTaskPage = location.pathname.startsWith('/task/')
+  const isFloatPage = location.pathname === '/float'
+
+  // Se for a janela flutuante, renderizar apenas ela
+  if (isFloatPage) {
+    return <FloatContent />
+  }
 
   const handleNewTask = useCallback(() => {
     eventEmitter.emit('open-new-task-dialog')
@@ -42,6 +58,7 @@ function AppContent(): React.JSX.Element {
           <Route path="/" element={<TaskListPage />} />
           <Route path="/task/:id" element={<SingleTaskPage />} />
           <Route path="/archived" element={<ArchivedTasksPage />} />
+          <Route path="/float" element={<FloatTimerPage />} />
         </Routes>
       </main>
       {!isTaskPage && <FloatingTimer />}
