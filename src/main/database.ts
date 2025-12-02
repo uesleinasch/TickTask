@@ -241,6 +241,39 @@ export function resetTaskTimer(id: number): void {
   transaction()
 }
 
+export function addManualTimeEntry(taskId: number, seconds: number): void {
+  const transaction = db.transaction(() => {
+    const now = new Date().toISOString()
+
+    // Criar uma entrada de tempo manual (start_time e end_time iguais, duração manual)
+    const insertStmt = db.prepare(`
+      INSERT INTO time_entries (task_id, start_time, end_time, duration_seconds)
+      VALUES (?, ?, ?, ?)
+    `)
+    insertStmt.run(taskId, now, now, seconds)
+
+    // Atualizar total_seconds da tarefa
+    const updateTaskStmt = db.prepare(`
+      UPDATE tasks 
+      SET total_seconds = total_seconds + ?,
+          updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `)
+    updateTaskStmt.run(seconds, taskId)
+  })
+
+  transaction()
+}
+
+export function setTaskTotalTime(taskId: number, totalSeconds: number): void {
+  const stmt = db.prepare(`
+    UPDATE tasks 
+    SET total_seconds = ?, updated_at = CURRENT_TIMESTAMP 
+    WHERE id = ?
+  `)
+  stmt.run(totalSeconds, taskId)
+}
+
 export function closeDatabase(): void {
   if (db) {
     db.close()

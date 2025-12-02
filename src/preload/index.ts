@@ -27,6 +27,10 @@ const api = {
   updateTimer: (id: number, seconds: number): Promise<void> =>
     ipcRenderer.invoke('task:updateTimer', id, seconds),
   resetTask: (id: number): Promise<void> => ipcRenderer.invoke('task:reset', id),
+  addManualTime: (id: number, seconds: number): Promise<void> =>
+    ipcRenderer.invoke('task:addManualTime', id, seconds),
+  setTotalTime: (id: number, seconds: number): Promise<void> =>
+    ipcRenderer.invoke('task:setTotalTime', id, seconds),
 
   // Status
   updateStatus: (id: number, status: TaskStatus): Promise<void> =>

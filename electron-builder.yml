@@ -21,13 +21,16 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+mac:
+  category: public.app-category.productivity
+  icon: build/icon.icns
 linux:
   target:
     - AppImage
     - deb
   maintainer: ticktask@github.com
   category: Utility
-  icon: build/icon.png
+  icon: build/icons
 appImage:
   artifactName: ${name}-${version}.${ext}
 deb:

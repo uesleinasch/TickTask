@@ -9,7 +9,7 @@ interface TaskListProps {
 export function TaskList({ tasks, onTaskClick }: TaskListProps): React.JSX.Element {
   if (tasks.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+      <div className="flex flex-col items-center justify-center py-12 text-slate-400">
         <p className="text-lg">Nenhuma tarefa encontrada</p>
         <p className="text-sm">Crie uma nova tarefa para começar</p>
       </div>
@@ -17,7 +17,7 @@ export function TaskList({ tasks, onTaskClick }: TaskListProps): React.JSX.Eleme
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {tasks.map((task) => (
         <TaskCard key={task.id} task={task} onClick={() => onTaskClick(task.id)} />
       ))}

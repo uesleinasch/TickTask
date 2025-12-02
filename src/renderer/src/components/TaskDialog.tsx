@@ -61,55 +61,64 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="bg-white rounded-xl shadow-2xl border-slate-200">
         <DialogHeader>
-          <DialogTitle>Nova Tarefa</DialogTitle>
-          <DialogDescription>Crie uma nova tarefa para acompanhar seu tempo.</DialogDescription>
+          <DialogTitle className="text-xl font-bold text-slate-900">Nova Tarefa</DialogTitle>
+          <DialogDescription className="text-slate-500">Crie uma nova tarefa para acompanhar seu tempo.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="name" className="text-sm font-medium">
+            <label htmlFor="name" className="text-sm font-medium text-slate-700">
               Nome *
             </label>
             <Input
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Nome da tarefa"
+              placeholder="Ex: Refatorar módulo de login"
               required
+              className="border-slate-300 focus:ring-slate-900"
             />
           </div>
           <div className="space-y-2">
-            <label htmlFor="description" className="text-sm font-medium">
-              Descrição
+            <label htmlFor="description" className="text-sm font-medium text-slate-700">
+              Descrição (Opcional)
             </label>
             <Textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Descrição opcional"
+              placeholder="Detalhes sobre a tarefa..."
               rows={3}
+              className="border-slate-300 focus:ring-slate-900 resize-none"
             />
           </div>
           <div className="space-y-2">
-            <label htmlFor="timeLimit" className="text-sm font-medium">
-              Tempo Limite (opcional)
+            <label htmlFor="timeLimit" className="text-sm font-medium text-slate-700">
+              Tempo Limite (HH:MM:SS)
             </label>
             <Input
               id="timeLimit"
               value={timeLimit}
               onChange={(e) => setTimeLimit(e.target.value)}
-              placeholder="HH:MM:SS ou MM:SS"
+              placeholder="00:00:00"
+              className="border-slate-300 focus:ring-slate-900 font-mono"
             />
-            <p className="text-xs text-muted-foreground">
-              Ex: 02:00:00 (2 horas), 30:00 (30 minutos), 45 (45 minutos)
-            </p>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              className="text-slate-700 hover:bg-slate-100"
+            >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading || !name.trim()}>
+            <Button
+              type="submit"
+              disabled={loading || !name.trim()}
+              className="bg-slate-900 text-white hover:bg-slate-800"
+            >
               {loading ? 'Criando...' : 'Criar Tarefa'}
             </Button>
           </DialogFooter>

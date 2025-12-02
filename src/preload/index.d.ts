@@ -19,6 +19,8 @@ interface API {
   stopTask: (id: number) => Promise<void>
   updateTimer: (id: number, seconds: number) => Promise<void>
   resetTask: (id: number) => Promise<void>
+  addManualTime: (id: number, seconds: number) => Promise<void>
+  setTotalTime: (id: number, seconds: number) => Promise<void>
   updateStatus: (id: number, status: TaskStatus) => Promise<void>
   getTimeEntries: (taskId: number) => Promise<TimeEntry[]>
   getActiveTimeEntry: (taskId: number) => Promise<TimeEntry | undefined>

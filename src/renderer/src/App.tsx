@@ -35,7 +35,7 @@ function AppContent(): React.JSX.Element {
   }, [])
 
   return (
-    <div className="dark flex flex-col h-screen">
+    <div className="flex flex-col h-screen bg-slate-50">
       <TitleBar onNewTask={handleNewTask} />
       <main className="flex-1 overflow-hidden">
         <Routes>

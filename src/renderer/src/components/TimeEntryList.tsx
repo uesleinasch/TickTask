@@ -11,26 +11,20 @@ export function TimeEntryList({ entries }: TimeEntryListProps): React.JSX.Elemen
 
   if (completedEntries.length === 0) {
     return (
-      <div className="text-center py-6 text-muted-foreground">
-        <p>Nenhuma sessão registrada ainda</p>
-      </div>
+      <div className="text-slate-400 text-sm italic">Nenhuma sessão registrada ainda.</div>
     )
   }
 
   return (
-    <ScrollArea className="h-[200px]">
+    <ScrollArea className="max-h-[250px]">
       <div className="space-y-2">
         {completedEntries.map((entry) => (
           <div
             key={entry.id}
-            className="flex items-center justify-between py-2 px-3 bg-muted/50 rounded-md"
+            className="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-lg text-sm"
           >
-            <span className="text-sm text-foreground font-medium">
-              {formatDateTime(entry.start_time)}
-            </span>
-            <span className="font-mono text-sm font-medium text-foreground">
-              {formatTime(entry.duration_seconds || 0)}
-            </span>
+            <div className="text-slate-600">{formatDateTime(entry.start_time)}</div>
+            <div className="font-mono text-slate-900">+ {formatTime(entry.duration_seconds || 0)}</div>
           </div>
         ))}
       </div>

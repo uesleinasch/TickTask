@@ -1,6 +1,9 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Minus, Square, X, Plus, Archive } from 'lucide-react'
+import { Plus, Archive } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
+
+// Importa o ícone da aplicação
+import appIcon from '../../../../resources/32.png'
 
 interface TitleBarProps {
   onNewTask?: () => void
@@ -11,71 +14,38 @@ export function TitleBar({ onNewTask }: TitleBarProps): React.JSX.Element {
   const location = useLocation()
   const isMainPage = location.pathname === '/'
 
-  const handleMinimize = (): void => {
-    window.api.minimizeWindow()
-  }
-
-  const handleMaximize = (): void => {
-    window.api.maximizeWindow()
-  }
-
-  const handleClose = (): void => {
-    window.api.closeWindow()
-  }
-
   return (
-    <header className="flex items-center justify-between h-12 px-4 bg-background border-b select-none app-drag">
-      {/* Lado Esquerdo: Nome do App + Ações */}
-      <div className="flex items-center gap-4 app-no-drag">
-        <span className="text-lg font-bold text-foreground cursor-default app-drag">⏱️ TickTask</span>
-        
-        {isMainPage && (
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              onClick={() => navigate('/archived')}
-              className="h-8 bg-zinc-900 text-white hover:bg-zinc-800 hover:shadow-md dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-            >
-              <Archive className="mr-1.5 h-3.5 w-3.5" />
-              Arquivadas
-            </Button>
-            {onNewTask && (
-              <Button size="sm" className="h-8" onClick={onNewTask}>
-                <Plus className="mr-1.5 h-3.5 w-3.5" />
-                Nova Tarefa
-              </Button>
-            )}
-          </div>
-        )}
+    <header className="flex items-center justify-between h-14 px-6 bg-white border-b border-slate-200">
+      {/* Lado Esquerdo: Logo + Nome */}
+      <div className="flex items-center gap-2">
+        <img src={appIcon} alt="TickTask" className="w-8 h-8" />
+        <span className="text-xl font-bold text-slate-900">TickTask</span>
       </div>
 
-      {/* Lado Direito: Controles da Janela */}
-      <div className="flex items-center app-no-drag">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-10 rounded-none text-foreground hover:bg-muted"
-          onClick={handleMinimize}
-        >
-          <Minus className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-10 rounded-none text-foreground hover:bg-muted"
-          onClick={handleMaximize}
-        >
-          <Square className="h-3 w-3" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-10 rounded-none text-foreground hover:bg-destructive hover:text-destructive-foreground"
-          onClick={handleClose}
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
+      {/* Lado Direito: Ações */}
+      {isMainPage && (
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/archived')}
+            className="h-9 border-slate-200 text-slate-700 hover:bg-slate-100"
+          >
+            <Archive className="mr-2 h-4 w-4" />
+            Arquivadas
+          </Button>
+          {onNewTask && (
+            <Button 
+              size="sm" 
+              onClick={onNewTask}
+              className="h-9 bg-slate-900 text-white hover:bg-slate-800 shadow-sm"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Nova Tarefa
+            </Button>
+          )}
+        </div>
+      )}
     </header>
   )
 }

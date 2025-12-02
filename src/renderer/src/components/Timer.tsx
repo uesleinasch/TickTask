@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Button } from '@renderer/components/ui/button'
-import { Progress } from '@renderer/components/ui/progress'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -59,6 +58,11 @@ export function Timer({
   // Calcular progresso
   const progress = timeLimit ? Math.min((displaySeconds / timeLimit) * 100, 100) : 0
 
+  // Determinar cor da barra de progresso
+  let progressColor = 'bg-slate-900'
+  if (progress > 80) progressColor = 'bg-yellow-500'
+  if (progress >= 100) progressColor = 'bg-red-500'
+
   // Sincronizar com a store quando o componente monta
   useEffect(() => {
     if (propIsRunning) {
@@ -104,61 +108,93 @@ export function Timer({
   }, [taskId, resetTimer, onStateChange])
 
   return (
-    <div className="flex flex-col items-center gap-6 p-6 bg-card rounded-xl border">
-      {/* Timer Display */}
-      <div
-        className={cn(
-          'text-6xl font-mono font-bold tabular-nums text-foreground',
-          hasReachedLimit && 'text-destructive'
-        )}
-      >
-        {formatTime(displaySeconds)}
-      </div>
-
-      {/* Progress Bar */}
-      {timeLimit && timeLimit > 0 && (
-        <div className="w-full space-y-2">
-          <Progress value={progress} className="h-3" />
-          <p className="text-sm text-muted-foreground text-center">
-            {Math.round(progress)}% de {formatTime(timeLimit)}
-          </p>
-        </div>
+    <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-lg relative overflow-hidden">
+      {/* Barra de progresso no topo quando rodando */}
+      {isRunning && (
+        <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500 animate-pulse-slow" />
       )}
 
-      {/* Controls */}
-      <div className="flex gap-3">
-        {isRunning ? (
-          <Button onClick={handlePause} size="lg" variant="secondary">
-            <Pause className="mr-2 h-5 w-5" />
-            Pausar
-          </Button>
-        ) : (
-          <Button onClick={handleStart} size="lg">
-            <Play className="mr-2 h-5 w-5" />
-            Iniciar
-          </Button>
+      {/* Timer Display */}
+      <div className="flex flex-col items-center justify-center">
+        <div
+          className={cn(
+            'text-7xl font-mono font-bold tracking-tighter mb-8 tabular-nums',
+            isRunning ? 'text-slate-900' : 'text-slate-400',
+            hasReachedLimit && 'text-red-500'
+          )}
+        >
+          {formatTime(displaySeconds)}
+        </div>
+
+        {/* Progress Bar */}
+        {timeLimit && timeLimit > 0 && (
+          <div className="w-full max-w-md mb-8 space-y-2">
+            <div className="flex justify-between text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              <span>Progresso</span>
+              <span>{Math.round(progress)}%</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+              <div
+                className={`h-full transition-all duration-500 ease-in-out ${progressColor}`}
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <div className="text-center text-xs text-slate-400 mt-1">
+              Meta: {formatTime(timeLimit)}
+            </div>
+          </div>
         )}
 
-        <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
-          <AlertDialogTrigger asChild>
-            <Button size="lg" variant="secondary" className="text-foreground">
-              <RotateCcw className="mr-2 h-5 w-5" />
-              Resetar
+        {/* Controls */}
+        <div className="flex items-center gap-4">
+          {!isRunning ? (
+            <Button
+              onClick={handleStart}
+              className="h-14 px-8 rounded-full text-lg shadow-xl shadow-slate-200 bg-slate-900 text-white hover:bg-slate-800"
+            >
+              <Play className="fill-current mr-2" /> Iniciar
             </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Resetar Timer</AlertDialogTitle>
-              <AlertDialogDescription>
-                Tem certeza que deseja resetar o timer? Todo o tempo registrado será zerado.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleReset}>Confirmar</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          ) : (
+            <Button
+              onClick={handlePause}
+              variant="outline"
+              className="h-14 px-8 rounded-full text-lg border-2 border-slate-200 hover:border-slate-300 text-slate-700 bg-white"
+            >
+              <Pause className="fill-current mr-2" /> Pausar
+            </Button>
+          )}
+
+          <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full h-14 w-14 text-slate-400 hover:text-red-500 hover:bg-red-50"
+              >
+                <RotateCcw size={20} />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="bg-white">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-slate-900">Resetar Timer</AlertDialogTitle>
+                <AlertDialogDescription className="text-slate-600">
+                  Tem certeza que deseja resetar o timer? Todo o tempo registrado será zerado.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="border-slate-200 text-slate-700 hover:bg-slate-100">
+                  Cancelar
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleReset}
+                  className="bg-red-500 text-white hover:bg-red-600"
+                >
+                  Confirmar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
     </div>
   )

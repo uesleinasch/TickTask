@@ -1,7 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain, Notification } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import icon from '../../resources/512.png?asset'
 import {
   initDatabase,
   closeDatabase,
@@ -18,7 +18,9 @@ import {
   updateTimer,
   getTimeEntries,
   getActiveTimeEntry,
-  resetTaskTimer
+  resetTaskTimer,
+  addManualTimeEntry,
+  setTaskTotalTime
 } from './database'
 import type { CreateTaskInput, UpdateTaskInput, TaskStatus } from '../shared/types'
 
@@ -27,13 +29,14 @@ let mainWindow: BrowserWindow | null = null
 function createWindow(): void {
   // Create the browser window.
   mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+    width: 1024,
+    height: 700,
+    minWidth: 800,
+    minHeight: 600,
     show: false,
     autoHideMenuBar: true,
-    frame: false,
-    titleBarStyle: 'hidden',
-    ...(process.platform === 'linux' ? { icon } : {}),
+    title: 'TickTask',
+    icon: icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
@@ -87,6 +90,8 @@ function setupIpcHandlers(): void {
   ipcMain.handle('task:stop', (_, id: number) => stopTask(id))
   ipcMain.handle('task:updateTimer', (_, id: number, seconds: number) => updateTimer(id, seconds))
   ipcMain.handle('task:reset', (_, id: number) => resetTaskTimer(id))
+  ipcMain.handle('task:addManualTime', (_, id: number, seconds: number) => addManualTimeEntry(id, seconds))
+  ipcMain.handle('task:setTotalTime', (_, id: number, seconds: number) => setTaskTotalTime(id, seconds))
 
   // Status
   ipcMain.handle('task:updateStatus', (_, id: number, status: TaskStatus) =>
