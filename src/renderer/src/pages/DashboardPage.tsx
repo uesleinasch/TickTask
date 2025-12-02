@@ -271,7 +271,7 @@ export function DashboardPage(): React.JSX.Element {
 
       {/* Content */}
       <ScrollArea className="flex-1 h-0">
-        <div className="max-w-6xl mx-auto p-6 space-y-6">
+        <div className="max-w-6xl mx-auto p-6 pb-16 space-y-6">
           {/* Stats Cards */}
           {generalStats && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
