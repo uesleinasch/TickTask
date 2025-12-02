@@ -1,4 +1,4 @@
-name: Release Electron App
+name: Release TickTask App
 
 on:
   push:
