@@ -1,0 +1,36 @@
+name: Release Electron App
+
+on:
+  push:
+    tags:
+      - 'v*'   # Só dispara quando pushar uma tag como v1.0.0
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        # Para incluir MacOS (> só funciona se você tiver CI pago)
+        # os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Build Frontend e Electron
+        run: npm run build
+
+      - name: Build e Publicar (electron-builder)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist
