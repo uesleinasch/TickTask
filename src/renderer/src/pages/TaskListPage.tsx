@@ -1,13 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button } from '@renderer/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@renderer/components/ui/tabs'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { TaskList } from '@renderer/components/TaskList'
 import { TaskDialog } from '@renderer/components/TaskDialog'
 import { useTasks, useFilteredTasks } from '@renderer/hooks/useTasks'
+import { eventEmitter } from '@renderer/App'
 import type { TaskStatus, CreateTaskInput } from '../../../shared/types'
-import { Plus, Archive } from 'lucide-react'
 
 type FilterStatus = TaskStatus | 'all'
 
@@ -15,36 +14,28 @@ export function TaskListPage(): React.JSX.Element {
   const navigate = useNavigate()
   const { tasks, loading, createTask } = useTasks(false)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [statusFilter, setStatusFilter] = useState<FilterStatus>('all')
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>('inbox')
 
   const filteredTasks = useFilteredTasks(tasks, statusFilter)
 
-  const handleCreateTask = async (data: CreateTaskInput): Promise<void> => {
+  // Ouvir evento de nova tarefa do TitleBar
+  useEffect(() => {
+    const openDialog = (): void => setDialogOpen(true)
+    eventEmitter.on('open-new-task-dialog', openDialog)
+    return () => eventEmitter.off('open-new-task-dialog', openDialog)
+  }, [])
+
+  const handleCreateTask = useCallback(async (data: CreateTaskInput): Promise<void> => {
     const task = await createTask(data)
     navigate(`/task/${task.id}`)
-  }
+  }, [createTask, navigate])
 
   const handleTaskClick = (taskId: number): void => {
     navigate(`/task/${taskId}`)
   }
 
   return (
-    <div className="flex flex-col h-screen">
-      {/* Header */}
-      <header className="flex items-center justify-between p-4 border-b">
-        <h1 className="text-2xl font-bold">TickTask</h1>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={() => navigate('/archived')}>
-            <Archive className="mr-2 h-4 w-4" />
-            Arquivadas
-          </Button>
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nova Tarefa
-          </Button>
-        </div>
-      </header>
-
+    <div className="flex flex-col h-full">
       {/* Tabs */}
       <Tabs
         value={statusFilter}
@@ -63,15 +54,23 @@ export function TaskListPage(): React.JSX.Element {
         </div>
 
         <ScrollArea className="flex-1">
-          <TabsContent value={statusFilter} className="p-4 m-0">
+          <div className="p-4">
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <p className="text-muted-foreground">Carregando...</p>
               </div>
+            ) : filteredTasks.length === 0 ? (
+              <div className="flex items-center justify-center py-12">
+                <p className="text-muted-foreground">
+                  {statusFilter === 'all'
+                    ? 'Nenhuma tarefa ainda. Crie uma nova!'
+                    : `Nenhuma tarefa com status "${statusFilter}"`}
+                </p>
+              </div>
             ) : (
               <TaskList tasks={filteredTasks} onTaskClick={handleTaskClick} />
             )}
-          </TabsContent>
+          </div>
         </ScrollArea>
       </Tabs>
 

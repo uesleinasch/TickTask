@@ -25,10 +25,10 @@ export function TimeEntryList({ entries }: TimeEntryListProps): React.JSX.Elemen
             key={entry.id}
             className="flex items-center justify-between py-2 px-3 bg-muted/50 rounded-md"
           >
-            <span className="text-sm text-muted-foreground">
+            <span className="text-sm text-foreground font-medium">
               {formatDateTime(entry.start_time)}
             </span>
-            <span className="font-mono text-sm font-medium">
+            <span className="font-mono text-sm font-medium text-foreground">
               {formatTime(entry.duration_seconds || 0)}
             </span>
           </div>

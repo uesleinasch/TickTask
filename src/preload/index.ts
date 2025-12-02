@@ -4,6 +4,11 @@ import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus } fr
 
 // Custom APIs for renderer
 const api = {
+  // Window controls
+  minimizeWindow: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
+  maximizeWindow: (): Promise<void> => ipcRenderer.invoke('window:maximize'),
+  closeWindow: (): Promise<void> => ipcRenderer.invoke('window:close'),
+
   // Task CRUD
   createTask: (data: CreateTaskInput): Promise<Task> => ipcRenderer.invoke('task:create', data),
   listTasks: (archived?: boolean): Promise<Task[]> => ipcRenderer.invoke('task:list', archived),

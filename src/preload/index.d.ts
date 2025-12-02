@@ -2,6 +2,12 @@ import { ElectronAPI } from '@electron-toolkit/preload'
 import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus } from '../shared/types'
 
 interface API {
+  // Window controls
+  minimizeWindow: () => Promise<void>
+  maximizeWindow: () => Promise<void>
+  closeWindow: () => Promise<void>
+
+  // Task CRUD
   createTask: (data: CreateTaskInput) => Promise<Task>
   listTasks: (archived?: boolean) => Promise<Task[]>
   getTask: (id: number) => Promise<Task | undefined>

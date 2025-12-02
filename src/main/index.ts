@@ -22,13 +22,17 @@ import {
 } from './database'
 import type { CreateTaskInput, UpdateTaskInput, TaskStatus } from '../shared/types'
 
+let mainWindow: BrowserWindow | null = null
+
 function createWindow(): void {
   // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
     show: false,
     autoHideMenuBar: true,
+    frame: false,
+    titleBarStyle: 'hidden',
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -37,7 +41,7 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
+    mainWindow?.show()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -56,6 +60,17 @@ function createWindow(): void {
 
 // Setup IPC Handlers
 function setupIpcHandlers(): void {
+  // Window controls
+  ipcMain.handle('window:minimize', () => mainWindow?.minimize())
+  ipcMain.handle('window:maximize', () => {
+    if (mainWindow?.isMaximized()) {
+      mainWindow.unmaximize()
+    } else {
+      mainWindow?.maximize()
+    }
+  })
+  ipcMain.handle('window:close', () => mainWindow?.close())
+
   // Task CRUD
   ipcMain.handle('task:create', (_, data: CreateTaskInput) => createTask(data))
   ipcMain.handle('task:list', (_, archived?: boolean) => listTasks(archived))

@@ -139,6 +139,17 @@
   }
 }
 
+/* Titlebar drag region */
+.app-drag {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
 #root {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }

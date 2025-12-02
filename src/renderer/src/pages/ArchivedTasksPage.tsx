@@ -38,13 +38,13 @@ export function ArchivedTasksPage(): React.JSX.Element {
   }
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-full">
       {/* Header */}
       <header className="flex items-center gap-4 p-4 border-b">
         <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-2xl font-bold">Tarefas Arquivadas</h1>
+        <h1 className="text-xl font-semibold text-foreground">Tarefas Arquivadas</h1>
       </header>
 
       {/* Content */}

@@ -104,14 +104,14 @@ export function SingleTaskPage(): React.JSX.Element {
   }
 
   return (
-    <ScrollArea className="h-screen">
+    <ScrollArea className="h-full">
       <div className="max-w-2xl mx-auto p-4 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-semibold flex-1">Detalhes da Tarefa</h1>
+          <h1 className="text-xl font-semibold flex-1 text-foreground">Detalhes da Tarefa</h1>
         </div>
 
         {/* Nome e Descrição */}
@@ -189,7 +189,10 @@ export function SingleTaskPage(): React.JSX.Element {
 
         {/* Ações */}
         <div className="flex gap-4 pt-4 border-t">
-          <Button variant="outline" onClick={handleArchive} className="flex-1">
+          <Button
+            onClick={handleArchive}
+            className="flex-1 bg-zinc-900 text-white hover:bg-zinc-800 hover:shadow-md dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          >
             <Archive className="mr-2 h-4 w-4" />
             Arquivar
           </Button>
