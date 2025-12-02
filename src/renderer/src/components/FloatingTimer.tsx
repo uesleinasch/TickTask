@@ -1,36 +1,15 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { formatTime } from '@renderer/lib/utils'
 import { Play } from 'lucide-react'
-import type { Task, TimeEntry } from '../../../shared/types'
-
-interface ActiveTaskData {
-  task: Task
-  activeEntry: TimeEntry | undefined
-}
+import { useTimerStore } from '@renderer/stores/timerStore'
 
 export function FloatingTimer(): React.JSX.Element | null {
   const navigate = useNavigate()
-  const [activeData, setActiveData] = useState<ActiveTaskData | null>(null)
-  const [displaySeconds, setDisplaySeconds] = useState(0)
-  const intervalRef = useRef<number | null>(null)
+  const location = useLocation()
+  const { activeTask, displaySeconds, isRunning, syncWithDatabase, startInterval, stopInterval } = useTimerStore()
 
-  // Calcular segundos em tempo real
-  const calculateCurrentSeconds = useCallback((task: Task, activeEntry: TimeEntry | undefined): number => {
-    if (!task.is_running || !activeEntry) {
-      return task.total_seconds
-    }
-    
-    // Calcular tempo decorrido desde o início da sessão ativa
-    const startTime = new Date(activeEntry.start_time).getTime()
-    const now = Date.now()
-    const elapsedSeconds = Math.floor((now - startTime) / 1000)
-    
-    // Total = tempo já salvo + tempo da sessão atual
-    return task.total_seconds + elapsedSeconds
-  }, [])
-
-  // Verificar se há task ativa
+  // Verificar se há task ativa no banco (para quando voltar de outra página)
   useEffect(() => {
     const checkActiveTask = async (): Promise<void> => {
       try {
@@ -39,52 +18,51 @@ export function FloatingTimer(): React.JSX.Element | null {
         
         if (running) {
           const activeEntry = await window.api.getActiveTimeEntry(running.id)
-          setActiveData({ task: running, activeEntry })
-          setDisplaySeconds(calculateCurrentSeconds(running, activeEntry))
-        } else {
-          setActiveData(null)
+          syncWithDatabase(running, activeEntry)
+          
+          // Iniciar interval se estiver rodando
+          if (running.is_running && activeEntry) {
+            startInterval()
+          }
         }
       } catch (error) {
         console.error('Erro ao verificar task ativa:', error)
       }
     }
 
+    // Verificar imediatamente
     checkActiveTask()
-    // Verificar a cada 3 segundos para pegar novas tasks
-    const checkInterval = window.setInterval(checkActiveTask, 3000)
+    
+    // Verificar a cada 5 segundos para pegar mudanças
+    const checkInterval = window.setInterval(checkActiveTask, 5000)
 
     return () => window.clearInterval(checkInterval)
-  }, [calculateCurrentSeconds])
+  }, [syncWithDatabase, startInterval])
 
-  // Incrementar contador quando há task ativa
+  // Gerenciar interval quando isRunning muda
   useEffect(() => {
-    if (intervalRef.current !== null) {
-      window.clearInterval(intervalRef.current)
-      intervalRef.current = null
+    if (isRunning) {
+      startInterval()
+    } else {
+      stopInterval()
     }
 
-    if (activeData?.task.is_running && activeData.activeEntry) {
-      // Atualizar display a cada segundo com cálculo real
-      intervalRef.current = window.setInterval(() => {
-        setDisplaySeconds(calculateCurrentSeconds(activeData.task, activeData.activeEntry))
-      }, 1000)
-    }
+    return () => stopInterval()
+  }, [isRunning, startInterval, stopInterval])
 
-    return () => {
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
-    }
-  }, [activeData, calculateCurrentSeconds])
+  // Não mostrar se não há task ativa ou se estamos na página da task ativa
+  if (!activeTask || !isRunning) {
+    return null
+  }
 
-  // Não mostrar se não há task ativa
-  if (!activeData) {
+  // Não mostrar se estamos na página desta task
+  const isOnTaskPage = location.pathname === `/task/${activeTask.id}`
+  if (isOnTaskPage) {
     return null
   }
 
   const handleClick = (): void => {
-    navigate(`/task/${activeData.task.id}`)
+    navigate(`/task/${activeTask.id}`)
   }
 
   return (
@@ -96,7 +74,7 @@ export function FloatingTimer(): React.JSX.Element | null {
         <Play className="h-4 w-4 fill-current" />
       </div>
       <div className="flex flex-col items-start">
-        <span className="text-xs opacity-80 truncate max-w-32">{activeData.task.name}</span>
+        <span className="text-xs opacity-80 truncate max-w-32">{activeTask.name}</span>
         <span className="text-lg font-mono font-bold tabular-nums">{formatTime(displaySeconds)}</span>
       </div>
     </button>

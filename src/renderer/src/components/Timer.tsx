@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Button } from '@renderer/components/ui/button'
 import { Progress } from '@renderer/components/ui/progress'
 import {
@@ -15,6 +15,7 @@ import {
 import { formatTime } from '@renderer/lib/utils'
 import { Play, Pause, RotateCcw } from 'lucide-react'
 import { useNotification } from '@renderer/hooks/useNotification'
+import { useTimerStore } from '@renderer/stores/timerStore'
 import { cn } from '@renderer/lib/utils'
 
 interface TimerProps {
@@ -35,18 +36,35 @@ export function Timer({
   onStateChange
 }: TimerProps): React.JSX.Element {
   const { notify } = useNotification()
-
-  const [displaySeconds, setDisplaySeconds] = useState(initialSeconds)
-  const [isRunning, setIsRunning] = useState(propIsRunning)
-  const [hasReachedLimit, setHasReachedLimit] = useState(false)
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
-  const intervalRef = useRef<number | null>(null)
-  const notifiedRef = useRef(false)
-  const startTimeRef = useRef<number | null>(null)
-  const baseSecondsRef = useRef(initialSeconds)
+  const [hasReachedLimit, setHasReachedLimit] = useState(false)
+  const notifiedRef = { current: false }
+
+  // Usar a store global
+  const {
+    activeTask,
+    displaySeconds: storeSeconds,
+    isRunning: storeIsRunning,
+    startTimer,
+    pauseTimer,
+    resetTimer,
+    syncWithDatabase
+  } = useTimerStore()
+
+  // Determinar se este timer é o ativo
+  const isThisTaskActive = activeTask?.id === taskId
+  const displaySeconds = isThisTaskActive ? storeSeconds : initialSeconds
+  const isRunning = isThisTaskActive ? storeIsRunning : false
 
   // Calcular progresso
   const progress = timeLimit ? Math.min((displaySeconds / timeLimit) * 100, 100) : 0
+
+  // Sincronizar com a store quando o componente monta
+  useEffect(() => {
+    if (propIsRunning) {
+      syncWithDatabase()
+    }
+  }, [propIsRunning, syncWithDatabase])
 
   // Verificar limite de tempo
   useEffect(() => {
@@ -57,115 +75,33 @@ export function Timer({
     }
   }, [displaySeconds, timeLimit, taskName, notify])
 
-  // Buscar tempo real e iniciar contador quando o componente monta
-  useEffect(() => {
-    const initTimer = async (): Promise<void> => {
-      // Limpar intervalo anterior
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
-
-      if (propIsRunning) {
-        try {
-          const activeEntry = await window.api.getActiveTimeEntry(taskId)
-          if (activeEntry) {
-            const startTime = new Date(activeEntry.start_time).getTime()
-            startTimeRef.current = startTime
-            baseSecondsRef.current = initialSeconds
-
-            // Calcular tempo atual imediatamente
-            const now = Date.now()
-            const elapsed = Math.floor((now - startTime) / 1000)
-            const currentSeconds = initialSeconds + elapsed
-            setDisplaySeconds(currentSeconds)
-            setIsRunning(true)
-
-            // Iniciar intervalo para atualizar a cada segundo
-            intervalRef.current = window.setInterval(() => {
-              const nowInInterval = Date.now()
-              const elapsedInInterval = Math.floor((nowInInterval - startTime) / 1000)
-              setDisplaySeconds(initialSeconds + elapsedInInterval)
-            }, 1000)
-          }
-        } catch (error) {
-          console.error('Erro ao buscar tempo real:', error)
-        }
-      } else {
-        setDisplaySeconds(initialSeconds)
-        setIsRunning(false)
-        startTimeRef.current = null
-      }
-    }
-
-    initTimer()
-
-    return () => {
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
-    }
-  }, [taskId, propIsRunning, initialSeconds])
-
   const handleStart = useCallback(async () => {
     try {
-      await window.api.startTask(taskId)
-      // Definir o momento de início
-      const now = Date.now()
-      startTimeRef.current = now
-      baseSecondsRef.current = displaySeconds
-      setIsRunning(true)
-
-      // Iniciar intervalo
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current)
-      }
-      intervalRef.current = window.setInterval(() => {
-        const nowInInterval = Date.now()
-        const elapsed = Math.floor((nowInInterval - now) / 1000)
-        setDisplaySeconds(baseSecondsRef.current + elapsed)
-      }, 1000)
+      await startTimer(taskId)
     } catch (error) {
       console.error('[Timer] Erro ao iniciar:', error)
     }
-  }, [taskId, displaySeconds])
+  }, [taskId, startTimer])
 
   const handlePause = useCallback(async () => {
     try {
-      // Parar intervalo primeiro
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
-      setIsRunning(false)
-      await window.api.stopTask(taskId)
-      startTimeRef.current = null
+      await pauseTimer(taskId)
       onStateChange?.()
     } catch (error) {
       console.error('[Timer] Erro ao pausar:', error)
     }
-  }, [taskId, onStateChange])
+  }, [taskId, pauseTimer, onStateChange])
 
   const handleReset = useCallback(async () => {
     try {
-      // Parar intervalo primeiro
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
-      setIsRunning(false)
-      setDisplaySeconds(0)
+      await resetTimer(taskId)
       setHasReachedLimit(false)
       notifiedRef.current = false
-      baseSecondsRef.current = 0
-      startTimeRef.current = null
-      await window.api.resetTask(taskId)
       onStateChange?.()
     } catch (error) {
       console.error('[Timer] Erro ao resetar:', error)
     }
-  }, [taskId, onStateChange])
+  }, [taskId, resetTimer, onStateChange])
 
   return (
     <div className="flex flex-col items-center gap-6 p-6 bg-card rounded-xl border">
