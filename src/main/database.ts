@@ -48,20 +48,163 @@ export function initDatabase(): void {
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
     )
   `)
+
+  // Criar tabela tags (fontes/origens)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      color TEXT DEFAULT '#6366f1',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  // Criar tabela de relacionamento task_tags
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS task_tags (
+      task_id INTEGER NOT NULL,
+      tag_id INTEGER NOT NULL,
+      PRIMARY KEY (task_id, tag_id),
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+      FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+    )
+  `)
 }
 
-export function createTask(data: CreateTaskInput): Task {
+// ===================== TAGS =====================
+
+export interface TagRow {
+  id: number
+  name: string
+  color: string
+  created_at: string
+}
+
+// Cores predefinidas para tags
+const TAG_COLORS = [
+  '#6366f1', // Indigo
+  '#8b5cf6', // Violet
+  '#ec4899', // Pink
+  '#f43f5e', // Rose
+  '#f97316', // Orange
+  '#eab308', // Yellow
+  '#22c55e', // Green
+  '#14b8a6', // Teal
+  '#0ea5e9', // Sky
+  '#3b82f6'  // Blue
+]
+
+function getRandomTagColor(): string {
+  return TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)]
+}
+
+export function createTag(name: string, color?: string): TagRow {
   const stmt = db.prepare(`
-    INSERT INTO tasks (name, description, time_limit_seconds, category)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO tags (name, color) VALUES (?, ?)
   `)
-  const result = stmt.run(
-    data.name,
-    data.description || null,
-    data.time_limit_seconds || null,
-    data.category || 'normal'
-  )
-  return getTask(result.lastInsertRowid as number)!
+  const result = stmt.run(name.trim(), color || getRandomTagColor())
+  return getTag(result.lastInsertRowid as number)!
+}
+
+export function getTag(id: number): TagRow | undefined {
+  const stmt = db.prepare('SELECT * FROM tags WHERE id = ?')
+  return stmt.get(id) as TagRow | undefined
+}
+
+export function getTagByName(name: string): TagRow | undefined {
+  const stmt = db.prepare('SELECT * FROM tags WHERE name = ?')
+  return stmt.get(name.trim()) as TagRow | undefined
+}
+
+export function listTags(): TagRow[] {
+  const stmt = db.prepare('SELECT * FROM tags ORDER BY name ASC')
+  return stmt.all() as TagRow[]
+}
+
+export function deleteTag(id: number): void {
+  const stmt = db.prepare('DELETE FROM tags WHERE id = ?')
+  stmt.run(id)
+}
+
+export function getOrCreateTag(name: string): TagRow {
+  const existing = getTagByName(name)
+  if (existing) return existing
+  return createTag(name)
+}
+
+// Associar tags a uma tarefa
+export function setTaskTags(taskId: number, tagIds: number[]): void {
+  const transaction = db.transaction(() => {
+    // Remover todas as tags atuais
+    const deleteStmt = db.prepare('DELETE FROM task_tags WHERE task_id = ?')
+    deleteStmt.run(taskId)
+    
+    // Adicionar novas tags
+    if (tagIds.length > 0) {
+      const insertStmt = db.prepare('INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)')
+      for (const tagId of tagIds) {
+        insertStmt.run(taskId, tagId)
+      }
+    }
+  })
+  transaction()
+}
+
+// Obter tags de uma tarefa
+export function getTaskTags(taskId: number): TagRow[] {
+  const stmt = db.prepare(`
+    SELECT t.* FROM tags t
+    INNER JOIN task_tags tt ON t.id = tt.tag_id
+    WHERE tt.task_id = ?
+    ORDER BY t.name ASC
+  `)
+  return stmt.all(taskId) as TagRow[]
+}
+
+// ===================== TASKS =====================
+
+export function createTask(data: CreateTaskInput): Task {
+  const transaction = db.transaction(() => {
+    const stmt = db.prepare(`
+      INSERT INTO tasks (name, description, time_limit_seconds, category)
+      VALUES (?, ?, ?, ?)
+    `)
+    const result = stmt.run(
+      data.name,
+      data.description || null,
+      data.time_limit_seconds || null,
+      data.category || 'normal'
+    )
+    const taskId = result.lastInsertRowid as number
+    
+    // Processar tags
+    const tagIds: number[] = []
+    
+    // Tags existentes por ID
+    if (data.tagIds && data.tagIds.length > 0) {
+      tagIds.push(...data.tagIds)
+    }
+    
+    // Criar novas tags por nome
+    if (data.tagNames && data.tagNames.length > 0) {
+      for (const name of data.tagNames) {
+        const tag = getOrCreateTag(name)
+        if (!tagIds.includes(tag.id)) {
+          tagIds.push(tag.id)
+        }
+      }
+    }
+    
+    // Associar tags
+    if (tagIds.length > 0) {
+      setTaskTags(taskId, tagIds)
+    }
+    
+    return taskId
+  })
+  
+  const taskId = transaction()
+  return getTask(taskId)!
 }
 
 export function listTasks(archived: boolean = false): Task[] {
@@ -73,7 +216,8 @@ export function listTasks(archived: boolean = false): Task[] {
     ...row,
     category: row.category || 'normal',
     is_running: Boolean(row.is_running),
-    is_archived: Boolean(row.is_archived)
+    is_archived: Boolean(row.is_archived),
+    tags: getTaskTags(row.id)
   }))
 }
 
@@ -85,43 +229,71 @@ export function getTask(id: number): Task | undefined {
       ...row,
       category: row.category || 'normal',
       is_running: Boolean(row.is_running),
-      is_archived: Boolean(row.is_archived)
+      is_archived: Boolean(row.is_archived),
+      tags: getTaskTags(id)
     }
   }
   return undefined
 }
 
 export function updateTask(id: number, data: UpdateTaskInput): void {
-  const updates: string[] = []
-  const values: unknown[] = []
+  const transaction = db.transaction(() => {
+    const updates: string[] = []
+    const values: unknown[] = []
 
-  if (data.name !== undefined) {
-    updates.push('name = ?')
-    values.push(data.name)
-  }
-  if (data.description !== undefined) {
-    updates.push('description = ?')
-    values.push(data.description)
-  }
-  if (data.time_limit_seconds !== undefined) {
-    updates.push('time_limit_seconds = ?')
-    values.push(data.time_limit_seconds)
-  }
-  if (data.status !== undefined) {
-    updates.push('status = ?')
-    values.push(data.status)
-  }
-  if (data.category !== undefined) {
-    updates.push('category = ?')
-    values.push(data.category)
-  }
+    if (data.name !== undefined) {
+      updates.push('name = ?')
+      values.push(data.name)
+    }
+    if (data.description !== undefined) {
+      updates.push('description = ?')
+      values.push(data.description)
+    }
+    if (data.time_limit_seconds !== undefined) {
+      updates.push('time_limit_seconds = ?')
+      values.push(data.time_limit_seconds)
+    }
+    if (data.status !== undefined) {
+      updates.push('status = ?')
+      values.push(data.status)
+    }
+    if (data.category !== undefined) {
+      updates.push('category = ?')
+      values.push(data.category)
+    }
 
-  if (updates.length > 0) {
-    updates.push('updated_at = CURRENT_TIMESTAMP')
-    values.push(id)
-    const stmt = db.prepare(`UPDATE tasks SET ${updates.join(', ')} WHERE id = ?`)
-    stmt.run(...values)
-  }
+    if (updates.length > 0) {
+      updates.push('updated_at = CURRENT_TIMESTAMP')
+      values.push(id)
+      const stmt = db.prepare(`UPDATE tasks SET ${updates.join(', ')} WHERE id = ?`)
+      stmt.run(...values)
+    }
+
+    // Processar tags
+    if (data.tagIds !== undefined || data.tagNames !== undefined) {
+      const tagIds: number[] = []
+      
+      // Tags existentes por ID
+      if (data.tagIds && data.tagIds.length > 0) {
+        tagIds.push(...data.tagIds)
+      }
+      
+      // Criar novas tags por nome
+      if (data.tagNames && data.tagNames.length > 0) {
+        for (const name of data.tagNames) {
+          const tag = getOrCreateTag(name)
+          if (!tagIds.includes(tag.id)) {
+            tagIds.push(tag.id)
+          }
+        }
+      }
+      
+      // Atualizar associações
+      setTaskTags(id, tagIds)
+    }
+  })
+  
+  transaction()
 }
 
 export function deleteTask(id: number): void {

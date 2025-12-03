@@ -7,19 +7,20 @@ import { TaskTable } from '@renderer/components/TaskTable'
 import { TaskDialog } from '@renderer/components/TaskDialog'
 import { useTasks, useFilteredTasks } from '@renderer/hooks/useTasks'
 import { eventEmitter } from '@renderer/App'
-import type { TaskStatus, TaskCategory, CreateTaskInput } from '../../../shared/types'
-import { 
-  ListTodo, 
-  Inbox, 
-  Hourglass, 
-  Calendar, 
-  Activity, 
-  CheckSquare, 
-  LayoutGrid, 
+import type { TaskStatus, TaskCategory, CreateTaskInput, Tag } from '../../../shared/types'
+import {
+  ListTodo,
+  Inbox,
+  Hourglass,
+  Calendar,
+  Activity,
+  CheckSquare,
+  LayoutGrid,
   List,
   Search,
   Filter,
-  X
+  X,
+  Tags
 } from 'lucide-react'
 
 type FilterStatus = TaskStatus | 'all'
@@ -62,13 +63,20 @@ export function TaskListPage(): React.JSX.Element {
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all')
   const [categoryFilter, setCategoryFilter] = useState<FilterCategory>('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [tagFilter, setTagFilter] = useState<number | null>(null)
+  const [availableTags, setAvailableTags] = useState<Tag[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('cards')
   const [showFilters, setShowFilters] = useState(false)
 
+  // Carregar tags disponíveis
+  useEffect(() => {
+    window.api.listTags().then(setAvailableTags).catch(console.error)
+  }, [])
+
   // Filtrar por status usando o hook existente
   const statusFilteredTasks = useFilteredTasks(tasks, statusFilter)
-  
-  // Aplicar filtros adicionais (categoria e busca)
+
+  // Aplicar filtros adicionais (categoria, busca e tags)
   const filteredTasks = useMemo(() => {
     let result = statusFilteredTasks
 
@@ -87,16 +95,24 @@ export function TaskListPage(): React.JSX.Element {
       )
     }
 
+    // Filtrar por tag
+    if (tagFilter !== null) {
+      result = result.filter(
+        (task) => task.tags && task.tags.some((t) => t.id === tagFilter)
+      )
+    }
+
     return result
-  }, [statusFilteredTasks, categoryFilter, searchQuery])
+  }, [statusFilteredTasks, categoryFilter, searchQuery, tagFilter])
 
   // Verificar se há filtros ativos
-  const hasActiveFilters = categoryFilter !== 'all' || searchQuery.trim() !== ''
+  const hasActiveFilters = categoryFilter !== 'all' || searchQuery.trim() !== '' || tagFilter !== null
 
   // Limpar todos os filtros
   const clearFilters = (): void => {
     setCategoryFilter('all')
     setSearchQuery('')
+    setTagFilter(null)
   }
 
   // Ouvir evento de nova tarefa do TitleBar
@@ -164,7 +180,7 @@ export function TaskListPage(): React.JSX.Element {
               Filtros
               {hasActiveFilters && (
                 <span className="bg-white text-slate-900 text-xs px-1.5 py-0.5 rounded-full font-bold">
-                  {(categoryFilter !== 'all' ? 1 : 0) + (searchQuery.trim() ? 1 : 0)}
+                  {(categoryFilter !== 'all' ? 1 : 0) + (searchQuery.trim() ? 1 : 0) + (tagFilter !== null ? 1 : 0)}
                 </span>
               )}
             </button>
@@ -258,6 +274,50 @@ export function TaskListPage(): React.JSX.Element {
                   ))}
                 </div>
               </div>
+
+              {/* Tag Filter */}
+              {availableTags.length > 0 && (
+                <div className="min-w-[180px]">
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                    <Tags size={12} className="inline mr-1" />
+                    Fonte / Tag
+                  </label>
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      onClick={() => setTagFilter(null)}
+                      className={`
+                        flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all
+                        ${tagFilter === null
+                          ? 'bg-slate-900 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }
+                      `}
+                    >
+                      Todas
+                    </button>
+                    {availableTags.map((tag) => (
+                      <button
+                        key={tag.id}
+                        onClick={() => setTagFilter(tag.id)}
+                        className={`
+                          flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all
+                          ${tagFilter === tag.id
+                            ? 'text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }
+                        `}
+                        style={tagFilter === tag.id ? { backgroundColor: tag.color } : undefined}
+                      >
+                        <span
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: tag.color }}
+                        />
+                        {tag.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Clear Filters */}
               {hasActiveFilters && (

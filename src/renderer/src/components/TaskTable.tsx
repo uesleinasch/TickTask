@@ -53,6 +53,9 @@ export function TaskTable({ tasks, onTaskClick }: TaskTableProps): React.JSX.Ele
             <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-28">
               Categoria
             </th>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-40">
+              Tags
+            </th>
             <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-32">
               <div className="flex items-center justify-end gap-1">
                 <Clock size={12} />
@@ -119,6 +122,28 @@ export function TaskTable({ tasks, onTaskClick }: TaskTableProps): React.JSX.Ele
                 {/* Categoria */}
                 <td className="px-4 py-3">
                   <CategoryBadge category={task.category || 'normal'} />
+                </td>
+
+                {/* Tags */}
+                <td className="px-4 py-3">
+                  {task.tags && task.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {task.tags.slice(0, 2).map((tag) => (
+                        <span
+                          key={tag.id}
+                          className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium text-white"
+                          style={{ backgroundColor: tag.color }}
+                        >
+                          {tag.name}
+                        </span>
+                      ))}
+                      {task.tags.length > 2 && (
+                        <span className="text-xs text-slate-400">+{task.tags.length - 2}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-slate-300">—</span>
+                  )}
                 </td>
 
                 {/* Tempo */}

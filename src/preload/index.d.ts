@@ -1,5 +1,5 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
-import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus } from '../shared/types'
+import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus, Tag } from '../shared/types'
 
 interface FloatTimerData {
   taskId: number
@@ -84,6 +84,14 @@ interface API {
   getCategoryStats: () => Promise<CategoryStats[]>
   getHeatmapData: () => Promise<HeatmapData[]>
   getGeneralStats: () => Promise<GeneralStats>
+
+  // Tags
+  createTag: (name: string, color?: string) => Promise<Tag>
+  listTags: () => Promise<Tag[]>
+  getOrCreateTag: (name: string) => Promise<Tag>
+  deleteTag: (id: number) => Promise<void>
+  getTaskTags: (taskId: number) => Promise<Tag[]>
+  setTaskTags: (taskId: number, tagIds: number[]) => Promise<void>
 }
 
 declare global {

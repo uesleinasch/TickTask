@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus } from '../shared/types'
+import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus, Tag } from '../shared/types'
 
 // Custom APIs for renderer
 const api = {
@@ -92,7 +92,15 @@ const api = {
   getStatusStats: (): Promise<StatusStats[]> => ipcRenderer.invoke('stats:status'),
   getCategoryStats: (): Promise<CategoryStats[]> => ipcRenderer.invoke('stats:category'),
   getHeatmapData: (): Promise<HeatmapData[]> => ipcRenderer.invoke('stats:heatmap'),
-  getGeneralStats: (): Promise<GeneralStats> => ipcRenderer.invoke('stats:general')
+  getGeneralStats: (): Promise<GeneralStats> => ipcRenderer.invoke('stats:general'),
+
+  // Tags
+  createTag: (name: string, color?: string): Promise<Tag> => ipcRenderer.invoke('tag:create', name, color),
+  listTags: (): Promise<Tag[]> => ipcRenderer.invoke('tag:list'),
+  getOrCreateTag: (name: string): Promise<Tag> => ipcRenderer.invoke('tag:getOrCreate', name),
+  deleteTag: (id: number): Promise<void> => ipcRenderer.invoke('tag:delete', id),
+  getTaskTags: (taskId: number): Promise<Tag[]> => ipcRenderer.invoke('tag:getTaskTags', taskId),
+  setTaskTags: (taskId: number, tagIds: number[]): Promise<void> => ipcRenderer.invoke('tag:setTaskTags', taskId, tagIds)
 }
 
 // Types for statistics

@@ -26,7 +26,14 @@ import {
   getStatusStats,
   getCategoryStats,
   getHeatmapData,
-  getGeneralStats
+  getGeneralStats,
+  // Tags
+  createTag,
+  listTags,
+  getOrCreateTag,
+  deleteTag,
+  getTaskTags,
+  setTaskTags
 } from './database'
 import type { CreateTaskInput, UpdateTaskInput, TaskStatus } from '../shared/types'
 
@@ -274,6 +281,14 @@ function setupIpcHandlers(): void {
   ipcMain.handle('stats:category', () => getCategoryStats())
   ipcMain.handle('stats:heatmap', () => getHeatmapData())
   ipcMain.handle('stats:general', () => getGeneralStats())
+
+  // Tags
+  ipcMain.handle('tag:create', (_, name: string, color?: string) => createTag(name, color))
+  ipcMain.handle('tag:list', () => listTags())
+  ipcMain.handle('tag:getOrCreate', (_, name: string) => getOrCreateTag(name))
+  ipcMain.handle('tag:delete', (_, id: number) => deleteTag(id))
+  ipcMain.handle('tag:getTaskTags', (_, taskId: number) => getTaskTags(taskId))
+  ipcMain.handle('tag:setTaskTags', (_, taskId: number, tagIds: number[]) => setTaskTags(taskId, tagIds))
 }
 
 // This method will be called when Electron has finished

@@ -86,9 +86,24 @@ export function TaskCard({ task, onClick }: TaskCardProps): React.JSX.Element {
           </h3>
 
           {/* Descrição */}
-          <p className="text-slate-500 text-sm line-clamp-2 mb-4">
+          <p className="text-slate-500 text-sm line-clamp-2 mb-3">
             {task.description || 'Sem descrição...'}
           </p>
+
+          {/* Tags */}
+          {task.tags && task.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-2">
+              {task.tags.map((tag) => (
+                <span
+                  key={tag.id}
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                  style={{ backgroundColor: tag.color }}
+                >
+                  {tag.name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Footer: Timer + Indicator */}
