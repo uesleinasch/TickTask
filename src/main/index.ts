@@ -241,66 +241,67 @@ function setupIpcHandlers(): void {
   })
   ipcMain.handle('window:close', () => mainWindow?.close())
 
-  // Task CRUD - com sincronização automática do Notion
-  ipcMain.handle('task:create', async (_, data: CreateTaskInput) => {
+  // Task CRUD - com sincronização automática do Notion (em background)
+  ipcMain.handle('task:create', (_, data: CreateTaskInput) => {
     const task = createTask(data)
-    await autoSyncToNotion(task.id)
+    // Sincronizar em background - não bloqueia o retorno
+    autoSyncToNotion(task.id)
     return task
   })
   ipcMain.handle('task:list', (_, archived?: boolean) => listTasks(archived))
   ipcMain.handle('task:get', (_, id: number) => getTask(id))
-  ipcMain.handle('task:update', async (_, id: number, data: UpdateTaskInput) => {
+  ipcMain.handle('task:update', (_, id: number, data: UpdateTaskInput) => {
     updateTask(id, data)
-    await autoSyncToNotion(id)
+    // Sincronizar em background
+    autoSyncToNotion(id)
   })
-  ipcMain.handle('task:delete', async (_, id: number) => {
-    // Tentar remover do Notion antes de deletar localmente
+  ipcMain.handle('task:delete', (_, id: number) => {
+    // Tentar remover do Notion em background antes de deletar localmente
     const config = getNotionConfig()
     if (config?.autoSync && config.databaseId) {
-      try {
-        await deleteTaskFromNotion(id)
-      } catch (error) {
+      deleteTaskFromNotion(id).catch((error) => {
         console.error('Erro ao deletar do Notion:', error)
-      }
+      })
     }
     deleteTask(id)
   })
 
-  // Archive - com sincronização
-  ipcMain.handle('task:archive', async (_, id: number) => {
+  // Archive - com sincronização em background
+  ipcMain.handle('task:archive', (_, id: number) => {
     archiveTask(id)
-    await autoSyncToNotion(id)
+    autoSyncToNotion(id)
   })
-  ipcMain.handle('task:unarchive', async (_, id: number) => {
+  ipcMain.handle('task:unarchive', (_, id: number) => {
     unarchiveTask(id)
-    await autoSyncToNotion(id)
+    autoSyncToNotion(id)
   })
 
-  // Timer - com sincronização ao parar
+  // Timer - com sincronização em background ao parar
   ipcMain.handle('task:start', (_, id: number) => startTask(id))
-  ipcMain.handle('task:stop', async (_, id: number) => {
+  ipcMain.handle('task:stop', (_, id: number) => {
     const result = stopTask(id)
-    await autoSyncToNotion(id) // Sincronizar tempo atualizado
+    // Sincronizar tempo em background - não bloqueia o pause
+    autoSyncToNotion(id)
     return result
   })
   ipcMain.handle('task:updateTimer', (_, id: number, seconds: number) => updateTimer(id, seconds))
-  ipcMain.handle('task:reset', async (_, id: number) => {
+  ipcMain.handle('task:reset', (_, id: number) => {
     resetTaskTimer(id)
-    await autoSyncToNotion(id)
+    autoSyncToNotion(id)
   })
-  ipcMain.handle('task:addManualTime', async (_, id: number, seconds: number) => {
+  ipcMain.handle('task:addManualTime', (_, id: number, seconds: number) => {
     addManualTimeEntry(id, seconds)
-    await autoSyncToNotion(id)
+    autoSyncToNotion(id)
   })
-  ipcMain.handle('task:setTotalTime', async (_, id: number, seconds: number) => {
+  ipcMain.handle('task:setTotalTime', (_, id: number, seconds: number) => {
     setTaskTotalTime(id, seconds)
-    await autoSyncToNotion(id)
+    autoSyncToNotion(id)
   })
 
-  // Status - com sincronização
-  ipcMain.handle('task:updateStatus', async (_, id: number, status: TaskStatus) => {
+  // Status - com sincronização em background
+  ipcMain.handle('task:updateStatus', (_, id: number, status: TaskStatus) => {
     updateTaskStatus(id, status)
-    await autoSyncToNotion(id)
+    autoSyncToNotion(id)
   })
 
   // Time Entries
@@ -359,9 +360,9 @@ function setupIpcHandlers(): void {
   ipcMain.handle('tag:getOrCreate', (_, name: string) => getOrCreateTag(name))
   ipcMain.handle('tag:delete', (_, id: number) => deleteTag(id))
   ipcMain.handle('tag:getTaskTags', (_, taskId: number) => getTaskTags(taskId))
-  ipcMain.handle('tag:setTaskTags', async (_, taskId: number, tagIds: number[]) => {
+  ipcMain.handle('tag:setTaskTags', (_, taskId: number, tagIds: number[]) => {
     setTaskTags(taskId, tagIds)
-    await autoSyncToNotion(taskId)
+    autoSyncToNotion(taskId)
   })
 
   // Notion Integration
