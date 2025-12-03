@@ -21,7 +21,7 @@ interface UseTimerReturn {
 
 export function useTimer({
   taskId,
-  taskName,
+  taskName: _taskName, // Prefixado com _ pois não é mais usado (float window é gerenciado pela timerStore)
   initialSeconds,
   timeLimit,
   initialIsRunning,
@@ -46,19 +46,9 @@ export function useTimer({
     }
   }, [seconds, timeLimit, onTimeLimitReached])
 
-  // Atualizar a janela flutuante quando o timer está rodando
-  useEffect(() => {
-    if (isRunning) {
-      window.api.updateFloatTimer({ taskId, taskName, seconds })
-    }
-  }, [isRunning, taskId, taskName, seconds])
-
-  // Limpar a janela flutuante quando o timer para
-  useEffect(() => {
-    if (!isRunning) {
-      window.api.clearFloatTimer()
-    }
-  }, [isRunning])
+  // REMOVIDO: Atualização da janela flutuante
+  // A timerStore agora é responsável por todas as atualizações do float window
+  // Isso evita conflitos e flicker quando múltiplos hooks tentam atualizar o mesmo recurso
 
   // Gerenciar intervalo do timer
   useEffect(() => {

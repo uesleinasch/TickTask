@@ -26,13 +26,57 @@ import {
   getStatusStats,
   getCategoryStats,
   getHeatmapData,
-  getGeneralStats
+  getGeneralStats,
+  // Tags
+  createTag,
+  listTags,
+  getOrCreateTag,
+  deleteTag,
+  getTaskTags,
+  setTaskTags
 } from './database'
+import {
+  // Notion
+  getNotionConfig,
+  saveNotionConfig,
+  clearNotionConfig,
+  testNotionConnection,
+  syncTaskToNotion,
+  syncAllTasks,
+  findOrCreateDatabase,
+  deleteTaskFromNotion,
+  type NotionConfig
+} from './notion'
 import type { CreateTaskInput, UpdateTaskInput, TaskStatus } from '../shared/types'
 
 let mainWindow: BrowserWindow | null = null
 let floatWindow: BrowserWindow | null = null
 let currentTimerData: { taskId: number; taskName: string; seconds: number } | null = null
+
+// Helper para sincronização automática com Notion
+async function autoSyncToNotion(taskId: number): Promise<void> {
+  const config = getNotionConfig()
+  if (config?.autoSync && config.databaseId) {
+    try {
+      const task = getTask(taskId)
+      if (task) {
+        // Notificar início da sincronização
+        mainWindow?.webContents.send('notion:syncStart', task.name)
+        
+        await syncTaskToNotion(task)
+        console.log('Tarefa sincronizada automaticamente:', task.name)
+        
+        // Notificar sucesso
+        mainWindow?.webContents.send('notion:syncSuccess', task.name)
+      }
+    } catch (error) {
+      console.error('Erro na sincronização automática:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+      // Notificar erro
+      mainWindow?.webContents.send('notion:syncError', errorMessage)
+    }
+  }
+}
 
 function createFloatWindow(): void {
   if (floatWindow) {
@@ -77,22 +121,28 @@ function showFloatWindow(): void {
   if (!floatWindow) {
     createFloatWindow()
   }
-  
+
   // Aguardar a janela carregar antes de mostrar
   if (floatWindow && !floatWindow.isVisible()) {
     floatWindow.once('ready-to-show', () => {
       floatWindow?.show()
-      // Enviar dados do timer atual
+      // Enviar dados do timer atual OU limpar se não há timer
       if (currentTimerData) {
         floatWindow?.webContents.send('float:update', currentTimerData)
+      } else {
+        // Garantir que a janela está limpa
+        floatWindow?.webContents.send('float:clear')
       }
     })
-    
+
     // Se já está pronta, apenas mostrar
     if (floatWindow.webContents.isLoading() === false) {
       floatWindow.show()
       if (currentTimerData) {
         floatWindow.webContents.send('float:update', currentTimerData)
+      } else {
+        // Garantir que a janela está limpa
+        floatWindow.webContents.send('float:clear')
       }
     }
   }
@@ -104,9 +154,25 @@ function hideFloatWindow(): void {
   }
 }
 
+// Limpar completamente o estado do float window e DESTRUIR a janela
+function clearFloatWindowState(): void {
+  console.log('[Main] clearFloatWindowState() chamado')
+  currentTimerData = null
+  
+  // Destruir a janela float completamente
+  // Isso garante que não há estado residual
+  if (floatWindow && !floatWindow.isDestroyed()) {
+    console.log('[Main] Destruindo janela float')
+    floatWindow.destroy()
+    floatWindow = null
+  }
+}
+
 function updateFloatWindow(data: { taskId: number; taskName: string; seconds: number }): void {
   currentTimerData = data
-  if (floatWindow && floatWindow.isVisible()) {
+  // IMPORTANTE: Enviar apenas se a janela estiver visível
+  // Se não estiver visível, os dados serão enviados quando a janela for mostrada (showFloatWindow)
+  if (floatWindow && !floatWindow.isDestroyed() && floatWindow.isVisible()) {
     floatWindow.webContents.send('float:update', data)
   }
 }
@@ -175,29 +241,68 @@ function setupIpcHandlers(): void {
   })
   ipcMain.handle('window:close', () => mainWindow?.close())
 
-  // Task CRUD
-  ipcMain.handle('task:create', (_, data: CreateTaskInput) => createTask(data))
+  // Task CRUD - com sincronização automática do Notion (em background)
+  ipcMain.handle('task:create', (_, data: CreateTaskInput) => {
+    const task = createTask(data)
+    // Sincronizar em background - não bloqueia o retorno
+    autoSyncToNotion(task.id)
+    return task
+  })
   ipcMain.handle('task:list', (_, archived?: boolean) => listTasks(archived))
   ipcMain.handle('task:get', (_, id: number) => getTask(id))
-  ipcMain.handle('task:update', (_, id: number, data: UpdateTaskInput) => updateTask(id, data))
-  ipcMain.handle('task:delete', (_, id: number) => deleteTask(id))
+  ipcMain.handle('task:update', (_, id: number, data: UpdateTaskInput) => {
+    updateTask(id, data)
+    // Sincronizar em background
+    autoSyncToNotion(id)
+  })
+  ipcMain.handle('task:delete', (_, id: number) => {
+    // Tentar remover do Notion em background antes de deletar localmente
+    const config = getNotionConfig()
+    if (config?.autoSync && config.databaseId) {
+      deleteTaskFromNotion(id).catch((error) => {
+        console.error('Erro ao deletar do Notion:', error)
+      })
+    }
+    deleteTask(id)
+  })
 
-  // Archive
-  ipcMain.handle('task:archive', (_, id: number) => archiveTask(id))
-  ipcMain.handle('task:unarchive', (_, id: number) => unarchiveTask(id))
+  // Archive - com sincronização em background
+  ipcMain.handle('task:archive', (_, id: number) => {
+    archiveTask(id)
+    autoSyncToNotion(id)
+  })
+  ipcMain.handle('task:unarchive', (_, id: number) => {
+    unarchiveTask(id)
+    autoSyncToNotion(id)
+  })
 
-  // Timer
+  // Timer - com sincronização em background ao parar
   ipcMain.handle('task:start', (_, id: number) => startTask(id))
-  ipcMain.handle('task:stop', (_, id: number) => stopTask(id))
+  ipcMain.handle('task:stop', (_, id: number) => {
+    const result = stopTask(id)
+    // Sincronizar tempo em background - não bloqueia o pause
+    autoSyncToNotion(id)
+    return result
+  })
   ipcMain.handle('task:updateTimer', (_, id: number, seconds: number) => updateTimer(id, seconds))
-  ipcMain.handle('task:reset', (_, id: number) => resetTaskTimer(id))
-  ipcMain.handle('task:addManualTime', (_, id: number, seconds: number) => addManualTimeEntry(id, seconds))
-  ipcMain.handle('task:setTotalTime', (_, id: number, seconds: number) => setTaskTotalTime(id, seconds))
+  ipcMain.handle('task:reset', (_, id: number) => {
+    resetTaskTimer(id)
+    autoSyncToNotion(id)
+  })
+  ipcMain.handle('task:addManualTime', (_, id: number, seconds: number) => {
+    addManualTimeEntry(id, seconds)
+    autoSyncToNotion(id)
+  })
+  ipcMain.handle('task:setTotalTime', (_, id: number, seconds: number) => {
+    setTaskTotalTime(id, seconds)
+    autoSyncToNotion(id)
+  })
 
-  // Status
-  ipcMain.handle('task:updateStatus', (_, id: number, status: TaskStatus) =>
+  // Status - com sincronização em background
+  ipcMain.handle('task:updateStatus', (_, id: number, status: TaskStatus) => {
     updateTaskStatus(id, status)
-  )
+    autoSyncToNotion(id)
+  })
 
   // Time Entries
   ipcMain.handle('task:getTimeEntries', (_, taskId: number) => getTimeEntries(taskId))
@@ -212,12 +317,15 @@ function setupIpcHandlers(): void {
   })
 
   // Float window controls
-  ipcMain.handle('float:updateTimer', (_, data: { taskId: number; taskName: string; seconds: number }) => {
-    updateFloatWindow(data)
-  })
+  ipcMain.handle(
+    'float:updateTimer',
+    (_, data: { taskId: number; taskName: string; seconds: number }) => {
+      updateFloatWindow(data)
+    }
+  )
 
   ipcMain.handle('float:clearTimer', () => {
-    currentTimerData = null
+    clearFloatWindowState()
     hideFloatWindow()
   })
 
@@ -231,7 +339,7 @@ function setupIpcHandlers(): void {
 
   ipcMain.handle('float:stopTimer', async (_, taskId: number) => {
     const result = await stopTask(taskId)
-    currentTimerData = null
+    clearFloatWindowState()
     hideFloatWindow()
     // Notificar a janela principal para atualizar
     mainWindow?.webContents.send('timer:stopped', taskId)
@@ -245,6 +353,33 @@ function setupIpcHandlers(): void {
   ipcMain.handle('stats:category', () => getCategoryStats())
   ipcMain.handle('stats:heatmap', () => getHeatmapData())
   ipcMain.handle('stats:general', () => getGeneralStats())
+
+  // Tags - com sincronização ao atualizar tags da tarefa
+  ipcMain.handle('tag:create', (_, name: string, color?: string) => createTag(name, color))
+  ipcMain.handle('tag:list', () => listTags())
+  ipcMain.handle('tag:getOrCreate', (_, name: string) => getOrCreateTag(name))
+  ipcMain.handle('tag:delete', (_, id: number) => deleteTag(id))
+  ipcMain.handle('tag:getTaskTags', (_, taskId: number) => getTaskTags(taskId))
+  ipcMain.handle('tag:setTaskTags', (_, taskId: number, tagIds: number[]) => {
+    setTaskTags(taskId, tagIds)
+    autoSyncToNotion(taskId)
+  })
+
+  // Notion Integration
+  ipcMain.handle('notion:getConfig', () => getNotionConfig())
+  ipcMain.handle('notion:saveConfig', (_, config: NotionConfig) => saveNotionConfig(config))
+  ipcMain.handle('notion:clearConfig', () => clearNotionConfig())
+  ipcMain.handle('notion:testConnection', () => testNotionConnection())
+  ipcMain.handle('notion:syncTask', async (_, taskId: number) => {
+    const task = getTask(taskId)
+    if (!task) throw new Error('Tarefa não encontrada')
+    return syncTaskToNotion(task)
+  })
+  ipcMain.handle('notion:syncAllTasks', async () => {
+    const tasks = listTasks(false) // Apenas tarefas não arquivadas
+    return syncAllTasks(tasks)
+  })
+  ipcMain.handle('notion:createDatabase', () => findOrCreateDatabase())
 }
 
 // This method will be called when Electron has finished

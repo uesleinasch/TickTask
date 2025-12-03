@@ -3,7 +3,10 @@ import * as TabsPrimitive from '@radix-ui/react-tabs'
 
 import { cn } from '@renderer/lib/utils'
 
-function Tabs({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Root>): React.JSX.Element {
+function Tabs({
+  className,
+  ...props
+}: React.ComponentProps<typeof TabsPrimitive.Root>): React.JSX.Element {
   return (
     <TabsPrimitive.Root
       data-slot="tabs"

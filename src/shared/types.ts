@@ -1,6 +1,13 @@
 export type TaskStatus = 'inbox' | 'aguardando' | 'proximas' | 'executando' | 'finalizada'
 export type TaskCategory = 'urgente' | 'prioridade' | 'normal' | 'time_leak'
 
+export interface Tag {
+  id: number
+  name: string
+  color: string
+  created_at: string
+}
+
 export interface Task {
   id: number
   name: string
@@ -13,6 +20,7 @@ export interface Task {
   is_archived: boolean
   created_at: string
   updated_at: string
+  tags?: Tag[]
 }
 
 export interface TimeEntry {
@@ -28,6 +36,8 @@ export interface CreateTaskInput {
   description?: string
   time_limit_seconds?: number
   category?: TaskCategory
+  tagIds?: number[]
+  tagNames?: string[] // Para criar novas tags automaticamente
 }
 
 export interface UpdateTaskInput {
@@ -36,6 +46,8 @@ export interface UpdateTaskInput {
   time_limit_seconds?: number
   status?: TaskStatus
   category?: TaskCategory
+  tagIds?: number[]
+  tagNames?: string[]
 }
 
 export const STATUS_LABELS: Record<TaskStatus, string> = {

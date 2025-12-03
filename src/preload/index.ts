@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus } from '../shared/types'
+import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus, Tag } from '../shared/types'
 
 // Custom APIs for renderer
 const api = {
@@ -58,11 +58,23 @@ const api = {
   onFloatUpdate: (
     callback: (data: { taskId: number; taskName: string; seconds: number }) => void
   ): (() => void) => {
-    const handler = (_: Electron.IpcRendererEvent, data: { taskId: number; taskName: string; seconds: number }): void => {
+    const handler = (
+      _: Electron.IpcRendererEvent,
+      data: { taskId: number; taskName: string; seconds: number }
+    ): void => {
       callback(data)
     }
     ipcRenderer.on('float:update', handler)
     return () => ipcRenderer.removeListener('float:update', handler)
+  },
+
+  // Evento para limpar o estado do float window
+  onFloatClear: (callback: () => void): (() => void) => {
+    const handler = (): void => {
+      callback()
+    }
+    ipcRenderer.on('float:clear', handler)
+    return () => ipcRenderer.removeListener('float:clear', handler)
   },
 
   // Timer stopped event (from float window)
@@ -80,7 +92,44 @@ const api = {
   getStatusStats: (): Promise<StatusStats[]> => ipcRenderer.invoke('stats:status'),
   getCategoryStats: (): Promise<CategoryStats[]> => ipcRenderer.invoke('stats:category'),
   getHeatmapData: (): Promise<HeatmapData[]> => ipcRenderer.invoke('stats:heatmap'),
-  getGeneralStats: (): Promise<GeneralStats> => ipcRenderer.invoke('stats:general')
+  getGeneralStats: (): Promise<GeneralStats> => ipcRenderer.invoke('stats:general'),
+
+  // Tags
+  createTag: (name: string, color?: string): Promise<Tag> => ipcRenderer.invoke('tag:create', name, color),
+  listTags: (): Promise<Tag[]> => ipcRenderer.invoke('tag:list'),
+  getOrCreateTag: (name: string): Promise<Tag> => ipcRenderer.invoke('tag:getOrCreate', name),
+  deleteTag: (id: number): Promise<void> => ipcRenderer.invoke('tag:delete', id),
+  getTaskTags: (taskId: number): Promise<Tag[]> => ipcRenderer.invoke('tag:getTaskTags', taskId),
+  setTaskTags: (taskId: number, tagIds: number[]): Promise<void> => ipcRenderer.invoke('tag:setTaskTags', taskId, tagIds),
+
+  // Notion Integration
+  notionGetConfig: (): Promise<NotionConfig | null> => ipcRenderer.invoke('notion:getConfig'),
+  notionSaveConfig: (config: NotionConfig): Promise<void> => ipcRenderer.invoke('notion:saveConfig', config),
+  notionClearConfig: (): Promise<void> => ipcRenderer.invoke('notion:clearConfig'),
+  notionTestConnection: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke('notion:testConnection'),
+  notionSyncTask: (taskId: number): Promise<string> => ipcRenderer.invoke('notion:syncTask', taskId),
+  notionSyncAllTasks: (): Promise<{ success: number; failed: number }> => ipcRenderer.invoke('notion:syncAllTasks'),
+  notionCreateDatabase: (): Promise<string> => ipcRenderer.invoke('notion:createDatabase'),
+
+  // Sync notification events
+  onSyncStart: (callback: (event: unknown, taskName?: string) => void): void => {
+    ipcRenderer.on('notion:syncStart', callback)
+  },
+  offSyncStart: (callback: (event: unknown, taskName?: string) => void): void => {
+    ipcRenderer.removeListener('notion:syncStart', callback)
+  },
+  onSyncSuccess: (callback: (event: unknown, taskName?: string) => void): void => {
+    ipcRenderer.on('notion:syncSuccess', callback)
+  },
+  offSyncSuccess: (callback: (event: unknown, taskName?: string) => void): void => {
+    ipcRenderer.removeListener('notion:syncSuccess', callback)
+  },
+  onSyncError: (callback: (event: unknown, error?: string) => void): void => {
+    ipcRenderer.on('notion:syncError', callback)
+  },
+  offSyncError: (callback: (event: unknown, error?: string) => void): void => {
+    ipcRenderer.removeListener('notion:syncError', callback)
+  }
 }
 
 // Types for statistics
@@ -118,6 +167,14 @@ interface GeneralStats {
   totalTimeSeconds: number
   totalSessions: number
   avgSessionSeconds: number
+}
+
+interface NotionConfig {
+  apiKey: string
+  pageId: string
+  databaseId?: string
+  autoSync: boolean
+  lastSync?: string
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

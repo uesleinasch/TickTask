@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Plus, Archive, BarChart3 } from 'lucide-react'
+import { Plus, Archive, BarChart3, Settings } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 
 // Importa o ícone da aplicação
@@ -25,6 +25,15 @@ export function TitleBar({ onNewTask }: TitleBarProps): React.JSX.Element {
       {/* Lado Direito: Ações */}
       {isMainPage && (
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/settings')}
+            className="h-9 text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+            title="Configurações"
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
           <Button
             variant="outline"
             size="sm"

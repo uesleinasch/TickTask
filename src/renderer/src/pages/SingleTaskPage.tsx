@@ -8,10 +8,11 @@ import { StatusSelect } from '@renderer/components/StatusSelect'
 import { CategorySelect } from '@renderer/components/CategorySelect'
 import { TimeEntryList } from '@renderer/components/TimeEntryList'
 import { DeleteConfirmDialog } from '@renderer/components/DeleteConfirmDialog'
+import { TagInput } from '@renderer/components/TagInput'
 import { useTaskDetail } from '@renderer/hooks/useTaskDetail'
 import { formatTime, parseTimeInput } from '@renderer/lib/utils'
-import type { TaskStatus, TaskCategory } from '../../../shared/types'
-import { ArrowLeft, Archive, Trash2, AlertCircle, Plus, Edit3 } from 'lucide-react'
+import type { TaskStatus, TaskCategory, Tag } from '../../../shared/types'
+import { ArrowLeft, Archive, Trash2, AlertCircle, Plus, Edit3, Tags } from 'lucide-react'
 import { toast } from '@renderer/components/ui/sonner'
 
 export function SingleTaskPage(): React.JSX.Element {
@@ -36,6 +37,7 @@ export function SingleTaskPage(): React.JSX.Element {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [manualTime, setManualTime] = useState('')
   const [adjustTime, setAdjustTime] = useState('')
+  const [selectedTags, setSelectedTags] = useState<Tag[]>([])
 
   // Sincronizar estado local com task
   useEffect(() => {
@@ -44,6 +46,7 @@ export function SingleTaskPage(): React.JSX.Element {
       setDescription(task.description || '')
       setTimeLimit(task.time_limit_seconds ? formatTime(task.time_limit_seconds) : '')
       setAdjustTime(formatTime(task.total_seconds))
+      setSelectedTags(task.tags || [])
     }
   }, [task])
 
@@ -71,6 +74,15 @@ export function SingleTaskPage(): React.JSX.Element {
     async (category: TaskCategory): Promise<void> => {
       await updateTask({ category })
       toast.success(`Categoria alterada para ${category}`)
+    },
+    [updateTask]
+  )
+
+  const handleTagsChange = useCallback(
+    async (tags: Tag[]): Promise<void> => {
+      setSelectedTags(tags)
+      await updateTask({ tagIds: tags.map((t) => t.id) })
+      toast.success('Tags atualizadas')
     },
     [updateTask]
   )
@@ -182,6 +194,18 @@ export function SingleTaskPage(): React.JSX.Element {
               onBlur={handleBlurSave}
               className="w-full bg-transparent resize-none text-slate-600 focus:outline-none hover:bg-white/50 rounded-md p-2 -ml-2 transition-colors min-h-[60px]"
               placeholder="Adicione uma descrição..."
+            />
+          </div>
+
+          {/* Tags */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center">
+              <Tags size={16} className="mr-2" /> Fonte / Tags
+            </h4>
+            <TagInput
+              selectedTags={selectedTags}
+              onChange={handleTagsChange}
+              placeholder="Adicionar tags..."
             />
           </div>
 

@@ -1,5 +1,5 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
-import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus } from '../shared/types'
+import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus, Tag } from '../shared/types'
 
 interface FloatTimerData {
   taskId: number
@@ -43,6 +43,14 @@ interface GeneralStats {
   avgSessionSeconds: number
 }
 
+interface NotionConfig {
+  apiKey: string
+  pageId?: string
+  databaseId?: string
+  autoSync: boolean
+  lastSync?: string
+}
+
 interface API {
   // Window controls
   minimizeWindow: () => Promise<void>
@@ -74,6 +82,7 @@ interface API {
   restoreFromFloat: () => Promise<void>
   stopFromFloat: (taskId: number) => Promise<void>
   onFloatUpdate: (callback: (data: FloatTimerData) => void) => () => void
+  onFloatClear: (callback: () => void) => () => void
   onTimerStopped: (callback: (taskId: number) => void) => () => void
 
   // Statistics
@@ -83,6 +92,31 @@ interface API {
   getCategoryStats: () => Promise<CategoryStats[]>
   getHeatmapData: () => Promise<HeatmapData[]>
   getGeneralStats: () => Promise<GeneralStats>
+
+  // Tags
+  createTag: (name: string, color?: string) => Promise<Tag>
+  listTags: () => Promise<Tag[]>
+  getOrCreateTag: (name: string) => Promise<Tag>
+  deleteTag: (id: number) => Promise<void>
+  getTaskTags: (taskId: number) => Promise<Tag[]>
+  setTaskTags: (taskId: number, tagIds: number[]) => Promise<void>
+
+  // Notion Integration
+  notionGetConfig: () => Promise<NotionConfig | null>
+  notionSaveConfig: (config: NotionConfig) => Promise<void>
+  notionClearConfig: () => Promise<void>
+  notionTestConnection: () => Promise<{ success: boolean; message: string }>
+  notionSyncTask: (taskId: number) => Promise<string>
+  notionSyncAllTasks: () => Promise<{ success: number; failed: number }>
+  notionCreateDatabase: () => Promise<string>
+
+  // Sync notification events
+  onSyncStart?: (callback: (event: unknown, taskName?: string) => void) => void
+  offSyncStart?: (callback: (event: unknown, taskName?: string) => void) => void
+  onSyncSuccess?: (callback: (event: unknown, taskName?: string) => void) => void
+  offSyncSuccess?: (callback: (event: unknown, taskName?: string) => void) => void
+  onSyncError?: (callback: (event: unknown, error?: string) => void) => void
+  offSyncError?: (callback: (event: unknown, error?: string) => void) => void
 }
 
 declare global {

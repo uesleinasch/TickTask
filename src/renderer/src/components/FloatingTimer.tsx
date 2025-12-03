@@ -7,49 +7,18 @@ import { useTimerStore } from '@renderer/stores/timerStore'
 export function FloatingTimer(): React.JSX.Element | null {
   const navigate = useNavigate()
   const location = useLocation()
-  const { activeTask, displaySeconds, isRunning, syncWithDatabase, startInterval, stopInterval } =
-    useTimerStore()
+  // A timerStore gerencia todo o estado - não precisamos de polling aqui
+  const { activeTask, displaySeconds, isRunning, syncWithDatabase } = useTimerStore()
 
-  // Verificar se há task ativa no banco (para quando voltar de outra página)
+  // Sincronizar apenas UMA VEZ ao montar o componente
+  // O resto é gerenciado pela timerStore
   useEffect(() => {
-    const checkActiveTask = async (): Promise<void> => {
-      try {
-        const tasks = await window.api.listTasks(false)
-        const running = tasks.find((t) => t.is_running)
+    syncWithDatabase()
+    // Não fazer polling - a timerStore é a fonte da verdade
+  }, [syncWithDatabase])
 
-        if (running) {
-          const activeEntry = await window.api.getActiveTimeEntry(running.id)
-          syncWithDatabase(running, activeEntry)
-
-          // Iniciar interval se estiver rodando
-          if (running.is_running && activeEntry) {
-            startInterval()
-          }
-        }
-      } catch (error) {
-        console.error('Erro ao verificar task ativa:', error)
-      }
-    }
-
-    // Verificar imediatamente
-    checkActiveTask()
-
-    // Verificar a cada 5 segundos para pegar mudanças
-    const checkInterval = window.setInterval(checkActiveTask, 5000)
-
-    return () => window.clearInterval(checkInterval)
-  }, [syncWithDatabase, startInterval])
-
-  // Gerenciar interval quando isRunning muda
-  useEffect(() => {
-    if (isRunning) {
-      startInterval()
-    } else {
-      stopInterval()
-    }
-
-    return () => stopInterval()
-  }, [isRunning, startInterval, stopInterval])
+  // REMOVIDO: useEffect que chamava startInterval/stopInterval
+  // A timerStore agora é a única responsável por gerenciar o interval
 
   // Não mostrar se não há task ativa ou se estamos na página da task ativa
   if (!activeTask || !isRunning) {

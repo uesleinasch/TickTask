@@ -1,13 +1,16 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { HashRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { TaskListPage } from './pages/TaskListPage'
 import { SingleTaskPage } from './pages/SingleTaskPage'
 import { ArchivedTasksPage } from './pages/ArchivedTasksPage'
 import { FloatTimerPage } from './pages/FloatTimerPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { SettingsPage } from './pages/SettingsPage'
 import { TitleBar } from './components/TitleBar'
 import { FloatingTimer } from './components/FloatingTimer'
+import { SyncNotification } from './components/SyncNotification'
 import { Toaster } from './components/ui/sonner'
+import { notifySyncStart, notifySyncSuccess, notifySyncError } from './lib/syncEvents'
 
 // Criar um event emitter simples para comunicação
 const eventEmitter = {
@@ -43,6 +46,29 @@ function AppContent(): React.JSX.Element {
   const isDashboardPage = location.pathname === '/dashboard'
   const isFloatPage = location.pathname === '/float'
 
+  // Listener para eventos de sincronização do main process
+  useEffect(() => {
+    const handleSyncStart = (_: unknown, taskName?: string): void => {
+      notifySyncStart(taskName)
+    }
+    const handleSyncSuccess = (_: unknown, taskName?: string): void => {
+      notifySyncSuccess(taskName)
+    }
+    const handleSyncError = (_: unknown, error?: string): void => {
+      notifySyncError(error)
+    }
+
+    window.api.onSyncStart?.(handleSyncStart)
+    window.api.onSyncSuccess?.(handleSyncSuccess)
+    window.api.onSyncError?.(handleSyncError)
+
+    return () => {
+      window.api.offSyncStart?.(handleSyncStart)
+      window.api.offSyncSuccess?.(handleSyncSuccess)
+      window.api.offSyncError?.(handleSyncError)
+    }
+  }, [])
+
   // Se for a janela flutuante, renderizar apenas ela
   if (isFloatPage) {
     return <FloatContent />
@@ -61,10 +87,12 @@ function AppContent(): React.JSX.Element {
           <Route path="/task/:id" element={<SingleTaskPage />} />
           <Route path="/archived" element={<ArchivedTasksPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/float" element={<FloatTimerPage />} />
         </Routes>
       </main>
       {!isTaskPage && !isDashboardPage && <FloatingTimer />}
+      <SyncNotification />
       <Toaster position="bottom-right" />
     </div>
   )

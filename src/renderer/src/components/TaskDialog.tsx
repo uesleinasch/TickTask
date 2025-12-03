@@ -11,7 +11,8 @@ import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { Textarea } from '@renderer/components/ui/textarea'
 import { CategorySelect } from './CategorySelect'
-import type { CreateTaskInput, TaskCategory } from '../../../shared/types'
+import { TagInput } from './TagInput'
+import type { CreateTaskInput, TaskCategory, Tag } from '../../../shared/types'
 
 interface TaskDialogProps {
   open: boolean
@@ -24,6 +25,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
   const [description, setDescription] = useState('')
   const [timeLimit, setTimeLimit] = useState('')
   const [category, setCategory] = useState<TaskCategory>('normal')
+  const [selectedTags, setSelectedTags] = useState<Tag[]>([])
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
@@ -49,7 +51,8 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
         name: name.trim(),
         description: description.trim() || undefined,
         time_limit_seconds: timeLimitSeconds,
-        category
+        category,
+        tagIds: selectedTags.map((t) => t.id)
       })
 
       // Reset form
@@ -57,6 +60,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
       setDescription('')
       setTimeLimit('')
       setCategory('normal')
+      setSelectedTags([])
       onOpenChange(false)
     } finally {
       setLoading(false)
@@ -68,7 +72,9 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
       <DialogContent className="bg-white rounded-xl shadow-2xl border-slate-200">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-slate-900">Nova Tarefa</DialogTitle>
-          <DialogDescription className="text-slate-500">Crie uma nova tarefa para acompanhar seu tempo.</DialogDescription>
+          <DialogDescription className="text-slate-500">
+            Crie uma nova tarefa para acompanhar seu tempo.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
@@ -114,6 +120,19 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
                 className="border-slate-300 focus:ring-slate-900 font-mono h-8"
               />
             </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">
+              Fontes / Tags
+            </label>
+            <TagInput
+              selectedTags={selectedTags}
+              onChange={setSelectedTags}
+              placeholder="Digite uma fonte e pressione Enter..."
+            />
+            <p className="text-xs text-slate-500">
+              Ex: E-mail, Trabalho, Pessoal, Cliente X
+            </p>
           </div>
           <DialogFooter className="pt-2">
             <Button
