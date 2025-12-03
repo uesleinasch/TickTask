@@ -303,6 +303,43 @@ export function SettingsPage(): React.JSX.Element {
               </div>
             )}
 
+            {/* Auto Sync Toggle */}
+            {config.databaseId && (
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <div>
+                  <label className="text-sm font-medium text-slate-700">
+                    Sincronização Automática
+                  </label>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Sincroniza automaticamente ao criar, editar ou excluir tarefas
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    const newValue = !config.autoSync
+                    handleInputChange('autoSync', newValue)
+                    // Salvar imediatamente
+                    window.api.notionSaveConfig({ ...config, autoSync: newValue })
+                    toast.success(
+                      newValue
+                        ? 'Sincronização automática ativada!'
+                        : 'Sincronização automática desativada'
+                    )
+                    setHasChanges(false)
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    config.autoSync ? 'bg-emerald-500' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      config.autoSync ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="flex flex-wrap gap-3 pt-2">
               <Button

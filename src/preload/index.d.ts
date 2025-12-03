@@ -109,6 +109,14 @@ interface API {
   notionSyncTask: (taskId: number) => Promise<string>
   notionSyncAllTasks: () => Promise<{ success: number; failed: number }>
   notionCreateDatabase: () => Promise<string>
+
+  // Sync notification events
+  onSyncStart?: (callback: (event: unknown, taskName?: string) => void) => void
+  offSyncStart?: (callback: (event: unknown, taskName?: string) => void) => void
+  onSyncSuccess?: (callback: (event: unknown, taskName?: string) => void) => void
+  offSyncSuccess?: (callback: (event: unknown, taskName?: string) => void) => void
+  onSyncError?: (callback: (event: unknown, error?: string) => void) => void
+  offSyncError?: (callback: (event: unknown, error?: string) => void) => void
 }
 
 declare global {

@@ -109,7 +109,27 @@ const api = {
   notionTestConnection: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke('notion:testConnection'),
   notionSyncTask: (taskId: number): Promise<string> => ipcRenderer.invoke('notion:syncTask', taskId),
   notionSyncAllTasks: (): Promise<{ success: number; failed: number }> => ipcRenderer.invoke('notion:syncAllTasks'),
-  notionCreateDatabase: (): Promise<string> => ipcRenderer.invoke('notion:createDatabase')
+  notionCreateDatabase: (): Promise<string> => ipcRenderer.invoke('notion:createDatabase'),
+
+  // Sync notification events
+  onSyncStart: (callback: (event: unknown, taskName?: string) => void): void => {
+    ipcRenderer.on('notion:syncStart', callback)
+  },
+  offSyncStart: (callback: (event: unknown, taskName?: string) => void): void => {
+    ipcRenderer.removeListener('notion:syncStart', callback)
+  },
+  onSyncSuccess: (callback: (event: unknown, taskName?: string) => void): void => {
+    ipcRenderer.on('notion:syncSuccess', callback)
+  },
+  offSyncSuccess: (callback: (event: unknown, taskName?: string) => void): void => {
+    ipcRenderer.removeListener('notion:syncSuccess', callback)
+  },
+  onSyncError: (callback: (event: unknown, error?: string) => void): void => {
+    ipcRenderer.on('notion:syncError', callback)
+  },
+  offSyncError: (callback: (event: unknown, error?: string) => void): void => {
+    ipcRenderer.removeListener('notion:syncError', callback)
+  }
 }
 
 // Types for statistics
