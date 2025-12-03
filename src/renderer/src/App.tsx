@@ -5,6 +5,7 @@ import { SingleTaskPage } from './pages/SingleTaskPage'
 import { ArchivedTasksPage } from './pages/ArchivedTasksPage'
 import { FloatTimerPage } from './pages/FloatTimerPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { SettingsPage } from './pages/SettingsPage'
 import { TitleBar } from './components/TitleBar'
 import { FloatingTimer } from './components/FloatingTimer'
 import { Toaster } from './components/ui/sonner'
@@ -61,6 +62,7 @@ function AppContent(): React.JSX.Element {
           <Route path="/task/:id" element={<SingleTaskPage />} />
           <Route path="/archived" element={<ArchivedTasksPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/float" element={<FloatTimerPage />} />
         </Routes>
       </main>

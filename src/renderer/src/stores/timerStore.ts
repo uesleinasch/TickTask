@@ -85,11 +85,14 @@ export const useTimerStore = create<ActiveTimerState>((set, get) => ({
 
     // Limpar a janela flutuante - CRÍTICO!
     console.log('[TimerStore] Chamando window.api.clearFloatTimer()')
-    window.api.clearFloatTimer().then(() => {
-      console.log('[TimerStore] clearFloatTimer() completado')
-    }).catch((err) => {
-      console.error('[TimerStore] Erro em clearFloatTimer():', err)
-    })
+    window.api
+      .clearFloatTimer()
+      .then(() => {
+        console.log('[TimerStore] clearFloatTimer() completado')
+      })
+      .catch((err) => {
+        console.error('[TimerStore] Erro em clearFloatTimer():', err)
+      })
 
     // Resetar TODO o estado para valores iniciais
     set({
@@ -99,7 +102,7 @@ export const useTimerStore = create<ActiveTimerState>((set, get) => ({
       isRunning: false,
       intervalId: null
     })
-    
+
     console.log('[TimerStore] Estado resetado para valores iniciais')
   },
 

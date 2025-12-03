@@ -35,6 +35,17 @@ import {
   getTaskTags,
   setTaskTags
 } from './database'
+import {
+  // Notion
+  getNotionConfig,
+  saveNotionConfig,
+  clearNotionConfig,
+  testNotionConnection,
+  syncTaskToNotion,
+  syncAllTasks,
+  findOrCreateDatabase,
+  type NotionConfig
+} from './notion'
 import type { CreateTaskInput, UpdateTaskInput, TaskStatus } from '../shared/types'
 
 let mainWindow: BrowserWindow | null = null
@@ -289,6 +300,22 @@ function setupIpcHandlers(): void {
   ipcMain.handle('tag:delete', (_, id: number) => deleteTag(id))
   ipcMain.handle('tag:getTaskTags', (_, taskId: number) => getTaskTags(taskId))
   ipcMain.handle('tag:setTaskTags', (_, taskId: number, tagIds: number[]) => setTaskTags(taskId, tagIds))
+
+  // Notion Integration
+  ipcMain.handle('notion:getConfig', () => getNotionConfig())
+  ipcMain.handle('notion:saveConfig', (_, config: NotionConfig) => saveNotionConfig(config))
+  ipcMain.handle('notion:clearConfig', () => clearNotionConfig())
+  ipcMain.handle('notion:testConnection', () => testNotionConnection())
+  ipcMain.handle('notion:syncTask', async (_, taskId: number) => {
+    const task = getTask(taskId)
+    if (!task) throw new Error('Tarefa não encontrada')
+    return syncTaskToNotion(task)
+  })
+  ipcMain.handle('notion:syncAllTasks', async () => {
+    const tasks = listTasks(false) // Apenas tarefas não arquivadas
+    return syncAllTasks(tasks)
+  })
+  ipcMain.handle('notion:createDatabase', () => findOrCreateDatabase())
 }
 
 // This method will be called when Electron has finished

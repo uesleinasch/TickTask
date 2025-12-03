@@ -100,7 +100,16 @@ const api = {
   getOrCreateTag: (name: string): Promise<Tag> => ipcRenderer.invoke('tag:getOrCreate', name),
   deleteTag: (id: number): Promise<void> => ipcRenderer.invoke('tag:delete', id),
   getTaskTags: (taskId: number): Promise<Tag[]> => ipcRenderer.invoke('tag:getTaskTags', taskId),
-  setTaskTags: (taskId: number, tagIds: number[]): Promise<void> => ipcRenderer.invoke('tag:setTaskTags', taskId, tagIds)
+  setTaskTags: (taskId: number, tagIds: number[]): Promise<void> => ipcRenderer.invoke('tag:setTaskTags', taskId, tagIds),
+
+  // Notion Integration
+  notionGetConfig: (): Promise<NotionConfig | null> => ipcRenderer.invoke('notion:getConfig'),
+  notionSaveConfig: (config: NotionConfig): Promise<void> => ipcRenderer.invoke('notion:saveConfig', config),
+  notionClearConfig: (): Promise<void> => ipcRenderer.invoke('notion:clearConfig'),
+  notionTestConnection: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke('notion:testConnection'),
+  notionSyncTask: (taskId: number): Promise<string> => ipcRenderer.invoke('notion:syncTask', taskId),
+  notionSyncAllTasks: (): Promise<{ success: number; failed: number }> => ipcRenderer.invoke('notion:syncAllTasks'),
+  notionCreateDatabase: (): Promise<string> => ipcRenderer.invoke('notion:createDatabase')
 }
 
 // Types for statistics
@@ -138,6 +147,14 @@ interface GeneralStats {
   totalTimeSeconds: number
   totalSessions: number
   avgSessionSeconds: number
+}
+
+interface NotionConfig {
+  apiKey: string
+  pageId: string
+  databaseId?: string
+  autoSync: boolean
+  lastSync?: string
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

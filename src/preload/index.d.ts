@@ -43,6 +43,14 @@ interface GeneralStats {
   avgSessionSeconds: number
 }
 
+interface NotionConfig {
+  apiKey: string
+  pageId?: string
+  databaseId?: string
+  autoSync: boolean
+  lastSync?: string
+}
+
 interface API {
   // Window controls
   minimizeWindow: () => Promise<void>
@@ -92,6 +100,15 @@ interface API {
   deleteTag: (id: number) => Promise<void>
   getTaskTags: (taskId: number) => Promise<Tag[]>
   setTaskTags: (taskId: number, tagIds: number[]) => Promise<void>
+
+  // Notion Integration
+  notionGetConfig: () => Promise<NotionConfig | null>
+  notionSaveConfig: (config: NotionConfig) => Promise<void>
+  notionClearConfig: () => Promise<void>
+  notionTestConnection: () => Promise<{ success: boolean; message: string }>
+  notionSyncTask: (taskId: number) => Promise<string>
+  notionSyncAllTasks: () => Promise<{ success: number; failed: number }>
+  notionCreateDatabase: () => Promise<string>
 }
 
 declare global {
