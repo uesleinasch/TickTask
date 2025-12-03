@@ -55,7 +55,7 @@ export function TaskListPage(): React.JSX.Element {
   const navigate = useNavigate()
   const { tasks, loading, createTask } = useTasks(false)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [statusFilter, setStatusFilter] = useState<FilterStatus>('all')
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>('inbox')
   const [categoryFilter, setCategoryFilter] = useState<FilterCategory>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [tagFilter, setTagFilter] = useState<number | null>(null)
