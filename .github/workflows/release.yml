@@ -3,7 +3,7 @@ name: Release TickTask App
 on:
   push:
     tags:
-      - 'v*'   # Só dispara quando pushar uma tag como v1.0.0
+      - 'v*'   # Quando você der git push origin v1.0.0
 
 jobs:
   build:
@@ -11,8 +11,6 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        # Para incluir MacOS (> só funciona se você tiver CI pago)
-        # os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       - name: Checkout do código
@@ -30,7 +28,37 @@ jobs:
       - name: Build Frontend e Electron
         run: npm run build
 
-      - name: Build e Publicar (electron-builder)
+      - name: Build electron-builder (gera instaladores)
+        run: npm run dist
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run dist
+
+      # 📦 Upload dos arquivos gerados como artefatos do workflow
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: dist/
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar artefatos de todos os sistemas
+        uses: actions/download-artifact@v4
+        with:
+          path: ./release-files
+
+      # 📝 Criar ou atualizar a Release automaticamente
+      - name: Criar Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: ./release-files/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
