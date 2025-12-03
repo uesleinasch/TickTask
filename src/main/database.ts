@@ -30,7 +30,9 @@ export function initDatabase(): void {
 
   // Migração: adicionar coluna category se não existir
   try {
-    db.exec(`ALTER TABLE tasks ADD COLUMN category TEXT DEFAULT 'normal' CHECK(category IN ('urgente', 'prioridade', 'normal', 'time_leak'))`)
+    db.exec(
+      `ALTER TABLE tasks ADD COLUMN category TEXT DEFAULT 'normal' CHECK(category IN ('urgente', 'prioridade', 'normal', 'time_leak'))`
+    )
   } catch {
     // Coluna já existe, ignorar
   }
@@ -128,17 +130,23 @@ export function deleteTask(id: number): void {
 }
 
 export function archiveTask(id: number): void {
-  const stmt = db.prepare('UPDATE tasks SET is_archived = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+  const stmt = db.prepare(
+    'UPDATE tasks SET is_archived = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+  )
   stmt.run(id)
 }
 
 export function unarchiveTask(id: number): void {
-  const stmt = db.prepare('UPDATE tasks SET is_archived = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+  const stmt = db.prepare(
+    'UPDATE tasks SET is_archived = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+  )
   stmt.run(id)
 }
 
 export function updateTaskStatus(id: number, status: TaskStatus): void {
-  const stmt = db.prepare('UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+  const stmt = db.prepare(
+    'UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+  )
   stmt.run(status, id)
 }
 
@@ -212,7 +220,9 @@ export function stopTask(id: number): void {
 }
 
 export function updateTimer(id: number, totalSeconds: number): void {
-  const stmt = db.prepare('UPDATE tasks SET total_seconds = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+  const stmt = db.prepare(
+    'UPDATE tasks SET total_seconds = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+  )
   stmt.run(totalSeconds, id)
 }
 
@@ -413,7 +423,11 @@ export function getGeneralStats(): GeneralStats {
       SUM(total_seconds) as totalTimeSeconds
     FROM tasks
   `)
-  const tasksResult = tasksStmt.get() as { totalTasks: number; completedTasks: number; totalTimeSeconds: number }
+  const tasksResult = tasksStmt.get() as {
+    totalTasks: number
+    completedTasks: number
+    totalTimeSeconds: number
+  }
 
   const sessionsStmt = db.prepare(`
     SELECT 

@@ -74,6 +74,7 @@ interface API {
   restoreFromFloat: () => Promise<void>
   stopFromFloat: (taskId: number) => Promise<void>
   onFloatUpdate: (callback: (data: FloatTimerData) => void) => () => void
+  onFloatClear: (callback: () => void) => () => void
   onTimerStopped: (callback: (taskId: number) => void) => () => void
 
   // Statistics

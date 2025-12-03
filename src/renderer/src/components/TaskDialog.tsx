@@ -68,7 +68,9 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
       <DialogContent className="bg-white rounded-xl shadow-2xl border-slate-200">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-slate-900">Nova Tarefa</DialogTitle>
-          <DialogDescription className="text-slate-500">Crie uma nova tarefa para acompanhar seu tempo.</DialogDescription>
+          <DialogDescription className="text-slate-500">
+            Crie uma nova tarefa para acompanhar seu tempo.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">

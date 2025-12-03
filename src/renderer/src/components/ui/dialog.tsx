@@ -4,7 +4,9 @@ import { XIcon } from 'lucide-react'
 
 import { cn } from '@renderer/lib/utils'
 
-function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>): React.JSX.Element {
+function Dialog({
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Root>): React.JSX.Element {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />
 }
 
@@ -14,7 +16,9 @@ function DialogTrigger({
   return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
 }
 
-function DialogPortal({ ...props }: React.ComponentProps<typeof DialogPrimitive.Portal>): React.JSX.Element | null {
+function DialogPortal({
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Portal>): React.JSX.Element | null {
   return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
 }
 

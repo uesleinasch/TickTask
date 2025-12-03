@@ -6,14 +6,7 @@ import { TaskDialog } from '@renderer/components/TaskDialog'
 import { useTasks, useFilteredTasks } from '@renderer/hooks/useTasks'
 import { eventEmitter } from '@renderer/App'
 import type { TaskStatus, CreateTaskInput } from '../../../shared/types'
-import {
-  ListTodo,
-  Inbox,
-  Hourglass,
-  Calendar,
-  Activity,
-  CheckSquare
-} from 'lucide-react'
+import { ListTodo, Inbox, Hourglass, Calendar, Activity, CheckSquare } from 'lucide-react'
 
 type FilterStatus = TaskStatus | 'all'
 

@@ -58,11 +58,23 @@ const api = {
   onFloatUpdate: (
     callback: (data: { taskId: number; taskName: string; seconds: number }) => void
   ): (() => void) => {
-    const handler = (_: Electron.IpcRendererEvent, data: { taskId: number; taskName: string; seconds: number }): void => {
+    const handler = (
+      _: Electron.IpcRendererEvent,
+      data: { taskId: number; taskName: string; seconds: number }
+    ): void => {
       callback(data)
     }
     ipcRenderer.on('float:update', handler)
     return () => ipcRenderer.removeListener('float:update', handler)
+  },
+
+  // Evento para limpar o estado do float window
+  onFloatClear: (callback: () => void): (() => void) => {
+    const handler = (): void => {
+      callback()
+    }
+    ipcRenderer.on('float:clear', handler)
+    return () => ipcRenderer.removeListener('float:clear', handler)
   },
 
   // Timer stopped event (from float window)

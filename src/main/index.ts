@@ -77,22 +77,28 @@ function showFloatWindow(): void {
   if (!floatWindow) {
     createFloatWindow()
   }
-  
+
   // Aguardar a janela carregar antes de mostrar
   if (floatWindow && !floatWindow.isVisible()) {
     floatWindow.once('ready-to-show', () => {
       floatWindow?.show()
-      // Enviar dados do timer atual
+      // Enviar dados do timer atual OU limpar se não há timer
       if (currentTimerData) {
         floatWindow?.webContents.send('float:update', currentTimerData)
+      } else {
+        // Garantir que a janela está limpa
+        floatWindow?.webContents.send('float:clear')
       }
     })
-    
+
     // Se já está pronta, apenas mostrar
     if (floatWindow.webContents.isLoading() === false) {
       floatWindow.show()
       if (currentTimerData) {
         floatWindow.webContents.send('float:update', currentTimerData)
+      } else {
+        // Garantir que a janela está limpa
+        floatWindow.webContents.send('float:clear')
       }
     }
   }
@@ -104,9 +110,25 @@ function hideFloatWindow(): void {
   }
 }
 
+// Limpar completamente o estado do float window e DESTRUIR a janela
+function clearFloatWindowState(): void {
+  console.log('[Main] clearFloatWindowState() chamado')
+  currentTimerData = null
+  
+  // Destruir a janela float completamente
+  // Isso garante que não há estado residual
+  if (floatWindow && !floatWindow.isDestroyed()) {
+    console.log('[Main] Destruindo janela float')
+    floatWindow.destroy()
+    floatWindow = null
+  }
+}
+
 function updateFloatWindow(data: { taskId: number; taskName: string; seconds: number }): void {
   currentTimerData = data
-  if (floatWindow && floatWindow.isVisible()) {
+  // IMPORTANTE: Enviar apenas se a janela estiver visível
+  // Se não estiver visível, os dados serão enviados quando a janela for mostrada (showFloatWindow)
+  if (floatWindow && !floatWindow.isDestroyed() && floatWindow.isVisible()) {
     floatWindow.webContents.send('float:update', data)
   }
 }
@@ -191,8 +213,12 @@ function setupIpcHandlers(): void {
   ipcMain.handle('task:stop', (_, id: number) => stopTask(id))
   ipcMain.handle('task:updateTimer', (_, id: number, seconds: number) => updateTimer(id, seconds))
   ipcMain.handle('task:reset', (_, id: number) => resetTaskTimer(id))
-  ipcMain.handle('task:addManualTime', (_, id: number, seconds: number) => addManualTimeEntry(id, seconds))
-  ipcMain.handle('task:setTotalTime', (_, id: number, seconds: number) => setTaskTotalTime(id, seconds))
+  ipcMain.handle('task:addManualTime', (_, id: number, seconds: number) =>
+    addManualTimeEntry(id, seconds)
+  )
+  ipcMain.handle('task:setTotalTime', (_, id: number, seconds: number) =>
+    setTaskTotalTime(id, seconds)
+  )
 
   // Status
   ipcMain.handle('task:updateStatus', (_, id: number, status: TaskStatus) =>
@@ -212,12 +238,15 @@ function setupIpcHandlers(): void {
   })
 
   // Float window controls
-  ipcMain.handle('float:updateTimer', (_, data: { taskId: number; taskName: string; seconds: number }) => {
-    updateFloatWindow(data)
-  })
+  ipcMain.handle(
+    'float:updateTimer',
+    (_, data: { taskId: number; taskName: string; seconds: number }) => {
+      updateFloatWindow(data)
+    }
+  )
 
   ipcMain.handle('float:clearTimer', () => {
-    currentTimerData = null
+    clearFloatWindowState()
     hideFloatWindow()
   })
 
@@ -231,7 +260,7 @@ function setupIpcHandlers(): void {
 
   ipcMain.handle('float:stopTimer', async (_, taskId: number) => {
     const result = await stopTask(taskId)
-    currentTimerData = null
+    clearFloatWindowState()
     hideFloatWindow()
     // Notificar a janela principal para atualizar
     mainWindow?.webContents.send('timer:stopped', taskId)

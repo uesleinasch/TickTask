@@ -18,7 +18,11 @@ export function useTasks(archived: boolean = false): UseTasksReturn {
     setLoading(true)
     try {
       const result = await window.api.listTasks(archived)
-      console.log('[useTasks] Tasks carregadas:', result.length, result.map(t => ({ id: t.id, name: t.name, status: t.status })))
+      console.log(
+        '[useTasks] Tasks carregadas:',
+        result.length,
+        result.map((t) => ({ id: t.id, name: t.name, status: t.status }))
+      )
       setTasks(result)
     } catch (error) {
       console.error('Failed to load tasks:', error)
@@ -67,16 +71,13 @@ export function useTasks(archived: boolean = false): UseTasksReturn {
 }
 
 // Hook para filtrar tarefas por status
-export function useFilteredTasks(
-  tasks: Task[],
-  statusFilter: TaskStatus | 'all'
-): Task[] {
+export function useFilteredTasks(tasks: Task[], statusFilter: TaskStatus | 'all'): Task[] {
   console.log('[useFilteredTasks] Filter:', statusFilter, 'Total tasks:', tasks.length)
-  
+
   if (statusFilter === 'all') {
     return tasks
   }
-  
+
   const filtered = tasks.filter((task) => task.status === statusFilter)
   console.log('[useFilteredTasks] Filtered:', filtered.length)
   return filtered

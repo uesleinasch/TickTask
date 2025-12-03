@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Activity, Square, Maximize2 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { formatTime } from '@renderer/lib/utils'
@@ -11,30 +11,35 @@ interface TimerData {
 
 export function FloatTimerPage(): React.JSX.Element {
   const [timerData, setTimerData] = useState<TimerData | null>(null)
-  const [seconds, setSeconds] = useState(0)
+  const currentTaskIdRef = useRef<number | null>(null)
 
   useEffect(() => {
     // Escutar atualizações do timer principal
-    const unsubscribe = window.api.onFloatUpdate((data) => {
+    // Usa apenas os dados recebidos via IPC, sem contador local adicional
+    const unsubscribeUpdate = window.api.onFloatUpdate((data) => {
+      // Ignorar atualizações de tarefas diferentes da atual (se já houver uma)
+      // Isso previne o flicker quando há múltiplos timers em memória
+      if (currentTaskIdRef.current !== null && currentTaskIdRef.current !== data.taskId) {
+        // Uma nova tarefa foi iniciada, atualizar referência
+        console.log('[FloatTimer] Tarefa mudou de', currentTaskIdRef.current, 'para', data.taskId)
+      }
+      currentTaskIdRef.current = data.taskId
       setTimerData(data)
-      setSeconds(data.seconds)
+    })
+
+    // Escutar evento de limpeza - quando o timer é pausado/parado
+    const unsubscribeClear = window.api.onFloatClear(() => {
+      console.log('[FloatTimer] Recebido evento clear, limpando estado')
+      currentTaskIdRef.current = null
+      setTimerData(null)
     })
 
     return () => {
-      unsubscribe()
+      unsubscribeUpdate()
+      unsubscribeClear()
+      currentTaskIdRef.current = null
     }
   }, [])
-
-  // Incrementar o contador localmente
-  useEffect(() => {
-    if (!timerData) return
-
-    const interval = setInterval(() => {
-      setSeconds((prev) => prev + 1)
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [timerData])
 
   const handleRestore = useCallback(() => {
     window.api.restoreFromFloat()
@@ -68,7 +73,7 @@ export function FloatTimerPage(): React.JSX.Element {
       {/* Info da tarefa */}
       <div className="flex-1 min-w-0">
         <p className="text-white font-mono text-lg font-bold tracking-wider">
-          {formatTime(seconds)}
+          {formatTime(timerData.seconds)}
         </p>
         <p className="text-slate-400 text-xs truncate">{timerData.taskName}</p>
       </div>
