@@ -3,7 +3,7 @@ name: Release TickTask App
 on:
   push:
     tags:
-      - 'v*'   # Quando você der git push origin v1.0.0
+      - 'v*'
 
 jobs:
   build:
@@ -13,7 +13,7 @@ jobs:
         os: [ubuntu-latest, windows-latest]
 
     steps:
-      - name: Checkout do código
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -22,43 +22,52 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Instalar dependências
+      - name: Install dependencies
         run: npm ci
 
-      - name: Build Frontend e Electron
+      - name: Build Frontend + Electron
         run: npm run build
 
-      - name: Build electron-builder (gera instaladores)
-        run: npm run dist
+      - name: Build App
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist
 
-      # 📦 Upload dos arquivos gerados como artefatos do workflow
-      - name: Upload Artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dist-${{ matrix.os }}
+          name: ticktask-${{ matrix.os }}
           path: dist/
 
   release:
     needs: build
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write   # <- ESSENCIAL
+
     steps:
-      - name: Baixar artefatos de todos os sistemas
+      - name: Download Windows artifacts
         uses: actions/download-artifact@v4
         with:
-          path: ./release-files
+          name: ticktask-windows-latest
+          path: dist/win
 
-      # 📝 Criar ou atualizar a Release automaticamente
-      - name: Criar Release
-        id: create_release
-        uses: softprops/action-gh-release@v2
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ticktask-ubuntu-latest
+          path: dist/linux
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
+          name: 🚀 TickTask ${{ github.ref_name }}
           draft: false
           prerelease: false
-          files: ./release-files/**/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            dist/win/*.exe
+            dist/win/*.zip
+            dist/linux/*.AppImage
+            dist/linux/*.deb
