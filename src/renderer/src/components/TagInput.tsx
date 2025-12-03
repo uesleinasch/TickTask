@@ -133,7 +133,7 @@ export function TagInput({
     <div ref={containerRef} className={cn('relative', className)}>
       {/* Container de tags e input */}
       <div
-        className="flex flex-wrap gap-1.5 p-2 min-h-[42px] bg-slate-800/50 border border-slate-700 rounded-md focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500"
+        className="flex flex-wrap gap-1.5 p-2 min-h-[42px] bg-slate-50 border border-slate-200 rounded-md focus-within:ring-2 focus-within:ring-slate-400 focus-within:border-slate-400 transition-colors"
         onClick={() => inputRef.current?.focus()}
       >
         {/* Tags selecionadas */}
@@ -166,13 +166,13 @@ export function TagInput({
           onKeyDown={handleKeyDown}
           onFocus={() => inputValue.trim() && setShowSuggestions(true)}
           placeholder={selectedTags.length === 0 ? placeholder : ''}
-          className="flex-1 min-w-[120px] bg-transparent border-none outline-none text-sm text-slate-200 placeholder:text-slate-500"
+          className="flex-1 min-w-[120px] bg-transparent border-none outline-none text-sm text-slate-700 placeholder:text-slate-400"
         />
       </div>
 
       {/* Dropdown de sugestões */}
       {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-md shadow-lg overflow-hidden">
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg overflow-hidden">
           {suggestions.map((tag, index) => (
             <button
               key={tag.id}
@@ -181,8 +181,8 @@ export function TagInput({
               className={cn(
                 'w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors',
                 index === highlightedIndex
-                  ? 'bg-slate-700 text-white'
-                  : 'text-slate-300 hover:bg-slate-700/50'
+                  ? 'bg-slate-100 text-slate-900'
+                  : 'text-slate-700 hover:bg-slate-50'
               )}
             >
               <span className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }} />
@@ -194,14 +194,14 @@ export function TagInput({
 
       {/* Mensagem para criar nova tag */}
       {showSuggestions && inputValue.trim() && suggestions.length === 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-md shadow-lg overflow-hidden">
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg overflow-hidden">
           <button
             type="button"
             onClick={() => addTag(inputValue)}
-            className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition-colors"
+            className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 transition-colors"
           >
             Criar tag &ldquo;
-            <span className="text-indigo-400 font-medium">{inputValue.trim()}</span>
+            <span className="text-blue-600 font-medium">{inputValue.trim()}</span>
             &rdquo;
           </button>
         </div>

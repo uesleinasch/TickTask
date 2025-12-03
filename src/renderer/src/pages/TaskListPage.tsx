@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Input } from '@renderer/components/ui/input'
+import { SearchableSelect } from '@renderer/components/ui/searchable-select'
 import { TaskList } from '@renderer/components/TaskList'
 import { TaskTable } from '@renderer/components/TaskTable'
 import { TaskDialog } from '@renderer/components/TaskDialog'
@@ -19,8 +20,7 @@ import {
   List,
   Search,
   Filter,
-  X,
-  Tags
+  X
 } from 'lucide-react'
 
 type FilterStatus = TaskStatus | 'all'
@@ -33,12 +33,6 @@ interface TabItem {
   icon: React.ElementType
 }
 
-interface CategoryOption {
-  id: FilterCategory
-  label: string
-  color: string
-}
-
 const tabs: TabItem[] = [
   { id: 'all', label: 'Todas', icon: ListTodo },
   { id: 'inbox', label: 'Inbox', icon: Inbox },
@@ -48,13 +42,14 @@ const tabs: TabItem[] = [
   { id: 'finalizada', label: 'Finalizadas', icon: CheckSquare }
 ]
 
-const categories: CategoryOption[] = [
-  { id: 'all', label: 'Todas', color: 'bg-slate-500' },
-  { id: 'urgente', label: 'Urgente', color: 'bg-red-500' },
-  { id: 'prioridade', label: 'Prioridade', color: 'bg-orange-500' },
-  { id: 'normal', label: 'Normal', color: 'bg-blue-500' },
-  { id: 'time_leak', label: 'Time Leak', color: 'bg-yellow-500' }
-]
+// Definição de cores para categorias (usado no dropdown)
+const CATEGORY_COLOR_MAP: Record<TaskCategory | 'all', string> = {
+  all: '#64748b', // slate-500
+  urgente: '#ef4444', // red-500
+  prioridade: '#f97316', // orange-500
+  normal: '#3b82f6', // blue-500
+  time_leak: '#eab308' // yellow-500
+}
 
 export function TaskListPage(): React.JSX.Element {
   const navigate = useNavigate()
@@ -75,6 +70,31 @@ export function TaskListPage(): React.JSX.Element {
 
   // Filtrar por status usando o hook existente
   const statusFilteredTasks = useFilteredTasks(tasks, statusFilter)
+
+  // Opções para dropdown de categorias
+  const categoryOptions = useMemo(
+    () => [
+      { value: 'all', label: 'Todas', color: CATEGORY_COLOR_MAP['all'] },
+      { value: 'urgente', label: 'Urgente', color: CATEGORY_COLOR_MAP['urgente'] },
+      { value: 'prioridade', label: 'Prioridade', color: CATEGORY_COLOR_MAP['prioridade'] },
+      { value: 'normal', label: 'Normal', color: CATEGORY_COLOR_MAP['normal'] },
+      { value: 'time_leak', label: 'Time Leak', color: CATEGORY_COLOR_MAP['time_leak'] }
+    ],
+    []
+  )
+
+  // Opções para dropdown de tags
+  const tagOptions = useMemo(
+    () => [
+      { value: 'all', label: 'Todas' },
+      ...availableTags.map((tag) => ({
+        value: String(tag.id),
+        label: tag.name,
+        color: tag.color
+      }))
+    ],
+    [availableTags]
+  )
 
   // Aplicar filtros adicionais (categoria, busca e tags)
   const filteredTasks = useMemo(() => {
@@ -249,73 +269,32 @@ export function TaskListPage(): React.JSX.Element {
               </div>
 
               {/* Category Filter */}
-              <div className="min-w-[180px]">
+              <div className="min-w-[200px]">
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
                   Categoria
                 </label>
-                <div className="flex flex-wrap gap-1">
-                  {categories.map((cat) => (
-                    <button
-                      key={cat.id}
-                      onClick={() => setCategoryFilter(cat.id)}
-                      className={`
-                        flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all
-                        ${categoryFilter === cat.id
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }
-                      `}
-                    >
-                      {cat.id !== 'all' && (
-                        <span className={`w-2 h-2 rounded-full ${cat.color}`} />
-                      )}
-                      {cat.label}
-                    </button>
-                  ))}
-                </div>
+                <SearchableSelect
+                  value={categoryFilter}
+                  onChange={(value) => setCategoryFilter(value as FilterCategory)}
+                  options={categoryOptions}
+                  placeholder="Selecione categoria..."
+                  searchPlaceholder="Buscar categoria..."
+                />
               </div>
 
               {/* Tag Filter */}
               {availableTags.length > 0 && (
-                <div className="min-w-[180px]">
+                <div className="min-w-[200px]">
                   <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
-                    <Tags size={12} className="inline mr-1" />
                     Fonte / Tag
                   </label>
-                  <div className="flex flex-wrap gap-1">
-                    <button
-                      onClick={() => setTagFilter(null)}
-                      className={`
-                        flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all
-                        ${tagFilter === null
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }
-                      `}
-                    >
-                      Todas
-                    </button>
-                    {availableTags.map((tag) => (
-                      <button
-                        key={tag.id}
-                        onClick={() => setTagFilter(tag.id)}
-                        className={`
-                          flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all
-                          ${tagFilter === tag.id
-                            ? 'text-white'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                          }
-                        `}
-                        style={tagFilter === tag.id ? { backgroundColor: tag.color } : undefined}
-                      >
-                        <span
-                          className="w-2 h-2 rounded-full"
-                          style={{ backgroundColor: tag.color }}
-                        />
-                        {tag.name}
-                      </button>
-                    ))}
-                  </div>
+                  <SearchableSelect
+                    value={tagFilter !== null ? String(tagFilter) : 'all'}
+                    onChange={(value) => setTagFilter(value === 'all' ? null : Number(value))}
+                    options={tagOptions}
+                    placeholder="Selecione tag..."
+                    searchPlaceholder="Buscar tag..."
+                  />
                 </div>
               )}
 
