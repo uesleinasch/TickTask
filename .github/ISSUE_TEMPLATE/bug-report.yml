@@ -1,0 +1,118 @@
+---
+name: 🐛 Bug Report
+description: Reportar um bug ou problema
+title: "[BUG] "
+labels: ["bug", "triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🐛 Relatório de Bug
+
+        Obrigado por reportar! Por favor, preencha todos os campos abaixo para nos ajudar a entender e resolver o problema.
+
+  - type: input
+    id: version
+    attributes:
+      label: Versão do TickTask
+      description: Qual versão você está usando?
+      placeholder: "ex: v2.0.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Sistema Operacional
+      description: Em qual sistema você encontrou o bug?
+      options:
+        - Windows
+        - macOS
+        - Linux (Ubuntu)
+        - Linux (outra distribuição)
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: Versão do Sistema Operacional
+      description: Qual versão do SO você está usando?
+      placeholder: "ex: Windows 11, Ubuntu 22.04"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Descrição do Bug
+      description: Descreva claramente o que aconteceu. O que você esperava que acontecesse vs. o que realmente aconteceu?
+      placeholder: "Quando eu cliquei em 'Iniciar Timer', o aplicativo travou..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos para Reproduzir
+      description: Liste os passos exatos para reproduzir o problema.
+      placeholder: |
+        1. Abra o aplicativo
+        2. Vá para a página de tarefas
+        3. Clique em 'Criar nova tarefa'
+        4. Preencha os campos
+        5. Clique em 'Salvar'
+        6. Veja o erro
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamento Esperado
+      description: O que você esperava que acontecesse?
+      placeholder: "A tarefa deveria ser salva e aparecer na lista"
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Comportamento Atual
+      description: O que realmente aconteceu?
+      placeholder: "O aplicativo fechou inesperadamente"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs de Erro
+      description: Cole aqui qualquer mensagem de erro, stack trace ou logs relevantes.
+      placeholder: |
+        ```
+        Error: Cannot read property 'id' of undefined
+        at TaskCard.tsx:45:12
+        ```
+      render: shell
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Informações Adicionais
+      description: Qualquer outra informação que possa ajudar a resolver o problema.
+      placeholder: "Prints de tela, configurações específicas, etc."
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Confirme que você verificou estes itens
+      options:
+        - label: Verifiquei se o bug não foi reportado anteriormente
+          required: true
+        - label: Testei com a versão mais recente do aplicativo
+          required: true
+        - label: Testei em diferentes condições/ambientes
+          required: false

@@ -1,0 +1,78 @@
+---
+name: ✨ Feature Request
+description: Sugerir uma nova funcionalidade
+title: "[FEATURE] "
+labels: ["enhancement", "triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ✨ Solicitação de Funcionalidade
+
+        Obrigado por sugerir uma nova funcionalidade! Use este template para descrever sua ideia.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Resumo
+      description: Descreva brevemente a funcionalidade que você gostaria de ver implementada.
+      placeholder: "Adicionar suporte a temas escuros/claros"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema que Resolve
+      description: Qual problema essa funcionalidade resolveria? Por que ela é necessária?
+      placeholder: "Atualmente o aplicativo só tem um tema claro, o que pode cansar os olhos em ambientes escuros..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Solução Proposta
+      description: Como você imagina que essa funcionalidade funcionaria?
+      placeholder: "Adicionar um botão de alternância no menu de configurações que permite escolher entre tema claro e escuro..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas Consideradas
+      description: Você considerou outras soluções? Quais?
+      placeholder: "Poderia detectar automaticamente baseado no sistema operacional, mas um controle manual dá mais flexibilidade ao usuário."
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Informações Adicionais
+      description: Links, mockups, exemplos de outros apps, etc.
+      placeholder: "Aqui vai um link para inspiração: https://exemplo.com"
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Prioridade
+      description: Qual a urgência dessa funcionalidade?
+      options:
+        - "Baixa - Seria legal ter"
+        - "Média - Melhoraria significativamente a experiência"
+        - "Alta - Essencial para o uso básico"
+        - "Crítica - Bloqueia funcionalidades importantes"
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Confirme que você verificou estes itens
+      options:
+        - label: Verifiquei se a funcionalidade não foi solicitada anteriormente
+          required: true
+        - label: A funcionalidade se alinha com o escopo do projeto
+          required: true
+        - label: Estou disposto a contribuir com a implementação (opcional)
+          required: false

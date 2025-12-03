@@ -1,0 +1,74 @@
+---
+name: 📚 Documentation
+description: Melhorar ou corrigir documentação
+title: "[DOCS] "
+labels: ["documentation"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 📚 Documentação
+
+        Ajude-nos a melhorar nossa documentação!
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Tipo de Alteração
+      description: Que tipo de alteração você quer fazer na documentação?
+      options:
+        - "Correção - Corrigir erro ou informação incorreta"
+        - "Melhoria - Melhorar clareza ou completude"
+        - "Adição - Adicionar nova documentação"
+        - "Tradução - Traduzir para outro idioma"
+        - "Outro"
+    validations:
+      required: true
+
+  - type: input
+    id: file
+    attributes:
+      label: Arquivo Afetado
+      description: Qual arquivo de documentação precisa ser alterado?
+      placeholder: "README.md, .github/CONTRIBUTING.md, etc."
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Conteúdo Atual
+      description: Qual é o conteúdo atual que precisa ser alterado?
+      placeholder: "Copie o texto atual aqui..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Conteúdo Proposto
+      description: Como você sugere que fique?
+      placeholder: "Cole sua sugestão de alteração aqui..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reason
+    attributes:
+      label: Justificativa
+      description: Por que essa alteração é necessária?
+      placeholder: "O texto atual está confuso, contém erro de digitação, está desatualizado, etc."
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Confirme que você verificou estes itens
+      options:
+        - label: Verifiquei se a alteração não foi sugerida anteriormente
+          required: true
+        - label: A alteração segue as diretrizes de estilo do projeto
+          required: true
