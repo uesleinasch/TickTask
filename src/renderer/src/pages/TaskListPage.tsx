@@ -55,12 +55,12 @@ export function TaskListPage(): React.JSX.Element {
   const navigate = useNavigate()
   const { tasks, loading, createTask } = useTasks(false)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [statusFilter, setStatusFilter] = useState<FilterStatus>('all')
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>('inbox')
   const [categoryFilter, setCategoryFilter] = useState<FilterCategory>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [tagFilter, setTagFilter] = useState<number | null>(null)
   const [availableTags, setAvailableTags] = useState<Tag[]>([])
-  const [viewMode, setViewMode] = useState<ViewMode>('cards')
+  const [viewMode, setViewMode] = useState<ViewMode>('table')
   const [showFilters, setShowFilters] = useState(false)
 
   // Carregar tags disponíveis
@@ -155,7 +155,7 @@ export function TaskListPage(): React.JSX.Element {
   }
 
   return (
-    <div className="flex flex-col h-full bg-slate-50">
+    <div className="flex flex-col h-full overflow-hidden bg-slate-50">
       {/* Header: Tabs + View Toggle */}
       <div className="px-6 pt-6 pb-2">
         <div className="flex items-center justify-between gap-4">
@@ -321,7 +321,7 @@ export function TaskListPage(): React.JSX.Element {
       )}
 
       {/* Content: Cards ou Table */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 h-0">
         <div className="p-6 pt-2 pb-24">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
