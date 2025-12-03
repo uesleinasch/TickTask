@@ -60,7 +60,7 @@ export function TaskListPage(): React.JSX.Element {
   const [searchQuery, setSearchQuery] = useState('')
   const [tagFilter, setTagFilter] = useState<number | null>(null)
   const [availableTags, setAvailableTags] = useState<Tag[]>([])
-  const [viewMode, setViewMode] = useState<ViewMode>('cards')
+  const [viewMode, setViewMode] = useState<ViewMode>('table')
   const [showFilters, setShowFilters] = useState(false)
 
   // Carregar tags disponíveis
