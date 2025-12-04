@@ -11,6 +11,7 @@ import { FloatingTimer } from './components/FloatingTimer'
 import { SyncNotification } from './components/SyncNotification'
 import { Toaster } from './components/ui/sonner'
 import { notifySyncStart, notifySyncSuccess, notifySyncError } from './lib/syncEvents'
+import { useTimerStore } from './stores/timerStore'
 
 // Criar um event emitter simples para comunicação
 const eventEmitter = {
@@ -67,6 +68,14 @@ function AppContent(): React.JSX.Element {
       window.api.offSyncSuccess?.(handleSyncSuccess)
       window.api.offSyncError?.(handleSyncError)
     }
+  }, [])
+
+  // Listener para timer parado via float window
+  useEffect(() => {
+    const unsubscribe = window.api.onTimerStopped(() => {
+      useTimerStore.getState().clearActiveTimer()
+    })
+    return unsubscribe
   }, [])
 
   // Se for a janela flutuante, renderizar apenas ela
