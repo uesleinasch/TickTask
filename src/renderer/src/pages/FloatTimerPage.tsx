@@ -13,6 +13,14 @@ export function FloatTimerPage(): React.JSX.Element {
   const [timerData, setTimerData] = useState<TimerData | null>(null)
   const currentTaskIdRef = useRef<number | null>(null)
 
+  // Adiciona classe ao body para background transparente
+  useEffect(() => {
+    document.body.classList.add('float-window')
+    return () => {
+      document.body.classList.remove('float-window')
+    }
+  }, [])
+
   useEffect(() => {
     // Escutar atualizações do timer principal
     // Usa apenas os dados recebidos via IPC, sem contador local adicional
@@ -61,8 +69,8 @@ export function FloatTimerPage(): React.JSX.Element {
 
   return (
     <div
-      className="w-full h-full flex items-center gap-3 px-4 bg-slate-900/95 backdrop-blur rounded-xl border border-slate-700 shadow-2xl cursor-move"
-      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      className="w-full h-full flex items-center gap-3 px-4 bg-slate-900/95 backdrop-blur rounded-xl border border-slate-700 shadow-2xl select-none"
+      style={{ WebkitAppRegion: 'drag', cursor: 'grab' } as React.CSSProperties}
     >
       {/* Indicador de atividade */}
       <div className="relative">

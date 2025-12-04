@@ -97,7 +97,8 @@ function createFloatWindow(): void {
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: false,
-    focusable: false,
+    movable: true,
+    hasShadow: false,
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
