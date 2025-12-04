@@ -187,3 +187,10 @@
   display: flex;
   flex-direction: column;
 }
+
+/* Float Timer - Janela transparente */
+body.float-window,
+body.float-window #root {
+  background: transparent !important;
+  min-height: auto;
+}
