@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -10,9 +10,10 @@ import {
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { Textarea } from '@renderer/components/ui/textarea'
+import { SearchableSelect } from '@renderer/components/ui/searchable-select'
 import { CategorySelect } from './CategorySelect'
 import { TagInput } from './TagInput'
-import type { CreateTaskInput, TaskCategory, Tag } from '../../../shared/types'
+import type { CreateTaskInput, TaskCategory, Tag, Project, Context } from '../../../shared/types'
 
 interface TaskDialogProps {
   open: boolean
@@ -26,7 +27,20 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
   const [timeLimit, setTimeLimit] = useState('')
   const [category, setCategory] = useState<TaskCategory>('normal')
   const [selectedTags, setSelectedTags] = useState<Tag[]>([])
+  const [projectId, setProjectId] = useState<number | undefined>(undefined)
+  const [selectedContextIds, setSelectedContextIds] = useState<number[]>([])
   const [loading, setLoading] = useState(false)
+
+  // Dados disponíveis para seleção
+  const [projects, setProjects] = useState<Project[]>([])
+  const [contexts, setContexts] = useState<Context[]>([])
+
+  useEffect(() => {
+    if (open) {
+      window.api.listProjects('active').then(setProjects).catch(console.error)
+      window.api.listContexts().then(setContexts).catch(console.error)
+    }
+  }, [open])
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
@@ -34,7 +48,6 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
 
     setLoading(true)
     try {
-      // Parse time limit (HH:MM:SS or MM:SS or just seconds)
       let timeLimitSeconds: number | undefined
       if (timeLimit.trim()) {
         const parts = timeLimit.split(':').map(Number)
@@ -43,7 +56,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
         } else if (parts.length === 2) {
           timeLimitSeconds = parts[0] * 60 + parts[1]
         } else if (parts.length === 1 && !isNaN(parts[0])) {
-          timeLimitSeconds = parts[0] * 60 // Assume minutos se for só um número
+          timeLimitSeconds = parts[0] * 60
         }
       }
 
@@ -52,7 +65,9 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
         description: description.trim() || undefined,
         time_limit_seconds: timeLimitSeconds,
         category,
-        tagIds: selectedTags.map((t) => t.id)
+        tagIds: selectedTags.map((t) => t.id),
+        project_id: projectId,
+        contextIds: selectedContextIds.length > 0 ? selectedContextIds : undefined
       })
 
       // Reset form
@@ -61,15 +76,28 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
       setTimeLimit('')
       setCategory('normal')
       setSelectedTags([])
+      setProjectId(undefined)
+      setSelectedContextIds([])
       onOpenChange(false)
     } finally {
       setLoading(false)
     }
   }
 
+  const projectOptions = [
+    { value: 'none', label: 'Nenhum' },
+    ...projects.map((p) => ({ value: String(p.id), label: p.name }))
+  ]
+
+  const toggleContext = (contextId: number): void => {
+    setSelectedContextIds((prev) =>
+      prev.includes(contextId) ? prev.filter((id) => id !== contextId) : [...prev, contextId]
+    )
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-white rounded-xl shadow-2xl border-slate-200">
+      <DialogContent className="bg-white rounded-xl shadow-2xl border-slate-200 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-slate-900">Nova Tarefa</DialogTitle>
           <DialogDescription className="text-slate-500">
@@ -121,18 +149,60 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
               />
             </div>
           </div>
+
+          {/* Projeto */}
+          {projects.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Projeto</label>
+              <SearchableSelect
+                value={projectId ? String(projectId) : 'none'}
+                onChange={(value) => setProjectId(value === 'none' ? undefined : Number(value))}
+                options={projectOptions}
+                placeholder="Selecione um projeto..."
+                searchPlaceholder="Buscar projeto..."
+              />
+            </div>
+          )}
+
+          {/* Contextos */}
+          {contexts.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Contextos</label>
+              <div className="flex flex-wrap gap-2">
+                {contexts.map((ctx) => {
+                  const isSelected = selectedContextIds.includes(ctx.id)
+                  return (
+                    <button
+                      key={ctx.id}
+                      type="button"
+                      onClick={() => toggleContext(ctx.id)}
+                      className={`
+                        inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border
+                        ${
+                          isSelected
+                            ? 'text-white shadow-sm'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                        }
+                      `}
+                      style={isSelected ? { backgroundColor: ctx.color, borderColor: ctx.color } : {}}
+                    >
+                      <span>{ctx.icon}</span>
+                      {ctx.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">
-              Fontes / Tags
-            </label>
+            <label className="text-sm font-medium text-slate-700">Fontes / Tags</label>
             <TagInput
               selectedTags={selectedTags}
               onChange={setSelectedTags}
               placeholder="Digite uma fonte e pressione Enter..."
             />
-            <p className="text-xs text-slate-500">
-              Ex: E-mail, Trabalho, Pessoal, Cliente X
-            </p>
+            <p className="text-xs text-slate-500">Ex: E-mail, Trabalho, Pessoal, Cliente X</p>
           </div>
           <DialogFooter className="pt-2">
             <Button

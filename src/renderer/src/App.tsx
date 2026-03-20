@@ -6,6 +6,11 @@ import { ArchivedTasksPage } from './pages/ArchivedTasksPage'
 import { FloatTimerPage } from './pages/FloatTimerPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { ProjectsPage } from './pages/ProjectsPage'
+import { ProjectDetailPage } from './pages/ProjectDetailPage'
+import { ContextsPage } from './pages/ContextsPage'
+import { WeeklyReviewPage } from './pages/WeeklyReviewPage'
+import { QuickCapturePage } from './pages/QuickCapturePage'
 import { TitleBar } from './components/TitleBar'
 import { FloatingTimer } from './components/FloatingTimer'
 import { SyncNotification } from './components/SyncNotification'
@@ -13,7 +18,7 @@ import { Toaster } from './components/ui/sonner'
 import { notifySyncStart, notifySyncSuccess, notifySyncError } from './lib/syncEvents'
 import { useTimerStore } from './stores/timerStore'
 
-// Criar um event emitter simples para comunicação
+// Event emitter para comunicação entre componentes
 const eventEmitter = {
   listeners: new Map<string, Set<() => void>>(),
   on(event: string, callback: () => void): void {
@@ -41,11 +46,31 @@ function FloatContent(): React.JSX.Element {
   )
 }
 
+// Componente para a janela de captura rápida
+function QuickCaptureContent(): React.JSX.Element {
+  return (
+    <div className="w-full h-full">
+      <QuickCapturePage />
+    </div>
+  )
+}
+
 function AppContent(): React.JSX.Element {
   const location = useLocation()
   const isTaskPage = location.pathname.startsWith('/task/')
+  const isProjectDetailPage = location.pathname.startsWith('/project/')
   const isDashboardPage = location.pathname === '/dashboard'
   const isFloatPage = location.pathname === '/float'
+  const isQuickCapturePage = location.pathname === '/quick-capture'
+  const isSubPage =
+    isTaskPage ||
+    isProjectDetailPage ||
+    isDashboardPage ||
+    location.pathname === '/projects' ||
+    location.pathname === '/contexts' ||
+    location.pathname === '/review' ||
+    location.pathname === '/archived' ||
+    location.pathname === '/settings'
 
   // Listener para eventos de sincronização do main process
   useEffect(() => {
@@ -83,6 +108,11 @@ function AppContent(): React.JSX.Element {
     return <FloatContent />
   }
 
+  // Se for a janela de captura rápida
+  if (isQuickCapturePage) {
+    return <QuickCaptureContent />
+  }
+
   const handleNewTask = useCallback(() => {
     eventEmitter.emit('open-new-task-dialog')
   }, [])
@@ -97,10 +127,15 @@ function AppContent(): React.JSX.Element {
           <Route path="/archived" element={<ArchivedTasksPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/project/:id" element={<ProjectDetailPage />} />
+          <Route path="/contexts" element={<ContextsPage />} />
+          <Route path="/review" element={<WeeklyReviewPage />} />
           <Route path="/float" element={<FloatTimerPage />} />
+          <Route path="/quick-capture" element={<QuickCapturePage />} />
         </Routes>
       </main>
-      {!isTaskPage && !isDashboardPage && <FloatingTimer />}
+      {!isSubPage && <FloatingTimer />}
       <SyncNotification />
       <Toaster position="bottom-right" />
     </div>

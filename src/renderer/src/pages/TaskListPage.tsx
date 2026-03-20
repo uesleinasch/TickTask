@@ -8,7 +8,7 @@ import { TaskTable } from '@renderer/components/TaskTable'
 import { TaskDialog } from '@renderer/components/TaskDialog'
 import { useTasks, useFilteredTasks } from '@renderer/hooks/useTasks'
 import { eventEmitter } from '@renderer/App'
-import type { TaskStatus, TaskCategory, CreateTaskInput, Tag } from '../../../shared/types'
+import type { TaskStatus, TaskCategory, CreateTaskInput, Tag, Context, Project } from '../../../shared/types'
 import {
   ListTodo,
   Inbox,
@@ -20,7 +20,8 @@ import {
   List,
   Search,
   Filter,
-  X
+  X,
+  Lightbulb
 } from 'lucide-react'
 
 type FilterStatus = TaskStatus | 'all'
@@ -39,39 +40,53 @@ const tabs: TabItem[] = [
   { id: 'aguardando', label: 'Aguardando', icon: Hourglass },
   { id: 'proximas', label: 'Próximas', icon: Calendar },
   { id: 'executando', label: 'Executando', icon: Activity },
-  { id: 'finalizada', label: 'Finalizadas', icon: CheckSquare }
+  { id: 'finalizada', label: 'Finalizadas', icon: CheckSquare },
+  { id: 'someday', label: 'Someday', icon: Lightbulb }
 ]
 
-// Definição de cores para categorias (usado no dropdown)
 const CATEGORY_COLOR_MAP: Record<TaskCategory | 'all', string> = {
-  all: '#64748b', // slate-500
-  urgente: '#ef4444', // red-500
-  prioridade: '#f97316', // orange-500
-  normal: '#3b82f6', // blue-500
-  time_leak: '#eab308' // yellow-500
+  all: '#64748b',
+  urgente: '#ef4444',
+  prioridade: '#f97316',
+  normal: '#3b82f6',
+  time_leak: '#eab308'
 }
 
 export function TaskListPage(): React.JSX.Element {
   const navigate = useNavigate()
-  const { tasks, loading, createTask } = useTasks(false)
+  const { tasks, loading, createTask, refreshTasks } = useTasks(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('inbox')
   const [categoryFilter, setCategoryFilter] = useState<FilterCategory>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [tagFilter, setTagFilter] = useState<number | null>(null)
+  const [contextFilter, setContextFilter] = useState<number | null>(null)
+  const [projectFilter, setProjectFilter] = useState<number | null>(null)
   const [availableTags, setAvailableTags] = useState<Tag[]>([])
+  const [availableContexts, setAvailableContexts] = useState<Context[]>([])
+  const [availableProjects, setAvailableProjects] = useState<Project[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('table')
   const [showFilters, setShowFilters] = useState(false)
 
-  // Carregar tags disponíveis
+  // Carregar dados de filtros
   useEffect(() => {
     window.api.listTags().then(setAvailableTags).catch(console.error)
+    window.api.listContexts().then(setAvailableContexts).catch(console.error)
+    window.api.listProjects().then(setAvailableProjects).catch(console.error)
   }, [])
 
-  // Filtrar por status usando o hook existente
+  // Listener para refresh vindo do quick capture
+  useEffect(() => {
+    const unsubscribe = window.api.onTasksRefresh(() => {
+      refreshTasks()
+    })
+    return unsubscribe
+  }, [refreshTasks])
+
+  // Filtrar por status
   const statusFilteredTasks = useFilteredTasks(tasks, statusFilter)
 
-  // Opções para dropdown de categorias
+  // Opções de filtros
   const categoryOptions = useMemo(
     () => [
       { value: 'all', label: 'Todas', color: CATEGORY_COLOR_MAP['all'] },
@@ -83,7 +98,6 @@ export function TaskListPage(): React.JSX.Element {
     []
   )
 
-  // Opções para dropdown de tags
   const tagOptions = useMemo(
     () => [
       { value: 'all', label: 'Todas' },
@@ -96,16 +110,38 @@ export function TaskListPage(): React.JSX.Element {
     [availableTags]
   )
 
-  // Aplicar filtros adicionais (categoria, busca e tags)
+  const contextOptions = useMemo(
+    () => [
+      { value: 'all', label: 'Todos' },
+      ...availableContexts.map((ctx) => ({
+        value: String(ctx.id),
+        label: `${ctx.icon} ${ctx.name}`,
+        color: ctx.color
+      }))
+    ],
+    [availableContexts]
+  )
+
+  const projectOptions = useMemo(
+    () => [
+      { value: 'all', label: 'Todos' },
+      { value: 'none', label: 'Sem projeto' },
+      ...availableProjects.map((proj) => ({
+        value: String(proj.id),
+        label: proj.name
+      }))
+    ],
+    [availableProjects]
+  )
+
+  // Aplicar filtros adicionais
   const filteredTasks = useMemo(() => {
     let result = statusFilteredTasks
 
-    // Filtrar por categoria
     if (categoryFilter !== 'all') {
       result = result.filter((task) => task.category === categoryFilter)
     }
 
-    // Filtrar por nome/descrição
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim()
       result = result.filter(
@@ -115,24 +151,43 @@ export function TaskListPage(): React.JSX.Element {
       )
     }
 
-    // Filtrar por tag
     if (tagFilter !== null) {
       result = result.filter(
         (task) => task.tags && task.tags.some((t) => t.id === tagFilter)
       )
     }
 
+    if (contextFilter !== null) {
+      result = result.filter(
+        (task) => task.contexts && task.contexts.some((c) => c.id === contextFilter)
+      )
+    }
+
+    if (projectFilter !== null) {
+      if (projectFilter === -1) {
+        // "Sem projeto"
+        result = result.filter((task) => !task.project_id)
+      } else {
+        result = result.filter((task) => task.project_id === projectFilter)
+      }
+    }
+
     return result
-  }, [statusFilteredTasks, categoryFilter, searchQuery, tagFilter])
+  }, [statusFilteredTasks, categoryFilter, searchQuery, tagFilter, contextFilter, projectFilter])
 
-  // Verificar se há filtros ativos
-  const hasActiveFilters = categoryFilter !== 'all' || searchQuery.trim() !== '' || tagFilter !== null
+  const hasActiveFilters =
+    categoryFilter !== 'all' ||
+    searchQuery.trim() !== '' ||
+    tagFilter !== null ||
+    contextFilter !== null ||
+    projectFilter !== null
 
-  // Limpar todos os filtros
   const clearFilters = (): void => {
     setCategoryFilter('all')
     setSearchQuery('')
     setTagFilter(null)
+    setContextFilter(null)
+    setProjectFilter(null)
   }
 
   // Ouvir evento de nova tarefa do TitleBar
@@ -159,7 +214,7 @@ export function TaskListPage(): React.JSX.Element {
       {/* Header: Tabs + View Toggle */}
       <div className="px-6 pt-6 pb-2">
         <div className="flex items-center justify-between gap-4">
-          {/* Tabs - Pills Style */}
+          {/* Tabs */}
           <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide flex-1">
             {tabs.map((tab) => {
               const Icon = tab.icon
@@ -183,9 +238,8 @@ export function TaskListPage(): React.JSX.Element {
             })}
           </div>
 
-          {/* Actions: Filter Toggle + View Toggle */}
+          {/* Actions */}
           <div className="flex items-center gap-2">
-            {/* Filter Toggle Button */}
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`
@@ -200,19 +254,22 @@ export function TaskListPage(): React.JSX.Element {
               Filtros
               {hasActiveFilters && (
                 <span className="bg-white text-slate-900 text-xs px-1.5 py-0.5 rounded-full font-bold">
-                  {(categoryFilter !== 'all' ? 1 : 0) + (searchQuery.trim() ? 1 : 0) + (tagFilter !== null ? 1 : 0)}
+                  {(categoryFilter !== 'all' ? 1 : 0) +
+                    (searchQuery.trim() ? 1 : 0) +
+                    (tagFilter !== null ? 1 : 0) +
+                    (contextFilter !== null ? 1 : 0) +
+                    (projectFilter !== null ? 1 : 0)}
                 </span>
               )}
             </button>
 
-            {/* View Toggle */}
             <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
               <button
                 onClick={() => setViewMode('cards')}
                 className={`
                   p-2 rounded-md transition-all
-                  ${viewMode === 'cards' 
-                    ? 'bg-slate-900 text-white shadow-sm' 
+                  ${viewMode === 'cards'
+                    ? 'bg-slate-900 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
                   }
                 `}
@@ -224,8 +281,8 @@ export function TaskListPage(): React.JSX.Element {
                 onClick={() => setViewMode('table')}
                 className={`
                   p-2 rounded-md transition-all
-                  ${viewMode === 'table' 
-                    ? 'bg-slate-900 text-white shadow-sm' 
+                  ${viewMode === 'table'
+                    ? 'bg-slate-900 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
                   }
                 `}
@@ -243,7 +300,7 @@ export function TaskListPage(): React.JSX.Element {
         <div className="px-6 pb-4 animate-in slide-in-from-top-2 fade-in duration-200">
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
             <div className="flex flex-wrap items-end gap-4">
-              {/* Search Input */}
+              {/* Search */}
               <div className="flex-1 min-w-[200px]">
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
                   Buscar
@@ -269,7 +326,7 @@ export function TaskListPage(): React.JSX.Element {
               </div>
 
               {/* Category Filter */}
-              <div className="min-w-[200px]">
+              <div className="min-w-[160px]">
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
                   Categoria
                 </label>
@@ -277,14 +334,50 @@ export function TaskListPage(): React.JSX.Element {
                   value={categoryFilter}
                   onChange={(value) => setCategoryFilter(value as FilterCategory)}
                   options={categoryOptions}
-                  placeholder="Selecione categoria..."
+                  placeholder="Selecione..."
                   searchPlaceholder="Buscar categoria..."
                 />
               </div>
 
+              {/* Context Filter */}
+              {availableContexts.length > 0 && (
+                <div className="min-w-[160px]">
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                    Contexto
+                  </label>
+                  <SearchableSelect
+                    value={contextFilter !== null ? String(contextFilter) : 'all'}
+                    onChange={(value) => setContextFilter(value === 'all' ? null : Number(value))}
+                    options={contextOptions}
+                    placeholder="Selecione..."
+                    searchPlaceholder="Buscar contexto..."
+                  />
+                </div>
+              )}
+
+              {/* Project Filter */}
+              {availableProjects.length > 0 && (
+                <div className="min-w-[160px]">
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                    Projeto
+                  </label>
+                  <SearchableSelect
+                    value={projectFilter !== null ? (projectFilter === -1 ? 'none' : String(projectFilter)) : 'all'}
+                    onChange={(value) => {
+                      if (value === 'all') setProjectFilter(null)
+                      else if (value === 'none') setProjectFilter(-1)
+                      else setProjectFilter(Number(value))
+                    }}
+                    options={projectOptions}
+                    placeholder="Selecione..."
+                    searchPlaceholder="Buscar projeto..."
+                  />
+                </div>
+              )}
+
               {/* Tag Filter */}
               {availableTags.length > 0 && (
-                <div className="min-w-[200px]">
+                <div className="min-w-[160px]">
                   <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
                     Fonte / Tag
                   </label>
@@ -292,7 +385,7 @@ export function TaskListPage(): React.JSX.Element {
                     value={tagFilter !== null ? String(tagFilter) : 'all'}
                     onChange={(value) => setTagFilter(value === 'all' ? null : Number(value))}
                     options={tagOptions}
-                    placeholder="Selecione tag..."
+                    placeholder="Selecione..."
                     searchPlaceholder="Buscar tag..."
                   />
                 </div>
@@ -310,17 +403,18 @@ export function TaskListPage(): React.JSX.Element {
               )}
             </div>
 
-            {/* Active Filters Summary */}
             {hasActiveFilters && (
               <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-500">
-                <span>Mostrando {filteredTasks.length} de {tasks.length} tarefas</span>
+                <span>
+                  Mostrando {filteredTasks.length} de {tasks.length} tarefas
+                </span>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Content: Cards ou Table */}
+      {/* Content */}
       <ScrollArea className="flex-1 h-0">
         <div className="p-6 pt-2 pb-24">
           {loading ? (
