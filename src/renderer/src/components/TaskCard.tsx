@@ -2,7 +2,7 @@ import { StatusBadge } from './StatusBadge'
 import { CategoryBadge } from './CategoryBadge'
 import { formatTime } from '@renderer/lib/utils'
 import type { Task } from '../../../shared/types'
-import { AlertCircle, Activity } from 'lucide-react'
+import { AlertCircle, Activity, FolderKanban } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 
 interface TaskCardProps {
@@ -10,7 +10,6 @@ interface TaskCardProps {
   onClick: () => void
 }
 
-// Função para determinar o estilo do card baseado na categoria Time Leak
 function getTimeLeakStyles(task: Task): {
   cardBg: string
   borderColor: string
@@ -25,19 +24,16 @@ function getTimeLeakStyles(task: Task): {
   const minutes = task.total_seconds / 60
 
   if (minutes >= 60) {
-    // Vermelho: mais de 1 hora
     return {
       cardBg: 'bg-red-50',
       borderColor: 'border-l-red-500 hover:border-l-red-600'
     }
   } else if (minutes >= 30) {
-    // Laranja: mais de 30 minutos
     return {
       cardBg: 'bg-orange-50',
       borderColor: 'border-l-orange-500 hover:border-l-orange-600'
     }
   } else if (minutes > 0) {
-    // Amarelo claro: menos de 30 minutos
     return {
       cardBg: 'bg-yellow-50',
       borderColor: 'border-l-yellow-500 hover:border-l-yellow-600'
@@ -80,6 +76,14 @@ export function TaskCard({ task, onClick }: TaskCardProps): React.JSX.Element {
             )}
           </div>
 
+          {/* Project indicator */}
+          {task.project_name && (
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1.5">
+              <FolderKanban size={12} />
+              <span className="truncate">{task.project_name}</span>
+            </div>
+          )}
+
           {/* Título */}
           <h3 className="font-semibold text-slate-900 text-lg leading-tight mb-2 line-clamp-2">
             {task.name}
@@ -104,9 +108,24 @@ export function TaskCard({ task, onClick }: TaskCardProps): React.JSX.Element {
               ))}
             </div>
           )}
+
+          {/* Contextos */}
+          {task.contexts && task.contexts.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-2">
+              {task.contexts.map((ctx) => (
+                <span
+                  key={ctx.id}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-slate-200 text-slate-600"
+                >
+                  <span className="text-[10px]">{ctx.icon}</span>
+                  {ctx.name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Footer: Timer + Indicator */}
+        {/* Footer: Timer */}
         <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
           <div
             className={cn(

@@ -2,7 +2,7 @@ import { StatusBadge } from './StatusBadge'
 import { CategoryBadge } from './CategoryBadge'
 import { formatTime } from '@renderer/lib/utils'
 import type { Task } from '../../../shared/types'
-import { Activity, Clock, AlertCircle } from 'lucide-react'
+import { Activity, Clock, AlertCircle, FolderKanban } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 
 interface TaskTableProps {
@@ -53,7 +53,10 @@ export function TaskTable({ tasks, onTaskClick }: TaskTableProps): React.JSX.Ele
             <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-28">
               Categoria
             </th>
-            <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-40">
+            <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-32">
+              Projeto
+            </th>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-32">
               Tags
             </th>
             <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-32">
@@ -122,6 +125,18 @@ export function TaskTable({ tasks, onTaskClick }: TaskTableProps): React.JSX.Ele
                 {/* Categoria */}
                 <td className="px-4 py-3">
                   <CategoryBadge category={task.category || 'normal'} />
+                </td>
+
+                {/* Projeto */}
+                <td className="px-4 py-3">
+                  {task.project_name ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-slate-600">
+                      <FolderKanban size={12} className="text-slate-400" />
+                      <span className="truncate max-w-[100px]">{task.project_name}</span>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-300">—</span>
+                  )}
                 </td>
 
                 {/* Tags */}

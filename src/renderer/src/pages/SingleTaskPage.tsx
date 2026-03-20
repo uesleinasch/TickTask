@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
+import { SearchableSelect } from '@renderer/components/ui/searchable-select'
 import { Timer } from '@renderer/components/Timer'
 import { StatusSelect } from '@renderer/components/StatusSelect'
 import { CategorySelect } from '@renderer/components/CategorySelect'
@@ -11,8 +12,8 @@ import { DeleteConfirmDialog } from '@renderer/components/DeleteConfirmDialog'
 import { TagInput } from '@renderer/components/TagInput'
 import { useTaskDetail } from '@renderer/hooks/useTaskDetail'
 import { formatTime, parseTimeInput } from '@renderer/lib/utils'
-import type { TaskStatus, TaskCategory, Tag } from '../../../shared/types'
-import { ArrowLeft, Archive, Trash2, AlertCircle, Plus, Edit3, Tags } from 'lucide-react'
+import type { TaskStatus, TaskCategory, Tag, Project, Context } from '../../../shared/types'
+import { ArrowLeft, Archive, Trash2, AlertCircle, Plus, Edit3, Tags, FolderKanban, MapPin } from 'lucide-react'
 import { toast } from '@renderer/components/ui/sonner'
 
 export function SingleTaskPage(): React.JSX.Element {
@@ -38,6 +39,17 @@ export function SingleTaskPage(): React.JSX.Element {
   const [manualTime, setManualTime] = useState('')
   const [adjustTime, setAdjustTime] = useState('')
   const [selectedTags, setSelectedTags] = useState<Tag[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
+  const [selectedContextIds, setSelectedContextIds] = useState<number[]>([])
+
+  // Dados disponíveis
+  const [projects, setProjects] = useState<Project[]>([])
+  const [contexts, setContexts] = useState<Context[]>([])
+
+  useEffect(() => {
+    window.api.listProjects().then(setProjects).catch(console.error)
+    window.api.listContexts().then(setContexts).catch(console.error)
+  }, [])
 
   // Sincronizar estado local com task
   useEffect(() => {
@@ -47,6 +59,8 @@ export function SingleTaskPage(): React.JSX.Element {
       setTimeLimit(task.time_limit_seconds ? formatTime(task.time_limit_seconds) : '')
       setAdjustTime(formatTime(task.total_seconds))
       setSelectedTags(task.tags || [])
+      setSelectedProjectId(task.project_id || null)
+      setSelectedContextIds(task.contexts?.map((c) => c.id) || [])
     }
   }, [task])
 
@@ -85,6 +99,27 @@ export function SingleTaskPage(): React.JSX.Element {
       toast.success('Tags atualizadas')
     },
     [updateTask]
+  )
+
+  const handleProjectChange = useCallback(
+    async (value: string): Promise<void> => {
+      const newProjectId = value === 'none' ? null : Number(value)
+      setSelectedProjectId(newProjectId)
+      await updateTask({ project_id: newProjectId })
+      toast.success(newProjectId ? 'Projeto vinculado' : 'Projeto removido')
+    },
+    [updateTask]
+  )
+
+  const toggleContext = useCallback(
+    async (contextId: number): Promise<void> => {
+      const newIds = selectedContextIds.includes(contextId)
+        ? selectedContextIds.filter((id) => id !== contextId)
+        : [...selectedContextIds, contextId]
+      setSelectedContextIds(newIds)
+      await updateTask({ contextIds: newIds })
+    },
+    [selectedContextIds, updateTask]
   )
 
   const handleArchive = useCallback(async (): Promise<void> => {
@@ -158,6 +193,11 @@ export function SingleTaskPage(): React.JSX.Element {
     )
   }
 
+  const projectOptions = [
+    { value: 'none', label: 'Nenhum' },
+    ...projects.map((p) => ({ value: String(p.id), label: p.name }))
+  ]
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
       {/* Header */}
@@ -178,7 +218,7 @@ export function SingleTaskPage(): React.JSX.Element {
       {/* Content */}
       <ScrollArea className="flex-1 h-0">
         <div className="max-w-3xl mx-auto p-6 space-y-6">
-          {/* Título e Descrição Editáveis */}
+          {/* Título e Descrição */}
           <div className="space-y-4">
             <input
               type="text"
@@ -197,6 +237,61 @@ export function SingleTaskPage(): React.JSX.Element {
             />
           </div>
 
+          {/* Projeto e Contextos */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Projeto */}
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+              <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center">
+                <FolderKanban size={16} className="mr-2" /> Projeto
+              </h4>
+              <SearchableSelect
+                value={selectedProjectId ? String(selectedProjectId) : 'none'}
+                onChange={handleProjectChange}
+                options={projectOptions}
+                placeholder="Selecione um projeto..."
+                searchPlaceholder="Buscar projeto..."
+              />
+              {task.project_name && (
+                <button
+                  onClick={() => navigate(`/project/${task.project_id}`)}
+                  className="mt-2 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                >
+                  Ir para o projeto: {task.project_name}
+                </button>
+              )}
+            </div>
+
+            {/* Contextos */}
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+              <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center">
+                <MapPin size={16} className="mr-2" /> Contextos
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {contexts.map((ctx) => {
+                  const isSelected = selectedContextIds.includes(ctx.id)
+                  return (
+                    <button
+                      key={ctx.id}
+                      onClick={() => toggleContext(ctx.id)}
+                      className={`
+                        inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border
+                        ${
+                          isSelected
+                            ? 'text-white shadow-sm'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                        }
+                      `}
+                      style={isSelected ? { backgroundColor: ctx.color, borderColor: ctx.color } : {}}
+                    >
+                      <span>{ctx.icon}</span>
+                      {ctx.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+
           {/* Tags */}
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
             <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center">
@@ -209,7 +304,7 @@ export function SingleTaskPage(): React.JSX.Element {
             />
           </div>
 
-          {/* Timer Central */}
+          {/* Timer */}
           <Timer
             taskId={task.id}
             initialSeconds={task.total_seconds}
@@ -221,7 +316,6 @@ export function SingleTaskPage(): React.JSX.Element {
 
           {/* Configurações de Tempo */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Adicionar Tempo Manual */}
             <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
               <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center">
                 <Plus size={16} className="mr-2" /> Adicionar Tempo
@@ -245,7 +339,6 @@ export function SingleTaskPage(): React.JSX.Element {
               </div>
             </div>
 
-            {/* Ajustar Tempo Total */}
             <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
               <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center">
                 <Edit3 size={16} className="mr-2" /> Ajustar Tempo Total
@@ -272,7 +365,6 @@ export function SingleTaskPage(): React.JSX.Element {
 
           {/* Limite de Tempo e Ações */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Time Limit Input */}
             <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
               <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center">
                 <AlertCircle size={16} className="mr-2" /> Limite de Tempo
@@ -296,7 +388,6 @@ export function SingleTaskPage(): React.JSX.Element {
               </div>
             </div>
 
-            {/* Ações */}
             <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
               <h4 className="text-sm font-semibold text-slate-900 mb-3">Ações</h4>
               <div className="flex gap-2">
@@ -328,7 +419,6 @@ export function SingleTaskPage(): React.JSX.Element {
         </div>
       </ScrollArea>
 
-      {/* Delete Confirmation */}
       <DeleteConfirmDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}

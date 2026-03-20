@@ -1,6 +1,20 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus, Tag } from '../shared/types'
+import type {
+  Task,
+  TimeEntry,
+  CreateTaskInput,
+  UpdateTaskInput,
+  TaskStatus,
+  Tag,
+  Project,
+  CreateProjectInput,
+  UpdateProjectInput,
+  ProjectStatus,
+  Context,
+  WeeklyReview,
+  ReviewHealthIndicators
+} from '../shared/types'
 
 // Custom APIs for renderer
 const api = {
@@ -68,7 +82,6 @@ const api = {
     return () => ipcRenderer.removeListener('float:update', handler)
   },
 
-  // Evento para limpar o estado do float window
   onFloatClear: (callback: () => void): (() => void) => {
     const handler = (): void => {
       callback()
@@ -77,13 +90,21 @@ const api = {
     return () => ipcRenderer.removeListener('float:clear', handler)
   },
 
-  // Timer stopped event (from float window)
   onTimerStopped: (callback: (taskId: number) => void): (() => void) => {
     const handler = (_: Electron.IpcRendererEvent, taskId: number): void => {
       callback(taskId)
     }
     ipcRenderer.on('timer:stopped', handler)
     return () => ipcRenderer.removeListener('timer:stopped', handler)
+  },
+
+  // Tasks refresh event (from quick capture)
+  onTasksRefresh: (callback: () => void): (() => void) => {
+    const handler = (): void => {
+      callback()
+    }
+    ipcRenderer.on('tasks:refresh', handler)
+    return () => ipcRenderer.removeListener('tasks:refresh', handler)
   },
 
   // Statistics
@@ -95,20 +116,77 @@ const api = {
   getGeneralStats: (): Promise<GeneralStats> => ipcRenderer.invoke('stats:general'),
 
   // Tags
-  createTag: (name: string, color?: string): Promise<Tag> => ipcRenderer.invoke('tag:create', name, color),
+  createTag: (name: string, color?: string): Promise<Tag> =>
+    ipcRenderer.invoke('tag:create', name, color),
   listTags: (): Promise<Tag[]> => ipcRenderer.invoke('tag:list'),
   getOrCreateTag: (name: string): Promise<Tag> => ipcRenderer.invoke('tag:getOrCreate', name),
   deleteTag: (id: number): Promise<void> => ipcRenderer.invoke('tag:delete', id),
   getTaskTags: (taskId: number): Promise<Tag[]> => ipcRenderer.invoke('tag:getTaskTags', taskId),
-  setTaskTags: (taskId: number, tagIds: number[]): Promise<void> => ipcRenderer.invoke('tag:setTaskTags', taskId, tagIds),
+  setTaskTags: (taskId: number, tagIds: number[]): Promise<void> =>
+    ipcRenderer.invoke('tag:setTaskTags', taskId, tagIds),
+
+  // ===================== PROJECTS =====================
+  createProject: (data: CreateProjectInput): Promise<Project> =>
+    ipcRenderer.invoke('project:create', data),
+  getProject: (id: number): Promise<Project | undefined> =>
+    ipcRenderer.invoke('project:get', id),
+  listProjects: (status?: ProjectStatus): Promise<Project[]> =>
+    ipcRenderer.invoke('project:list', status),
+  updateProject: (id: number, data: UpdateProjectInput): Promise<void> =>
+    ipcRenderer.invoke('project:update', id, data),
+  deleteProject: (id: number): Promise<void> => ipcRenderer.invoke('project:delete', id),
+  getProjectTasks: (projectId: number): Promise<Task[]> =>
+    ipcRenderer.invoke('project:getTasks', projectId),
+
+  // ===================== CONTEXTS =====================
+  createContext: (name: string, icon?: string, color?: string): Promise<Context> =>
+    ipcRenderer.invoke('context:create', name, icon, color),
+  listContexts: (): Promise<Context[]> => ipcRenderer.invoke('context:list'),
+  updateContext: (
+    id: number,
+    data: { name?: string; icon?: string; color?: string }
+  ): Promise<void> => ipcRenderer.invoke('context:update', id, data),
+  deleteContext: (id: number): Promise<void> => ipcRenderer.invoke('context:delete', id),
+  getTaskContexts: (taskId: number): Promise<Context[]> =>
+    ipcRenderer.invoke('context:getTaskContexts', taskId),
+  setTaskContexts: (taskId: number, contextIds: number[]): Promise<void> =>
+    ipcRenderer.invoke('context:setTaskContexts', taskId, contextIds),
+
+  // ===================== WEEKLY REVIEWS =====================
+  createWeeklyReview: (): Promise<WeeklyReview> => ipcRenderer.invoke('review:create'),
+  getWeeklyReview: (id: number): Promise<WeeklyReview | undefined> =>
+    ipcRenderer.invoke('review:get', id),
+  listWeeklyReviews: (): Promise<WeeklyReview[]> => ipcRenderer.invoke('review:list'),
+  getLastWeeklyReview: (): Promise<WeeklyReview | undefined> =>
+    ipcRenderer.invoke('review:getLast'),
+  updateWeeklyReview: (
+    id: number,
+    data: {
+      inbox_cleared?: boolean
+      notes?: string
+      checklist_state?: string
+      completed_at?: string
+    }
+  ): Promise<void> => ipcRenderer.invoke('review:update', id, data),
+  getReviewHealthIndicators: (): Promise<ReviewHealthIndicators> =>
+    ipcRenderer.invoke('review:healthIndicators'),
+
+  // ===================== QUICK CAPTURE =====================
+  openQuickCapture: (): Promise<void> => ipcRenderer.invoke('quickCapture:open'),
+  quickCapture: (name: string): Promise<Task> => ipcRenderer.invoke('quickCapture:capture', name),
+  closeQuickCapture: (): Promise<void> => ipcRenderer.invoke('quickCapture:close'),
 
   // Notion Integration
   notionGetConfig: (): Promise<NotionConfig | null> => ipcRenderer.invoke('notion:getConfig'),
-  notionSaveConfig: (config: NotionConfig): Promise<void> => ipcRenderer.invoke('notion:saveConfig', config),
+  notionSaveConfig: (config: NotionConfig): Promise<void> =>
+    ipcRenderer.invoke('notion:saveConfig', config),
   notionClearConfig: (): Promise<void> => ipcRenderer.invoke('notion:clearConfig'),
-  notionTestConnection: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke('notion:testConnection'),
-  notionSyncTask: (taskId: number): Promise<string> => ipcRenderer.invoke('notion:syncTask', taskId),
-  notionSyncAllTasks: (): Promise<{ success: number; failed: number }> => ipcRenderer.invoke('notion:syncAllTasks'),
+  notionTestConnection: (): Promise<{ success: boolean; message: string }> =>
+    ipcRenderer.invoke('notion:testConnection'),
+  notionSyncTask: (taskId: number): Promise<string> =>
+    ipcRenderer.invoke('notion:syncTask', taskId),
+  notionSyncAllTasks: (): Promise<{ success: number; failed: number }> =>
+    ipcRenderer.invoke('notion:syncAllTasks'),
   notionCreateDatabase: (): Promise<string> => ipcRenderer.invoke('notion:createDatabase'),
 
   // Sync notification events
@@ -177,9 +255,6 @@ interface NotionConfig {
   lastSync?: string
 }
 
-// Use `contextBridge` APIs to expose Electron APIs to
-// renderer only if context isolation is enabled, otherwise
-// just add to the DOM global.
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)

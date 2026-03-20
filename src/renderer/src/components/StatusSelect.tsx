@@ -14,7 +14,7 @@ interface StatusSelectProps {
   disabled?: boolean
 }
 
-const statuses: TaskStatus[] = ['inbox', 'aguardando', 'proximas', 'executando', 'finalizada']
+const statuses: TaskStatus[] = ['inbox', 'aguardando', 'proximas', 'executando', 'finalizada', 'someday']
 
 export function StatusSelect({ value, onChange, disabled }: StatusSelectProps): React.JSX.Element {
   return (
