@@ -1,8 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Plus, Archive, BarChart3, Settings } from 'lucide-react'
+import { Plus, Archive, BarChart3, Settings, FolderKanban, MapPin, ClipboardCheck } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 
-// Importa o ícone da aplicação
 import appIcon from '../../../../resources/32.png'
 
 interface TitleBarProps {
@@ -33,6 +32,35 @@ export function TitleBar({ onNewTask }: TitleBarProps): React.JSX.Element {
             title="Configurações"
           >
             <Settings className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/review')}
+            className="h-9 border-slate-200 text-slate-700 hover:bg-slate-100"
+            title="Revisão Semanal"
+          >
+            <ClipboardCheck className="mr-2 h-4 w-4" />
+            Revisão
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/contexts')}
+            className="h-9 border-slate-200 text-slate-700 hover:bg-slate-100"
+            title="Contextos GTD"
+          >
+            <MapPin className="mr-2 h-4 w-4" />
+            Contextos
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/projects')}
+            className="h-9 border-slate-200 text-slate-700 hover:bg-slate-100"
+          >
+            <FolderKanban className="mr-2 h-4 w-4" />
+            Projetos
           </Button>
           <Button
             variant="outline"

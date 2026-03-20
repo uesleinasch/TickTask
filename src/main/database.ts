@@ -1,7 +1,20 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'path'
-import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus } from '@shared/types'
+import type {
+  Task,
+  TimeEntry,
+  CreateTaskInput,
+  UpdateTaskInput,
+  TaskStatus,
+  Project,
+  CreateProjectInput,
+  UpdateProjectInput,
+  ProjectStatus,
+  WeeklyReview,
+  ReviewHealthIndicators
+} from '@shared/types'
+import { DEFAULT_CONTEXTS } from '@shared/types'
 
 const dbPath = path.join(app.getPath('userData'), 'ticktask.db')
 
@@ -10,6 +23,7 @@ let db: Database.Database
 export function initDatabase(): void {
   db = new Database(dbPath)
   db.pragma('journal_mode = WAL')
+  db.pragma('foreign_keys = ON')
 
   // Criar tabela tasks
   db.exec(`
@@ -19,12 +33,14 @@ export function initDatabase(): void {
       description TEXT,
       total_seconds INTEGER DEFAULT 0,
       time_limit_seconds INTEGER,
-      status TEXT DEFAULT 'inbox' CHECK(status IN ('inbox', 'aguardando', 'proximas', 'executando', 'finalizada')),
+      status TEXT DEFAULT 'inbox' CHECK(status IN ('inbox', 'aguardando', 'proximas', 'executando', 'finalizada', 'someday')),
       category TEXT DEFAULT 'normal' CHECK(category IN ('urgente', 'prioridade', 'normal', 'time_leak')),
       is_running INTEGER DEFAULT 0,
       is_archived INTEGER DEFAULT 0,
+      project_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
     )
   `)
 
@@ -34,8 +50,19 @@ export function initDatabase(): void {
       `ALTER TABLE tasks ADD COLUMN category TEXT DEFAULT 'normal' CHECK(category IN ('urgente', 'prioridade', 'normal', 'time_leak'))`
     )
   } catch {
-    // Coluna já existe, ignorar
+    // Coluna já existe
   }
+
+  // Migração: adicionar coluna project_id se não existir
+  try {
+    db.exec(`ALTER TABLE tasks ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`)
+  } catch {
+    // Coluna já existe
+  }
+
+  // Migração: atualizar CHECK constraint de status para incluir 'someday'
+  // SQLite não suporta ALTER CHECK — é necessário recriar a tabela
+  migrateTasksTableForSomedayStatus()
 
   // Criar tabela time_entries
   db.exec(`
@@ -49,7 +76,7 @@ export function initDatabase(): void {
     )
   `)
 
-  // Criar tabela tags (fontes/origens)
+  // Criar tabela tags
   db.exec(`
     CREATE TABLE IF NOT EXISTS tags (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,6 +96,144 @@ export function initDatabase(): void {
       FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
     )
   `)
+
+  // ===================== FASE 1: Novas tabelas =====================
+
+  // Criar tabela projects
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS projects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      outcome TEXT,
+      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'someday', 'done', 'archived')),
+      due_date DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  // Criar tabela contexts
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS contexts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      icon TEXT DEFAULT '📋',
+      color TEXT DEFAULT '#6366f1',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  // Criar tabela de relacionamento task_contexts
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS task_contexts (
+      task_id INTEGER NOT NULL,
+      context_id INTEGER NOT NULL,
+      PRIMARY KEY (task_id, context_id),
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+      FOREIGN KEY (context_id) REFERENCES contexts(id) ON DELETE CASCADE
+    )
+  `)
+
+  // Criar tabela weekly_reviews
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS weekly_reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      completed_at DATETIME,
+      inbox_cleared INTEGER DEFAULT 0,
+      notes TEXT,
+      checklist_state TEXT DEFAULT '{}'
+    )
+  `)
+
+  // Seed: inserir contextos padrão se a tabela estiver vazia
+  const contextCount = db.prepare('SELECT COUNT(*) as count FROM contexts').get() as { count: number }
+  if (contextCount.count === 0) {
+    const insertCtx = db.prepare('INSERT OR IGNORE INTO contexts (name, icon, color) VALUES (?, ?, ?)')
+    for (const ctx of DEFAULT_CONTEXTS) {
+      insertCtx.run(ctx.name, ctx.icon, ctx.color)
+    }
+  }
+}
+
+// ===================== MIGRAÇÃO: someday status =====================
+
+/**
+ * SQLite não permite alterar CHECK constraints com ALTER TABLE.
+ * Esta migração verifica se o constraint antigo ainda existe e,
+ * se sim, recria a tabela tasks com o novo constraint que inclui 'someday'.
+ */
+function migrateTasksTableForSomedayStatus(): void {
+  // Verificar se a migração é necessária tentando inserir e remover um registro de teste
+  try {
+    const testStmt = db.prepare(
+      "INSERT INTO tasks (name, status) VALUES ('__migration_test__', 'someday')"
+    )
+    const result = testStmt.run()
+    // Se chegou aqui, o constraint já permite 'someday' — remover o registro de teste
+    db.prepare('DELETE FROM tasks WHERE id = ?').run(result.lastInsertRowid)
+    return
+  } catch {
+    // CHECK constraint falhou — precisa migrar
+    console.log('[Migration] Recriando tabela tasks para incluir status "someday"...')
+  }
+
+  const migration = db.transaction(() => {
+    // Desabilitar foreign keys temporariamente para permitir a migração
+    db.pragma('foreign_keys = OFF')
+
+    // 1. Criar tabela temporária com o novo schema
+    db.exec(`
+      CREATE TABLE tasks_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT,
+        total_seconds INTEGER DEFAULT 0,
+        time_limit_seconds INTEGER,
+        status TEXT DEFAULT 'inbox' CHECK(status IN ('inbox', 'aguardando', 'proximas', 'executando', 'finalizada', 'someday')),
+        category TEXT DEFAULT 'normal' CHECK(category IN ('urgente', 'prioridade', 'normal', 'time_leak')),
+        is_running INTEGER DEFAULT 0,
+        is_archived INTEGER DEFAULT 0,
+        project_id INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+      )
+    `)
+
+    // 2. Copiar todos os dados. Usar COALESCE para colunas que podem não existir na tabela antiga.
+    //    Verificar quais colunas existem na tabela original
+    const columns = db.prepare("PRAGMA table_info('tasks')").all() as { name: string }[]
+    const columnNames = columns.map((c) => c.name)
+
+    const hasProjectId = columnNames.includes('project_id')
+    const hasCategory = columnNames.includes('category')
+
+    const selectCols = [
+      'id', 'name', 'description', 'total_seconds', 'time_limit_seconds',
+      'status',
+      hasCategory ? 'category' : "'normal' as category",
+      'is_running', 'is_archived',
+      hasProjectId ? 'project_id' : 'NULL as project_id',
+      'created_at', 'updated_at'
+    ].join(', ')
+
+    db.exec(`
+      INSERT INTO tasks_new (id, name, description, total_seconds, time_limit_seconds, status, category, is_running, is_archived, project_id, created_at, updated_at)
+      SELECT ${selectCols} FROM tasks
+    `)
+
+    // 3. Dropar tabela antiga e renomear
+    db.exec('DROP TABLE tasks')
+    db.exec('ALTER TABLE tasks_new RENAME TO tasks')
+
+    // Reabilitar foreign keys
+    db.pragma('foreign_keys = ON')
+  })
+
+  migration()
+  console.log('[Migration] Tabela tasks migrada com sucesso.')
 }
 
 // ===================== TAGS =====================
@@ -80,18 +245,9 @@ export interface TagRow {
   created_at: string
 }
 
-// Cores predefinidas para tags
 const TAG_COLORS = [
-  '#6366f1', // Indigo
-  '#8b5cf6', // Violet
-  '#ec4899', // Pink
-  '#f43f5e', // Rose
-  '#f97316', // Orange
-  '#eab308', // Yellow
-  '#22c55e', // Green
-  '#14b8a6', // Teal
-  '#0ea5e9', // Sky
-  '#3b82f6'  // Blue
+  '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316',
+  '#eab308', '#22c55e', '#14b8a6', '#0ea5e9', '#3b82f6'
 ]
 
 function getRandomTagColor(): string {
@@ -99,9 +255,7 @@ function getRandomTagColor(): string {
 }
 
 export function createTag(name: string, color?: string): TagRow {
-  const stmt = db.prepare(`
-    INSERT INTO tags (name, color) VALUES (?, ?)
-  `)
+  const stmt = db.prepare('INSERT INTO tags (name, color) VALUES (?, ?)')
   const result = stmt.run(name.trim(), color || getRandomTagColor())
   return getTag(result.lastInsertRowid as number)!
 }
@@ -132,14 +286,11 @@ export function getOrCreateTag(name: string): TagRow {
   return createTag(name)
 }
 
-// Associar tags a uma tarefa
 export function setTaskTags(taskId: number, tagIds: number[]): void {
   const transaction = db.transaction(() => {
-    // Remover todas as tags atuais
     const deleteStmt = db.prepare('DELETE FROM task_tags WHERE task_id = ?')
     deleteStmt.run(taskId)
-    
-    // Adicionar novas tags
+
     if (tagIds.length > 0) {
       const insertStmt = db.prepare('INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)')
       for (const tagId of tagIds) {
@@ -150,7 +301,6 @@ export function setTaskTags(taskId: number, tagIds: number[]): void {
   transaction()
 }
 
-// Obter tags de uma tarefa
 export function getTaskTags(taskId: number): TagRow[] {
   const stmt = db.prepare(`
     SELECT t.* FROM tags t
@@ -161,31 +311,214 @@ export function getTaskTags(taskId: number): TagRow[] {
   return stmt.all(taskId) as TagRow[]
 }
 
+// ===================== CONTEXTS =====================
+
+export interface ContextRow {
+  id: number
+  name: string
+  icon: string
+  color: string
+  created_at: string
+}
+
+export function createContext(name: string, icon?: string, color?: string): ContextRow {
+  const stmt = db.prepare('INSERT INTO contexts (name, icon, color) VALUES (?, ?, ?)')
+  const result = stmt.run(name.trim(), icon || '📋', color || '#6366f1')
+  return getContext(result.lastInsertRowid as number)!
+}
+
+export function getContext(id: number): ContextRow | undefined {
+  const stmt = db.prepare('SELECT * FROM contexts WHERE id = ?')
+  return stmt.get(id) as ContextRow | undefined
+}
+
+export function listContexts(): ContextRow[] {
+  const stmt = db.prepare('SELECT * FROM contexts ORDER BY name ASC')
+  return stmt.all() as ContextRow[]
+}
+
+export function updateContext(id: number, data: { name?: string; icon?: string; color?: string }): void {
+  const updates: string[] = []
+  const values: unknown[] = []
+
+  if (data.name !== undefined) {
+    updates.push('name = ?')
+    values.push(data.name.trim())
+  }
+  if (data.icon !== undefined) {
+    updates.push('icon = ?')
+    values.push(data.icon)
+  }
+  if (data.color !== undefined) {
+    updates.push('color = ?')
+    values.push(data.color)
+  }
+
+  if (updates.length > 0) {
+    values.push(id)
+    const stmt = db.prepare(`UPDATE contexts SET ${updates.join(', ')} WHERE id = ?`)
+    stmt.run(...values)
+  }
+}
+
+export function deleteContext(id: number): void {
+  const stmt = db.prepare('DELETE FROM contexts WHERE id = ?')
+  stmt.run(id)
+}
+
+export function setTaskContexts(taskId: number, contextIds: number[]): void {
+  const transaction = db.transaction(() => {
+    const deleteStmt = db.prepare('DELETE FROM task_contexts WHERE task_id = ?')
+    deleteStmt.run(taskId)
+
+    if (contextIds.length > 0) {
+      const insertStmt = db.prepare('INSERT INTO task_contexts (task_id, context_id) VALUES (?, ?)')
+      for (const contextId of contextIds) {
+        insertStmt.run(taskId, contextId)
+      }
+    }
+  })
+  transaction()
+}
+
+export function getTaskContexts(taskId: number): ContextRow[] {
+  const stmt = db.prepare(`
+    SELECT c.* FROM contexts c
+    INNER JOIN task_contexts tc ON c.id = tc.context_id
+    WHERE tc.task_id = ?
+    ORDER BY c.name ASC
+  `)
+  return stmt.all(taskId) as ContextRow[]
+}
+
+// ===================== PROJECTS =====================
+
+export function createProject(data: CreateProjectInput): Project {
+  const stmt = db.prepare(`
+    INSERT INTO projects (name, description, outcome, status, due_date)
+    VALUES (?, ?, ?, ?, ?)
+  `)
+  const result = stmt.run(
+    data.name,
+    data.description || null,
+    data.outcome || null,
+    data.status || 'active',
+    data.due_date || null
+  )
+  return getProject(result.lastInsertRowid as number)!
+}
+
+export function getProject(id: number): Project | undefined {
+  const stmt = db.prepare('SELECT * FROM projects WHERE id = ?')
+  const row = stmt.get(id) as Project | undefined
+  if (!row) return undefined
+  return enrichProject(row)
+}
+
+export function listProjects(status?: ProjectStatus): Project[] {
+  let stmt
+  if (status) {
+    stmt = db.prepare('SELECT * FROM projects WHERE status = ? ORDER BY updated_at DESC')
+    return (stmt.all(status) as Project[]).map(enrichProject)
+  }
+  stmt = db.prepare('SELECT * FROM projects ORDER BY updated_at DESC')
+  return (stmt.all() as Project[]).map(enrichProject)
+}
+
+function enrichProject(project: Project): Project {
+  const taskCountStmt = db.prepare('SELECT COUNT(*) as count FROM tasks WHERE project_id = ?')
+  const completedCountStmt = db.prepare(
+    "SELECT COUNT(*) as count FROM tasks WHERE project_id = ? AND status = 'finalizada'"
+  )
+  const nextActionStmt = db.prepare(
+    "SELECT name FROM tasks WHERE project_id = ? AND status = 'proximas' ORDER BY updated_at DESC LIMIT 1"
+  )
+
+  const taskCount = (taskCountStmt.get(project.id) as { count: number }).count
+  const completedCount = (completedCountStmt.get(project.id) as { count: number }).count
+  const nextAction = nextActionStmt.get(project.id) as { name: string } | undefined
+
+  return {
+    ...project,
+    task_count: taskCount,
+    completed_task_count: completedCount,
+    next_action: nextAction?.name
+  }
+}
+
+export function updateProject(id: number, data: UpdateProjectInput): void {
+  const updates: string[] = []
+  const values: unknown[] = []
+
+  if (data.name !== undefined) {
+    updates.push('name = ?')
+    values.push(data.name)
+  }
+  if (data.description !== undefined) {
+    updates.push('description = ?')
+    values.push(data.description)
+  }
+  if (data.outcome !== undefined) {
+    updates.push('outcome = ?')
+    values.push(data.outcome)
+  }
+  if (data.status !== undefined) {
+    updates.push('status = ?')
+    values.push(data.status)
+  }
+  if (data.due_date !== undefined) {
+    updates.push('due_date = ?')
+    values.push(data.due_date)
+  }
+
+  if (updates.length > 0) {
+    updates.push('updated_at = CURRENT_TIMESTAMP')
+    values.push(id)
+    const stmt = db.prepare(`UPDATE projects SET ${updates.join(', ')} WHERE id = ?`)
+    stmt.run(...values)
+  }
+}
+
+export function deleteProject(id: number): void {
+  const stmt = db.prepare('DELETE FROM projects WHERE id = ?')
+  stmt.run(id)
+}
+
+export function getProjectTasks(projectId: number): Task[] {
+  const stmt = db.prepare('SELECT * FROM tasks WHERE project_id = ? ORDER BY updated_at DESC')
+  const rows = stmt.all(projectId) as Task[]
+  return rows.map((row) => ({
+    ...row,
+    category: row.category || 'normal',
+    is_running: Boolean(row.is_running),
+    is_archived: Boolean(row.is_archived),
+    tags: getTaskTags(row.id),
+    contexts: getTaskContexts(row.id)
+  }))
+}
+
 // ===================== TASKS =====================
 
 export function createTask(data: CreateTaskInput): Task {
   const transaction = db.transaction(() => {
     const stmt = db.prepare(`
-      INSERT INTO tasks (name, description, time_limit_seconds, category)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO tasks (name, description, time_limit_seconds, category, project_id)
+      VALUES (?, ?, ?, ?, ?)
     `)
     const result = stmt.run(
       data.name,
       data.description || null,
       data.time_limit_seconds || null,
-      data.category || 'normal'
+      data.category || 'normal',
+      data.project_id || null
     )
     const taskId = result.lastInsertRowid as number
-    
+
     // Processar tags
     const tagIds: number[] = []
-    
-    // Tags existentes por ID
     if (data.tagIds && data.tagIds.length > 0) {
       tagIds.push(...data.tagIds)
     }
-    
-    // Criar novas tags por nome
     if (data.tagNames && data.tagNames.length > 0) {
       for (const name of data.tagNames) {
         const tag = getOrCreateTag(name)
@@ -194,43 +527,57 @@ export function createTask(data: CreateTaskInput): Task {
         }
       }
     }
-    
-    // Associar tags
     if (tagIds.length > 0) {
       setTaskTags(taskId, tagIds)
     }
-    
+
+    // Processar contextos
+    if (data.contextIds && data.contextIds.length > 0) {
+      setTaskContexts(taskId, data.contextIds)
+    }
+
     return taskId
   })
-  
+
   const taskId = transaction()
   return getTask(taskId)!
 }
 
 export function listTasks(archived: boolean = false): Task[] {
   const stmt = db.prepare(`
-    SELECT * FROM tasks WHERE is_archived = ? ORDER BY updated_at DESC
+    SELECT t.*, p.name as project_name
+    FROM tasks t
+    LEFT JOIN projects p ON t.project_id = p.id
+    WHERE t.is_archived = ?
+    ORDER BY t.updated_at DESC
   `)
-  const rows = stmt.all(archived ? 1 : 0) as Task[]
+  const rows = stmt.all(archived ? 1 : 0) as (Task & { project_name?: string })[]
   return rows.map((row) => ({
     ...row,
     category: row.category || 'normal',
     is_running: Boolean(row.is_running),
     is_archived: Boolean(row.is_archived),
-    tags: getTaskTags(row.id)
+    tags: getTaskTags(row.id),
+    contexts: getTaskContexts(row.id)
   }))
 }
 
 export function getTask(id: number): Task | undefined {
-  const stmt = db.prepare('SELECT * FROM tasks WHERE id = ?')
-  const row = stmt.get(id) as Task | undefined
+  const stmt = db.prepare(`
+    SELECT t.*, p.name as project_name
+    FROM tasks t
+    LEFT JOIN projects p ON t.project_id = p.id
+    WHERE t.id = ?
+  `)
+  const row = stmt.get(id) as (Task & { project_name?: string }) | undefined
   if (row) {
     return {
       ...row,
       category: row.category || 'normal',
       is_running: Boolean(row.is_running),
       is_archived: Boolean(row.is_archived),
-      tags: getTaskTags(id)
+      tags: getTaskTags(id),
+      contexts: getTaskContexts(id)
     }
   }
   return undefined
@@ -261,6 +608,10 @@ export function updateTask(id: number, data: UpdateTaskInput): void {
       updates.push('category = ?')
       values.push(data.category)
     }
+    if (data.project_id !== undefined) {
+      updates.push('project_id = ?')
+      values.push(data.project_id)
+    }
 
     if (updates.length > 0) {
       updates.push('updated_at = CURRENT_TIMESTAMP')
@@ -272,13 +623,9 @@ export function updateTask(id: number, data: UpdateTaskInput): void {
     // Processar tags
     if (data.tagIds !== undefined || data.tagNames !== undefined) {
       const tagIds: number[] = []
-      
-      // Tags existentes por ID
       if (data.tagIds && data.tagIds.length > 0) {
         tagIds.push(...data.tagIds)
       }
-      
-      // Criar novas tags por nome
       if (data.tagNames && data.tagNames.length > 0) {
         for (const name of data.tagNames) {
           const tag = getOrCreateTag(name)
@@ -287,12 +634,15 @@ export function updateTask(id: number, data: UpdateTaskInput): void {
           }
         }
       }
-      
-      // Atualizar associações
       setTaskTags(id, tagIds)
     }
+
+    // Processar contextos
+    if (data.contextIds !== undefined) {
+      setTaskContexts(id, data.contextIds)
+    }
   })
-  
+
   transaction()
 }
 
@@ -324,15 +674,13 @@ export function updateTaskStatus(id: number, status: TaskStatus): void {
 
 export function startTask(id: number): void {
   const transaction = db.transaction(() => {
-    // Atualizar is_running e status para executando
     const updateStmt = db.prepare(`
-      UPDATE tasks 
-      SET is_running = 1, status = 'executando', updated_at = CURRENT_TIMESTAMP 
+      UPDATE tasks
+      SET is_running = 1, status = 'executando', updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `)
     updateStmt.run(id)
 
-    // Criar novo time_entry com timestamp ISO
     const now = new Date().toISOString()
     const insertStmt = db.prepare(`
       INSERT INTO time_entries (task_id, start_time)
@@ -346,42 +694,37 @@ export function startTask(id: number): void {
 
 export function stopTask(id: number): void {
   const transaction = db.transaction(() => {
-    // Encontrar time_entry ativo
     const selectStmt = db.prepare(`
-      SELECT id, start_time FROM time_entries 
-      WHERE task_id = ? AND end_time IS NULL 
+      SELECT id, start_time FROM time_entries
+      WHERE task_id = ? AND end_time IS NULL
       ORDER BY id DESC LIMIT 1
     `)
     const entry = selectStmt.get(id) as { id: number; start_time: string } | undefined
 
     if (entry) {
-      // Calcular duração usando timestamps
       const now = new Date()
       const startTime = new Date(entry.start_time)
       const durationSeconds = Math.max(0, Math.floor((now.getTime() - startTime.getTime()) / 1000))
 
-      // Atualizar time_entry
       const updateEntryStmt = db.prepare(`
-        UPDATE time_entries 
+        UPDATE time_entries
         SET end_time = ?, duration_seconds = ?
         WHERE id = ?
       `)
       updateEntryStmt.run(now.toISOString(), durationSeconds, entry.id)
 
-      // Atualizar total_seconds da tarefa
       const updateTaskStmt = db.prepare(`
-        UPDATE tasks 
-        SET is_running = 0, 
+        UPDATE tasks
+        SET is_running = 0,
             total_seconds = total_seconds + ?,
-            updated_at = CURRENT_TIMESTAMP 
+            updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `)
       updateTaskStmt.run(durationSeconds, id)
     } else {
-      // Apenas parar se não encontrar entry
       const updateTaskStmt = db.prepare(`
-        UPDATE tasks 
-        SET is_running = 0, updated_at = CURRENT_TIMESTAMP 
+        UPDATE tasks
+        SET is_running = 0, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `)
       updateTaskStmt.run(id)
@@ -400,8 +743,8 @@ export function updateTimer(id: number, totalSeconds: number): void {
 
 export function getTimeEntries(taskId: number): TimeEntry[] {
   const stmt = db.prepare(`
-    SELECT * FROM time_entries 
-    WHERE task_id = ? 
+    SELECT * FROM time_entries
+    WHERE task_id = ?
     ORDER BY start_time DESC
   `)
   return stmt.all(taskId) as TimeEntry[]
@@ -409,8 +752,8 @@ export function getTimeEntries(taskId: number): TimeEntry[] {
 
 export function getActiveTimeEntry(taskId: number): TimeEntry | undefined {
   const stmt = db.prepare(`
-    SELECT * FROM time_entries 
-    WHERE task_id = ? AND end_time IS NULL 
+    SELECT * FROM time_entries
+    WHERE task_id = ? AND end_time IS NULL
     ORDER BY id DESC LIMIT 1
   `)
   return stmt.get(taskId) as TimeEntry | undefined
@@ -418,23 +761,20 @@ export function getActiveTimeEntry(taskId: number): TimeEntry | undefined {
 
 export function resetTaskTimer(id: number): void {
   const transaction = db.transaction(() => {
-    // Parar qualquer timer ativo
     const updateEntryStmt = db.prepare(`
-      UPDATE time_entries 
+      UPDATE time_entries
       SET end_time = datetime('now'), duration_seconds = 0
       WHERE task_id = ? AND end_time IS NULL
     `)
     updateEntryStmt.run(id)
 
-    // Resetar total_seconds
     const updateTaskStmt = db.prepare(`
-      UPDATE tasks 
-      SET total_seconds = 0, is_running = 0, updated_at = CURRENT_TIMESTAMP 
+      UPDATE tasks
+      SET total_seconds = 0, is_running = 0, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `)
     updateTaskStmt.run(id)
 
-    // Deletar todos os time entries
     const deleteStmt = db.prepare('DELETE FROM time_entries WHERE task_id = ?')
     deleteStmt.run(id)
   })
@@ -446,18 +786,16 @@ export function addManualTimeEntry(taskId: number, seconds: number): void {
   const transaction = db.transaction(() => {
     const now = new Date().toISOString()
 
-    // Criar uma entrada de tempo manual (start_time e end_time iguais, duração manual)
     const insertStmt = db.prepare(`
       INSERT INTO time_entries (task_id, start_time, end_time, duration_seconds)
       VALUES (?, ?, ?, ?)
     `)
     insertStmt.run(taskId, now, now, seconds)
 
-    // Atualizar total_seconds da tarefa
     const updateTaskStmt = db.prepare(`
-      UPDATE tasks 
+      UPDATE tasks
       SET total_seconds = total_seconds + ?,
-          updated_at = CURRENT_TIMESTAMP 
+          updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `)
     updateTaskStmt.run(seconds, taskId)
@@ -468,11 +806,131 @@ export function addManualTimeEntry(taskId: number, seconds: number): void {
 
 export function setTaskTotalTime(taskId: number, totalSeconds: number): void {
   const stmt = db.prepare(`
-    UPDATE tasks 
-    SET total_seconds = ?, updated_at = CURRENT_TIMESTAMP 
+    UPDATE tasks
+    SET total_seconds = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `)
   stmt.run(totalSeconds, taskId)
+}
+
+// ===================== WEEKLY REVIEWS =====================
+
+export function createWeeklyReview(): WeeklyReview {
+  const stmt = db.prepare('INSERT INTO weekly_reviews (started_at) VALUES (datetime(\'now\'))')
+  const result = stmt.run()
+  return getWeeklyReview(result.lastInsertRowid as number)!
+}
+
+export function getWeeklyReview(id: number): WeeklyReview | undefined {
+  const stmt = db.prepare('SELECT * FROM weekly_reviews WHERE id = ?')
+  const row = stmt.get(id) as WeeklyReview | undefined
+  if (row) {
+    return {
+      ...row,
+      inbox_cleared: Boolean(row.inbox_cleared)
+    }
+  }
+  return undefined
+}
+
+export function listWeeklyReviews(): WeeklyReview[] {
+  const stmt = db.prepare('SELECT * FROM weekly_reviews ORDER BY started_at DESC LIMIT 20')
+  return (stmt.all() as WeeklyReview[]).map((row) => ({
+    ...row,
+    inbox_cleared: Boolean(row.inbox_cleared)
+  }))
+}
+
+export function getLastWeeklyReview(): WeeklyReview | undefined {
+  const stmt = db.prepare('SELECT * FROM weekly_reviews ORDER BY started_at DESC LIMIT 1')
+  const row = stmt.get() as WeeklyReview | undefined
+  if (row) {
+    return {
+      ...row,
+      inbox_cleared: Boolean(row.inbox_cleared)
+    }
+  }
+  return undefined
+}
+
+export function updateWeeklyReview(
+  id: number,
+  data: { inbox_cleared?: boolean; notes?: string; checklist_state?: string; completed_at?: string }
+): void {
+  const updates: string[] = []
+  const values: unknown[] = []
+
+  if (data.inbox_cleared !== undefined) {
+    updates.push('inbox_cleared = ?')
+    values.push(data.inbox_cleared ? 1 : 0)
+  }
+  if (data.notes !== undefined) {
+    updates.push('notes = ?')
+    values.push(data.notes)
+  }
+  if (data.checklist_state !== undefined) {
+    updates.push('checklist_state = ?')
+    values.push(data.checklist_state)
+  }
+  if (data.completed_at !== undefined) {
+    updates.push('completed_at = ?')
+    values.push(data.completed_at)
+  }
+
+  if (updates.length > 0) {
+    values.push(id)
+    const stmt = db.prepare(`UPDATE weekly_reviews SET ${updates.join(', ')} WHERE id = ?`)
+    stmt.run(...values)
+  }
+}
+
+export function getReviewHealthIndicators(): ReviewHealthIndicators {
+  const inboxCount = (
+    db.prepare("SELECT COUNT(*) as count FROM tasks WHERE status = 'inbox' AND is_archived = 0").get() as { count: number }
+  ).count
+
+  const projectsWithoutNextAction = (
+    db.prepare(`
+      SELECT COUNT(*) as count FROM projects p
+      WHERE p.status = 'active'
+      AND NOT EXISTS (
+        SELECT 1 FROM tasks t WHERE t.project_id = p.id AND t.status = 'proximas'
+      )
+    `).get() as { count: number }
+  ).count
+
+  const staleWaitingTasks = (
+    db.prepare(`
+      SELECT COUNT(*) as count FROM tasks
+      WHERE status = 'aguardando'
+      AND is_archived = 0
+      AND updated_at <= datetime('now', '-7 days')
+    `).get() as { count: number }
+  ).count
+
+  const staleNextTasks = (
+    db.prepare(`
+      SELECT COUNT(*) as count FROM tasks
+      WHERE status = 'proximas'
+      AND is_archived = 0
+      AND updated_at <= datetime('now', '-14 days')
+    `).get() as { count: number }
+  ).count
+
+  const somedayCount = (
+    db.prepare(`
+      SELECT COUNT(*) as count FROM tasks
+      WHERE status = 'someday' AND is_archived = 0
+    `).get() as { count: number }
+  ).count
+
+  return {
+    inboxCount,
+    projectsWithoutNextAction,
+    staleWaitingTasks,
+    staleNextTasks,
+    somedayCount
+  }
 }
 
 // ===================== ESTATÍSTICAS =====================
@@ -505,10 +963,9 @@ export interface HeatmapData {
   count: number
 }
 
-// Estatísticas por dia da semana (últimos 30 dias)
 export function getWeeklyStats(): DailyStats[] {
   const stmt = db.prepare(`
-    SELECT 
+    SELECT
       date(start_time) as date,
       strftime('%w', start_time) as dayOfWeek,
       SUM(COALESCE(duration_seconds, 0)) as totalSeconds
@@ -521,10 +978,9 @@ export function getWeeklyStats(): DailyStats[] {
   return stmt.all() as DailyStats[]
 }
 
-// Tempo por tarefa (top 10)
 export function getTaskTimeStats(): TaskTimeStats[] {
   const stmt = db.prepare(`
-    SELECT 
+    SELECT
       t.id as taskId,
       t.name as taskName,
       t.total_seconds as totalSeconds
@@ -536,10 +992,9 @@ export function getTaskTimeStats(): TaskTimeStats[] {
   return stmt.all() as TaskTimeStats[]
 }
 
-// Tempo por categoria
 export function getCategoryStats(): CategoryStats[] {
   const stmt = db.prepare(`
-    SELECT 
+    SELECT
       COALESCE(category, 'normal') as category,
       SUM(total_seconds) as totalSeconds,
       COUNT(*) as taskCount
@@ -550,10 +1005,9 @@ export function getCategoryStats(): CategoryStats[] {
   return stmt.all() as CategoryStats[]
 }
 
-// Tempo por status
 export function getStatusStats(): StatusStats[] {
   const stmt = db.prepare(`
-    SELECT 
+    SELECT
       status,
       SUM(total_seconds) as totalSeconds
     FROM tasks
@@ -563,10 +1017,9 @@ export function getStatusStats(): StatusStats[] {
   return stmt.all() as StatusStats[]
 }
 
-// Heatmap - últimos 365 dias
 export function getHeatmapData(): HeatmapData[] {
   const stmt = db.prepare(`
-    SELECT 
+    SELECT
       date(start_time) as date,
       SUM(COALESCE(duration_seconds, 0)) as count
     FROM time_entries
@@ -578,7 +1031,6 @@ export function getHeatmapData(): HeatmapData[] {
   return stmt.all() as HeatmapData[]
 }
 
-// Estatísticas gerais
 export interface GeneralStats {
   totalTasks: number
   completedTasks: number
@@ -589,7 +1041,7 @@ export interface GeneralStats {
 
 export function getGeneralStats(): GeneralStats {
   const tasksStmt = db.prepare(`
-    SELECT 
+    SELECT
       COUNT(*) as totalTasks,
       SUM(CASE WHEN status = 'finalizada' THEN 1 ELSE 0 END) as completedTasks,
       SUM(total_seconds) as totalTimeSeconds
@@ -602,7 +1054,7 @@ export function getGeneralStats(): GeneralStats {
   }
 
   const sessionsStmt = db.prepare(`
-    SELECT 
+    SELECT
       COUNT(*) as totalSessions,
       AVG(duration_seconds) as avgSessionSeconds
     FROM time_entries

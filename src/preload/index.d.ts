@@ -1,5 +1,19 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
-import type { Task, TimeEntry, CreateTaskInput, UpdateTaskInput, TaskStatus, Tag } from '../shared/types'
+import type {
+  Task,
+  TimeEntry,
+  CreateTaskInput,
+  UpdateTaskInput,
+  TaskStatus,
+  Tag,
+  Project,
+  CreateProjectInput,
+  UpdateProjectInput,
+  ProjectStatus,
+  Context,
+  WeeklyReview,
+  ReviewHealthIndicators
+} from '../shared/types'
 
 interface FloatTimerData {
   taskId: number
@@ -85,6 +99,9 @@ interface API {
   onFloatClear: (callback: () => void) => () => void
   onTimerStopped: (callback: (taskId: number) => void) => () => void
 
+  // Tasks refresh event
+  onTasksRefresh: (callback: () => void) => () => void
+
   // Statistics
   getWeeklyStats: () => Promise<DailyStats[]>
   getTaskTimeStats: () => Promise<TaskTimeStats[]>
@@ -100,6 +117,43 @@ interface API {
   deleteTag: (id: number) => Promise<void>
   getTaskTags: (taskId: number) => Promise<Tag[]>
   setTaskTags: (taskId: number, tagIds: number[]) => Promise<void>
+
+  // Projects
+  createProject: (data: CreateProjectInput) => Promise<Project>
+  getProject: (id: number) => Promise<Project | undefined>
+  listProjects: (status?: ProjectStatus) => Promise<Project[]>
+  updateProject: (id: number, data: UpdateProjectInput) => Promise<void>
+  deleteProject: (id: number) => Promise<void>
+  getProjectTasks: (projectId: number) => Promise<Task[]>
+
+  // Contexts
+  createContext: (name: string, icon?: string, color?: string) => Promise<Context>
+  listContexts: () => Promise<Context[]>
+  updateContext: (id: number, data: { name?: string; icon?: string; color?: string }) => Promise<void>
+  deleteContext: (id: number) => Promise<void>
+  getTaskContexts: (taskId: number) => Promise<Context[]>
+  setTaskContexts: (taskId: number, contextIds: number[]) => Promise<void>
+
+  // Weekly Reviews
+  createWeeklyReview: () => Promise<WeeklyReview>
+  getWeeklyReview: (id: number) => Promise<WeeklyReview | undefined>
+  listWeeklyReviews: () => Promise<WeeklyReview[]>
+  getLastWeeklyReview: () => Promise<WeeklyReview | undefined>
+  updateWeeklyReview: (
+    id: number,
+    data: {
+      inbox_cleared?: boolean
+      notes?: string
+      checklist_state?: string
+      completed_at?: string
+    }
+  ) => Promise<void>
+  getReviewHealthIndicators: () => Promise<ReviewHealthIndicators>
+
+  // Quick Capture
+  openQuickCapture: () => Promise<void>
+  quickCapture: (name: string) => Promise<Task>
+  closeQuickCapture: () => Promise<void>
 
   // Notion Integration
   notionGetConfig: () => Promise<NotionConfig | null>
