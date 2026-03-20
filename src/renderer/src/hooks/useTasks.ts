@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { Task, CreateTaskInput, TaskStatus } from '@shared/types'
 
 interface UseTasksReturn {
@@ -72,13 +72,10 @@ export function useTasks(archived: boolean = false): UseTasksReturn {
 
 // Hook para filtrar tarefas por status
 export function useFilteredTasks(tasks: Task[], statusFilter: TaskStatus | 'all'): Task[] {
-  console.log('[useFilteredTasks] Filter:', statusFilter, 'Total tasks:', tasks.length)
-
-  if (statusFilter === 'all') {
-    return tasks
-  }
-
-  const filtered = tasks.filter((task) => task.status === statusFilter)
-  console.log('[useFilteredTasks] Filtered:', filtered.length)
-  return filtered
+  return useMemo(() => {
+    if (statusFilter === 'all') {
+      return tasks
+    }
+    return tasks.filter((task) => task.status === statusFilter)
+  }, [tasks, statusFilter])
 }

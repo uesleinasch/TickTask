@@ -651,6 +651,19 @@ export function deleteTask(id: number): void {
   stmt.run(id)
 }
 
+export function deleteTasks(ids: number[]): void {
+  if (ids.length === 0) return
+
+  const transaction = db.transaction((taskIds: number[]) => {
+    const stmt = db.prepare('DELETE FROM tasks WHERE id = ?')
+    for (const id of taskIds) {
+      stmt.run(id)
+    }
+  })
+
+  transaction(ids)
+}
+
 export function archiveTask(id: number): void {
   const stmt = db.prepare(
     'UPDATE tasks SET is_archived = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
@@ -670,6 +683,36 @@ export function updateTaskStatus(id: number, status: TaskStatus): void {
     'UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
   )
   stmt.run(status, id)
+}
+
+export function updateTasksStatus(ids: number[], status: TaskStatus): void {
+  if (ids.length === 0) return
+
+  const transaction = db.transaction((taskIds: number[], nextStatus: TaskStatus) => {
+    const stmt = db.prepare(
+      'UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    )
+    for (const id of taskIds) {
+      stmt.run(nextStatus, id)
+    }
+  })
+
+  transaction(ids, status)
+}
+
+export function moveTasksToProject(ids: number[], projectId: number | null): void {
+  if (ids.length === 0) return
+
+  const transaction = db.transaction((taskIds: number[], nextProjectId: number | null) => {
+    const stmt = db.prepare(
+      'UPDATE tasks SET project_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    )
+    for (const id of taskIds) {
+      stmt.run(nextProjectId, id)
+    }
+  })
+
+  transaction(ids, projectId)
 }
 
 export function startTask(id: number): void {

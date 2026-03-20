@@ -4,9 +4,16 @@ import type { Task } from '../../../shared/types'
 interface TaskListProps {
   tasks: Task[]
   onTaskClick: (taskId: number) => void
+  selectedTaskIds: Set<number>
+  onToggleTaskSelection: (taskId: number, selected: boolean) => void
 }
 
-export function TaskList({ tasks, onTaskClick }: TaskListProps): React.JSX.Element {
+export function TaskList({
+  tasks,
+  onTaskClick,
+  selectedTaskIds,
+  onToggleTaskSelection
+}: TaskListProps): React.JSX.Element {
   if (tasks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-slate-400">
@@ -19,7 +26,13 @@ export function TaskList({ tasks, onTaskClick }: TaskListProps): React.JSX.Eleme
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {tasks.map((task) => (
-        <TaskCard key={task.id} task={task} onClick={() => onTaskClick(task.id)} />
+        <TaskCard
+          key={task.id}
+          task={task}
+          selected={selectedTaskIds.has(task.id)}
+          onToggleSelection={(selected) => onToggleTaskSelection(task.id, selected)}
+          onClick={() => onTaskClick(task.id)}
+        />
       ))}
     </div>
   )

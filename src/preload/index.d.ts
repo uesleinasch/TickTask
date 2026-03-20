@@ -77,6 +77,9 @@ interface API {
   getTask: (id: number) => Promise<Task | undefined>
   updateTask: (id: number, data: UpdateTaskInput) => Promise<void>
   deleteTask: (id: number) => Promise<void>
+  bulkDeleteTasks: (ids: number[]) => Promise<void>
+  bulkUpdateStatus: (ids: number[], status: TaskStatus) => Promise<void>
+  bulkMoveToProject: (ids: number[], projectId: number | null) => Promise<void>
   archiveTask: (id: number) => Promise<void>
   unarchiveTask: (id: number) => Promise<void>
   startTask: (id: number) => Promise<void>

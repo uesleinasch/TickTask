@@ -30,6 +30,11 @@ const api = {
   updateTask: (id: number, data: UpdateTaskInput): Promise<void> =>
     ipcRenderer.invoke('task:update', id, data),
   deleteTask: (id: number): Promise<void> => ipcRenderer.invoke('task:delete', id),
+  bulkDeleteTasks: (ids: number[]): Promise<void> => ipcRenderer.invoke('task:bulkDelete', ids),
+  bulkUpdateStatus: (ids: number[], status: TaskStatus): Promise<void> =>
+    ipcRenderer.invoke('task:bulkUpdateStatus', ids, status),
+  bulkMoveToProject: (ids: number[], projectId: number | null): Promise<void> =>
+    ipcRenderer.invoke('task:bulkMoveToProject', ids, projectId),
 
   // Archive
   archiveTask: (id: number): Promise<void> => ipcRenderer.invoke('task:archive', id),

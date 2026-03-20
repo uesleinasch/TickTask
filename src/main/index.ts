@@ -10,9 +10,12 @@ import {
   getTask,
   updateTask,
   deleteTask,
+  deleteTasks,
   archiveTask,
   unarchiveTask,
   updateTaskStatus,
+  updateTasksStatus,
+  moveTasksToProject,
   startTask,
   stopTask,
   updateTimer,
@@ -83,7 +86,17 @@ let quickCaptureWindow: BrowserWindow | null = null
 let currentTimerData: { taskId: number; taskName: string; seconds: number } | null = null
 
 // Atalho global padrão para captura rápida
-let quickCaptureShortcut = 'CommandOrControl+Shift+Space'
+const quickCaptureShortcut = 'CommandOrControl+Shift+Space'
+
+function normalizeTaskIds(ids: number[]): number[] {
+  const unique = new Set<number>()
+  for (const id of ids) {
+    if (Number.isInteger(id) && id > 0) {
+      unique.add(id)
+    }
+  }
+  return [...unique]
+}
 
 // Helper para sincronização automática com Notion
 async function autoSyncToNotion(taskId: number): Promise<void> {
@@ -335,6 +348,43 @@ function setupIpcHandlers(): void {
       })
     }
     deleteTask(id)
+  })
+  ipcMain.handle('task:bulkDelete', async (_, ids: number[]) => {
+    const taskIds = normalizeTaskIds(ids)
+    if (taskIds.length === 0) return
+
+    const config = getNotionConfig()
+    if (config?.autoSync && config.databaseId) {
+      await Promise.all(
+        taskIds.map(async (id) => {
+          try {
+            await deleteTaskFromNotion(id)
+          } catch (error) {
+            console.error(`Erro ao deletar tarefa ${id} do Notion:`, error)
+          }
+        })
+      )
+    }
+
+    deleteTasks(taskIds)
+  })
+  ipcMain.handle('task:bulkUpdateStatus', (_, ids: number[], status: TaskStatus) => {
+    const taskIds = normalizeTaskIds(ids)
+    if (taskIds.length === 0) return
+
+    updateTasksStatus(taskIds, status)
+    for (const id of taskIds) {
+      autoSyncToNotion(id)
+    }
+  })
+  ipcMain.handle('task:bulkMoveToProject', (_, ids: number[], projectId: number | null) => {
+    const taskIds = normalizeTaskIds(ids)
+    if (taskIds.length === 0) return
+
+    moveTasksToProject(taskIds, projectId)
+    for (const id of taskIds) {
+      autoSyncToNotion(id)
+    }
   })
 
   // Archive

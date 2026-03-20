@@ -7,6 +7,8 @@ import { cn } from '@renderer/lib/utils'
 
 interface TaskCardProps {
   task: Task
+  selected: boolean
+  onToggleSelection: (selected: boolean) => void
   onClick: () => void
 }
 
@@ -46,7 +48,12 @@ function getTimeLeakStyles(task: Task): {
   }
 }
 
-export function TaskCard({ task, onClick }: TaskCardProps): React.JSX.Element {
+export function TaskCard({
+  task,
+  selected,
+  onToggleSelection,
+  onClick
+}: TaskCardProps): React.JSX.Element {
   const timeLeakStyles = getTimeLeakStyles(task)
   const isTimeLeak = task.category === 'time_leak'
   const isOverOneHour = isTimeLeak && task.total_seconds >= 3600
@@ -60,10 +67,22 @@ export function TaskCard({ task, onClick }: TaskCardProps): React.JSX.Element {
         className={cn(
           'border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md h-full flex flex-col justify-between border-l-4 transition-all',
           timeLeakStyles.cardBg,
-          timeLeakStyles.borderColor
+          timeLeakStyles.borderColor,
+          selected && 'ring-2 ring-sky-300 border-sky-200'
         )}
       >
         <div>
+          <div className="flex justify-end mb-1">
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={(e) => onToggleSelection(e.target.checked)}
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Selecionar tarefa ${task.name}`}
+              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
+            />
+          </div>
+
           {/* Header: Badges */}
           <div className="flex flex-wrap gap-2 items-start mb-2">
             <StatusBadge status={task.status} />

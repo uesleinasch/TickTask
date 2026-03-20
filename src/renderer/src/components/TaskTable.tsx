@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { StatusBadge } from './StatusBadge'
 import { CategoryBadge } from './CategoryBadge'
 import { formatTime } from '@renderer/lib/utils'
@@ -8,6 +9,9 @@ import { cn } from '@renderer/lib/utils'
 interface TaskTableProps {
   tasks: Task[]
   onTaskClick: (taskId: number) => void
+  selectedTaskIds: Set<number>
+  onToggleTaskSelection: (taskId: number, selected: boolean) => void
+  onToggleSelectAll: (selected: boolean) => void
 }
 
 // Função para determinar o estilo da linha baseado na categoria Time Leak
@@ -29,7 +33,24 @@ function getTimeLeakRowStyles(task: Task): string {
   return 'hover:bg-yellow-50'
 }
 
-export function TaskTable({ tasks, onTaskClick }: TaskTableProps): React.JSX.Element {
+export function TaskTable({
+  tasks,
+  onTaskClick,
+  selectedTaskIds,
+  onToggleTaskSelection,
+  onToggleSelectAll
+}: TaskTableProps): React.JSX.Element {
+  const selectAllRef = useRef<HTMLInputElement>(null)
+  const selectedVisibleCount = tasks.filter((task) => selectedTaskIds.has(task.id)).length
+  const allVisibleSelected = tasks.length > 0 && selectedVisibleCount === tasks.length
+  const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someVisibleSelected
+    }
+  }, [someVisibleSelected])
+
   if (tasks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-slate-400">
@@ -44,6 +65,16 @@ export function TaskTable({ tasks, onTaskClick }: TaskTableProps): React.JSX.Ele
       <table className="w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">
+            <th className="px-3 py-3 w-12">
+              <input
+                ref={selectAllRef}
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={(e) => onToggleSelectAll(e.target.checked)}
+                aria-label="Selecionar todas as tarefas visíveis"
+                className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
+              />
+            </th>
             <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
               Tarefa
             </th>
@@ -75,16 +106,35 @@ export function TaskTable({ tasks, onTaskClick }: TaskTableProps): React.JSX.Ele
             const isTimeLeak = task.category === 'time_leak'
             const isOverOneHour = isTimeLeak && task.total_seconds >= 3600
             const rowStyles = getTimeLeakRowStyles(task)
+            const isSelected = selectedTaskIds.has(task.id)
 
             return (
               <tr
                 key={task.id}
-                onClick={() => onTaskClick(task.id)}
+                onClick={(event) => {
+                  const target = event.target as HTMLElement
+                  if (target.closest('input[type="checkbox"]')) {
+                    return
+                  }
+                  onTaskClick(task.id)
+                }}
                 className={cn(
                   'cursor-pointer transition-colors group',
-                  rowStyles
+                  rowStyles,
+                  isSelected && '!bg-sky-50 hover:!bg-sky-100'
                 )}
               >
+                <td className="px-3 py-3">
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={(e) => onToggleTaskSelection(task.id, e.target.checked)}
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={`Selecionar tarefa ${task.name}`}
+                    className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
+                  />
+                </td>
+
                 {/* Tarefa */}
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
