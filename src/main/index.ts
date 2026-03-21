@@ -10,9 +10,12 @@ import {
   getTask,
   updateTask,
   deleteTask,
+  deleteTasks,
   archiveTask,
   unarchiveTask,
   updateTaskStatus,
+  updateTasksStatus,
+  moveTasksToProject,
   startTask,
   stopTask,
   updateTimer,
@@ -54,7 +57,20 @@ import {
   listWeeklyReviews,
   getLastWeeklyReview,
   updateWeeklyReview,
-  getReviewHealthIndicators
+  getReviewHealthIndicators,
+  // FASE 2
+  getSubtasks,
+  completeSubtasksCheck,
+  getTaskDependencies,
+  getTaskDependents,
+  addTaskDependency,
+  removeTaskDependency,
+  getTasksForDate,
+  getWeeklySchedule,
+  updateDayOrder,
+  createNextRecurrence,
+  deleteNextRecurrence,
+  getTasksDueForNotification
 } from './database'
 import {
   // Notion
@@ -83,7 +99,17 @@ let quickCaptureWindow: BrowserWindow | null = null
 let currentTimerData: { taskId: number; taskName: string; seconds: number } | null = null
 
 // Atalho global padrão para captura rápida
-let quickCaptureShortcut = 'CommandOrControl+Shift+Space'
+const quickCaptureShortcut = 'CommandOrControl+Shift+Space'
+
+function normalizeTaskIds(ids: number[]): number[] {
+  const unique = new Set<number>()
+  for (const id of ids) {
+    if (Number.isInteger(id) && id > 0) {
+      unique.add(id)
+    }
+  }
+  return [...unique]
+}
 
 // Helper para sincronização automática com Notion
 async function autoSyncToNotion(taskId: number): Promise<void> {
@@ -336,6 +362,43 @@ function setupIpcHandlers(): void {
     }
     deleteTask(id)
   })
+  ipcMain.handle('task:bulkDelete', async (_, ids: number[]) => {
+    const taskIds = normalizeTaskIds(ids)
+    if (taskIds.length === 0) return
+
+    const config = getNotionConfig()
+    if (config?.autoSync && config.databaseId) {
+      await Promise.all(
+        taskIds.map(async (id) => {
+          try {
+            await deleteTaskFromNotion(id)
+          } catch (error) {
+            console.error(`Erro ao deletar tarefa ${id} do Notion:`, error)
+          }
+        })
+      )
+    }
+
+    deleteTasks(taskIds)
+  })
+  ipcMain.handle('task:bulkUpdateStatus', (_, ids: number[], status: TaskStatus) => {
+    const taskIds = normalizeTaskIds(ids)
+    if (taskIds.length === 0) return
+
+    updateTasksStatus(taskIds, status)
+    for (const id of taskIds) {
+      autoSyncToNotion(id)
+    }
+  })
+  ipcMain.handle('task:bulkMoveToProject', (_, ids: number[], projectId: number | null) => {
+    const taskIds = normalizeTaskIds(ids)
+    if (taskIds.length === 0) return
+
+    moveTasksToProject(taskIds, projectId)
+    for (const id of taskIds) {
+      autoSyncToNotion(id)
+    }
+  })
 
   // Archive
   ipcMain.handle('task:archive', (_, id: number) => {
@@ -348,7 +411,13 @@ function setupIpcHandlers(): void {
   })
 
   // Timer
-  ipcMain.handle('task:start', (_, id: number) => startTask(id))
+  ipcMain.handle('task:start', (_, id: number) => {
+    const task = getTask(id)
+    if (task?.is_blocked) {
+      throw new Error('Tarefa bloqueada por dependências não concluídas')
+    }
+    startTask(id)
+  })
   ipcMain.handle('task:stop', (_, id: number) => {
     const result = stopTask(id)
     autoSyncToNotion(id)
@@ -370,7 +439,51 @@ function setupIpcHandlers(): void {
 
   // Status
   ipcMain.handle('task:updateStatus', (_, id: number, status: TaskStatus) => {
+    const task = getTask(id)
+    if (!task) return
+
+    // Block setting 'executando' for blocked tasks
+    if (status === 'executando' && task.is_blocked) {
+      throw new Error('Tarefa bloqueada por dependências não concluídas')
+    }
+
+    // Block completing a subtask when the parent task has unresolved dependencies
+    if (status === 'finalizada' && task.parent_task_id) {
+      const parentTask = getTask(task.parent_task_id)
+      if (parentTask?.is_blocked) {
+        throw new Error('A tarefa pai possui dependências não concluídas')
+      }
+    }
+
+    const previousStatus: string = task.status
     updateTaskStatus(id, status)
+
+    if (status === 'finalizada') {
+      // Recurrence: create next instance for top-level recurring tasks
+      if (task.recurrence_rule && !task.parent_task_id) {
+        createNextRecurrence(id)
+      }
+
+      // Subtask: check if parent should auto-complete
+      if (task.parent_task_id) {
+        completeSubtasksCheck(task.parent_task_id)
+      }
+
+      // Notify dependents that a dependency was resolved
+      const dependents = getTaskDependents(id)
+      for (const depTaskId of dependents) {
+        const depTask = getTask(depTaskId)
+        if (depTask && !depTask.is_blocked) {
+          mainWindow?.webContents.send('task:unblocked', depTaskId, depTask.name)
+        }
+      }
+    } else if (previousStatus === 'finalizada') {
+      // Undo completion: delete auto-created recurrence instance
+      if (task.recurrence_rule && !task.parent_task_id) {
+        deleteNextRecurrence(id)
+      }
+    }
+
     autoSyncToNotion(id)
   })
 
@@ -505,13 +618,91 @@ function setupIpcHandlers(): void {
     return syncAllTasks(tasks)
   })
   ipcMain.handle('notion:createDatabase', () => findOrCreateDatabase())
+
+  // ===================== FASE 2: Subtarefas =====================
+  ipcMain.handle('subtask:list', (_, parentId: number) => getSubtasks(parentId))
+  ipcMain.handle('subtask:create', (_, data: { name: string; parent_task_id: number }) => {
+    const task = createTask({ name: data.name, parent_task_id: data.parent_task_id })
+    return task
+  })
+
+  // ===================== FASE 2: Dependências =====================
+  ipcMain.handle('dependency:get', (_, taskId: number) => getTaskDependencies(taskId))
+  ipcMain.handle('dependency:add', (_, taskId: number, dependsOnId: number) =>
+    addTaskDependency(taskId, dependsOnId)
+  )
+  ipcMain.handle('dependency:remove', (_, taskId: number, dependsOnId: number) =>
+    removeTaskDependency(taskId, dependsOnId)
+  )
+
+  // ===================== FASE 2: Agendamento =====================
+  ipcMain.handle('schedule:getForDate', (_, date: string) => getTasksForDate(date))
+  ipcMain.handle('schedule:getWeekly', (_, startDate: string) => getWeeklySchedule(startDate))
+  ipcMain.handle('schedule:updateDayOrder', (_, taskId: number, order: number) =>
+    updateDayOrder(taskId, order)
+  )
+  ipcMain.handle('task:scheduleForDate', (_, taskId: number, date: string | null) => {
+    updateTask(taskId, { scheduled_date: date })
+  })
 }
 
 // ===================== APP LIFECYCLE =====================
 
+// ===================== NOTIFICATION SCHEDULER =====================
+
+const notifiedToday = new Set<string>() // 'taskId-type' keys to avoid spam
+let notificationInterval: NodeJS.Timeout | null = null
+
+function checkDueDateNotifications(): void {
+  const now = new Date()
+  const todayStr = now.toISOString().split('T')[0]
+  const tomorrow = new Date(now)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = tomorrow.toISOString().split('T')[0]
+
+  // Reset daily notification set at midnight
+  const dayKey = `day-${todayStr}`
+  if (!notifiedToday.has(dayKey)) {
+    notifiedToday.clear()
+    notifiedToday.add(dayKey)
+  }
+
+  const tasks = getTasksDueForNotification()
+  for (const task of tasks) {
+    if (!task.due_date) continue
+    const dueDate = task.due_date.split('T')[0]
+
+    if (dueDate === todayStr && now.getHours() >= 9) {
+      const key = `${task.id}-today`
+      if (!notifiedToday.has(key)) {
+        notifiedToday.add(key)
+        new Notification({
+          title: '⏰ Prazo hoje!',
+          body: `"${task.name}" vence hoje.`
+        }).show()
+      }
+    } else if (dueDate === tomorrowStr) {
+      const key = `${task.id}-tomorrow`
+      if (!notifiedToday.has(key)) {
+        notifiedToday.add(key)
+        new Notification({
+          title: '📅 Prazo amanhã',
+          body: `"${task.name}" vence amanhã.`
+        }).show()
+      }
+    }
+  }
+}
+
+function startNotificationScheduler(): void {
+  checkDueDateNotifications()
+  notificationInterval = setInterval(checkDueDateNotifications, 60 * 60 * 1000) // a cada hora
+}
+
 app.whenReady().then(() => {
   initDatabase()
   setupIpcHandlers()
+  startNotificationScheduler()
 
   electronApp.setAppUserModelId('com.ticktask.app')
   try {
@@ -545,5 +736,6 @@ app.on('will-quit', () => {
 })
 
 app.on('before-quit', () => {
+  if (notificationInterval) clearInterval(notificationInterval)
   closeDatabase()
 })

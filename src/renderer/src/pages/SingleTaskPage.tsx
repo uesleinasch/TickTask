@@ -10,10 +10,13 @@ import { CategorySelect } from '@renderer/components/CategorySelect'
 import { TimeEntryList } from '@renderer/components/TimeEntryList'
 import { DeleteConfirmDialog } from '@renderer/components/DeleteConfirmDialog'
 import { TagInput } from '@renderer/components/TagInput'
+import { SubtaskList } from '@renderer/components/SubtaskList'
+import { DependencySelector } from '@renderer/components/DependencySelector'
+import { RecurrenceSelect } from '@renderer/components/RecurrenceSelect'
 import { useTaskDetail } from '@renderer/hooks/useTaskDetail'
 import { formatTime, parseTimeInput } from '@renderer/lib/utils'
 import type { TaskStatus, TaskCategory, Tag, Project, Context } from '../../../shared/types'
-import { ArrowLeft, Archive, Trash2, AlertCircle, Plus, Edit3, Tags, FolderKanban, MapPin } from 'lucide-react'
+import { ArrowLeft, Archive, Trash2, AlertCircle, Plus, Edit3, Tags, FolderKanban, MapPin, ListChecks, Lock, RefreshCw, CalendarDays, Calendar } from 'lucide-react'
 import { toast } from '@renderer/components/ui/sonner'
 
 export function SingleTaskPage(): React.JSX.Element {
@@ -41,6 +44,9 @@ export function SingleTaskPage(): React.JSX.Element {
   const [selectedTags, setSelectedTags] = useState<Tag[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
   const [selectedContextIds, setSelectedContextIds] = useState<number[]>([])
+  const [dueDate, setDueDate] = useState('')
+  const [scheduledDate, setScheduledDate] = useState('')
+  const [recurrenceRule, setRecurrenceRule] = useState<string | null>(null)
 
   // Dados disponíveis
   const [projects, setProjects] = useState<Project[]>([])
@@ -61,6 +67,9 @@ export function SingleTaskPage(): React.JSX.Element {
       setSelectedTags(task.tags || [])
       setSelectedProjectId(task.project_id || null)
       setSelectedContextIds(task.contexts?.map((c) => c.id) || [])
+      setDueDate(task.due_date ? task.due_date.split('T')[0] : '')
+      setScheduledDate(task.scheduled_date || '')
+      setRecurrenceRule(task.recurrence_rule || null)
     }
   }, [task])
 
@@ -172,6 +181,31 @@ export function SingleTaskPage(): React.JSX.Element {
       toast.error('Erro ao ajustar tempo')
     }
   }, [taskId, adjustTime, refreshTask])
+
+  const handleDueDateChange = useCallback(
+    async (value: string): Promise<void> => {
+      setDueDate(value)
+      await updateTask({ due_date: value || null })
+    },
+    [updateTask]
+  )
+
+  const handleScheduledDateChange = useCallback(
+    async (value: string): Promise<void> => {
+      setScheduledDate(value)
+      await updateTask({ scheduled_date: value || null })
+    },
+    [updateTask]
+  )
+
+  const handleRecurrenceChange = useCallback(
+    async (value: string | null): Promise<void> => {
+      setRecurrenceRule(value)
+      await updateTask({ recurrence_rule: value })
+      toast.success(value ? 'Recorrência configurada' : 'Recorrência removida')
+    },
+    [updateTask]
+  )
 
   if (loading) {
     return (
@@ -302,6 +336,64 @@ export function SingleTaskPage(): React.JSX.Element {
               onChange={handleTagsChange}
               placeholder="Adicionar tags..."
             />
+          </div>
+
+          {/* Bloqueio por dependências */}
+          {task.is_blocked && (
+            <div className="flex items-center gap-2 px-4 py-3 bg-orange-50 border border-orange-200 rounded-xl text-orange-700 text-sm">
+              <Lock size={16} />
+              <span>Esta tarefa está bloqueada por dependências não concluídas.</span>
+            </div>
+          )}
+
+          {/* Datas e Recorrência */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+              <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center">
+                <CalendarDays size={16} className="mr-2" /> Programado para
+              </h4>
+              <input
+                type="date"
+                value={scheduledDate}
+                onChange={(e) => handleScheduledDateChange(e.target.value)}
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-slate-400 bg-slate-50"
+              />
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+              <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center">
+                <Calendar size={16} className="mr-2" /> Prazo
+              </h4>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => handleDueDateChange(e.target.value)}
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-slate-400 bg-slate-50"
+              />
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+              <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center">
+                <RefreshCw size={16} className="mr-2" /> Recorrência
+              </h4>
+              <RecurrenceSelect value={recurrenceRule} onChange={handleRecurrenceChange} />
+            </div>
+          </div>
+
+          {/* Subtarefas */}
+          {!task.parent_task_id && (
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+              <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center">
+                <ListChecks size={16} className="mr-2" /> Subtarefas
+              </h4>
+              <SubtaskList parentTaskId={task.id} isParentBlocked={task.is_blocked} onSubtaskChange={refreshTask} />
+            </div>
+          )}
+
+          {/* Dependências */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center">
+              <Lock size={16} className="mr-2" /> Depende de
+            </h4>
+            <DependencySelector taskId={task.id} onDependenciesChange={refreshTask} />
           </div>
 
           {/* Timer */}

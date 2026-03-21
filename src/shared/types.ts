@@ -55,6 +55,22 @@ export interface UpdateProjectInput {
   due_date?: string
 }
 
+// ===================== RECURRENCE =====================
+
+export interface RecurrenceRule {
+  type: 'daily' | 'weekly' | 'monthly'
+  dayOfWeek?: number   // 0–6 for weekly (0 = Sunday)
+  dayOfMonth?: number  // 1–31 for monthly
+}
+
+// ===================== TASK DEPENDENCY =====================
+
+export interface TaskDependency {
+  task_id: number
+  depends_on_task_id: number
+  depends_on_task_name?: string
+}
+
 // ===================== TASK =====================
 
 export interface Task {
@@ -73,6 +89,16 @@ export interface Task {
   updated_at: string
   tags?: Tag[]
   contexts?: Context[]
+  // FASE 2 fields
+  scheduled_date?: string        // DATE string 'YYYY-MM-DD'
+  due_date?: string              // DATETIME string
+  recurrence_rule?: string       // JSON string of RecurrenceRule
+  parent_task_id?: number        // subtask relationship
+  recurrence_source_id?: number  // id of the task that spawned this recurrence instance
+  day_order?: number             // ordering within TodayPage
+  subtask_count?: number         // computed
+  completed_subtask_count?: number // computed
+  is_blocked?: boolean           // computed from dependencies
 }
 
 export interface CreateTaskInput {
@@ -84,6 +110,12 @@ export interface CreateTaskInput {
   tagNames?: string[]
   project_id?: number
   contextIds?: number[]
+  // FASE 2 fields
+  scheduled_date?: string
+  due_date?: string
+  recurrence_rule?: string
+  parent_task_id?: number
+  recurrence_source_id?: number
 }
 
 export interface UpdateTaskInput {
@@ -96,6 +128,11 @@ export interface UpdateTaskInput {
   tagNames?: string[]
   project_id?: number | null
   contextIds?: number[]
+  // FASE 2 fields
+  scheduled_date?: string | null
+  due_date?: string | null
+  recurrence_rule?: string | null
+  day_order?: number | null
 }
 
 export interface TimeEntry {

@@ -11,12 +11,14 @@ import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { ContextsPage } from './pages/ContextsPage'
 import { WeeklyReviewPage } from './pages/WeeklyReviewPage'
 import { QuickCapturePage } from './pages/QuickCapturePage'
+import { TodayPage } from './pages/TodayPage'
 import { TitleBar } from './components/TitleBar'
 import { FloatingTimer } from './components/FloatingTimer'
 import { SyncNotification } from './components/SyncNotification'
 import { Toaster } from './components/ui/sonner'
 import { notifySyncStart, notifySyncSuccess, notifySyncError } from './lib/syncEvents'
 import { useTimerStore } from './stores/timerStore'
+import { toast } from './components/ui/sonner'
 
 // Event emitter para comunicação entre componentes
 const eventEmitter = {
@@ -70,7 +72,8 @@ function AppContent(): React.JSX.Element {
     location.pathname === '/contexts' ||
     location.pathname === '/review' ||
     location.pathname === '/archived' ||
-    location.pathname === '/settings'
+    location.pathname === '/settings' ||
+    location.pathname === '/today'
 
   // Listener para eventos de sincronização do main process
   useEffect(() => {
@@ -103,6 +106,14 @@ function AppContent(): React.JSX.Element {
     return unsubscribe
   }, [])
 
+  // Listener para tarefa desbloqueada (dependência concluída)
+  useEffect(() => {
+    const unsubscribe = window.api.onTaskUnblocked((_taskId, taskName) => {
+      toast.success(`"${taskName}" foi desbloqueada!`, { description: 'Dependência concluída.' })
+    })
+    return unsubscribe
+  }, [])
+
   // Se for a janela flutuante, renderizar apenas ela
   if (isFloatPage) {
     return <FloatContent />
@@ -131,6 +142,7 @@ function AppContent(): React.JSX.Element {
           <Route path="/project/:id" element={<ProjectDetailPage />} />
           <Route path="/contexts" element={<ContextsPage />} />
           <Route path="/review" element={<WeeklyReviewPage />} />
+          <Route path="/today" element={<TodayPage />} />
           <Route path="/float" element={<FloatTimerPage />} />
           <Route path="/quick-capture" element={<QuickCapturePage />} />
         </Routes>
