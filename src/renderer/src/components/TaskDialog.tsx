@@ -13,6 +13,7 @@ import { Textarea } from '@renderer/components/ui/textarea'
 import { SearchableSelect } from '@renderer/components/ui/searchable-select'
 import { CategorySelect } from './CategorySelect'
 import { TagInput } from './TagInput'
+import { RecurrenceSelect } from './RecurrenceSelect'
 import type { CreateTaskInput, TaskCategory, Tag, Project, Context } from '../../../shared/types'
 
 interface TaskDialogProps {
@@ -29,9 +30,11 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
   const [selectedTags, setSelectedTags] = useState<Tag[]>([])
   const [projectId, setProjectId] = useState<number | undefined>(undefined)
   const [selectedContextIds, setSelectedContextIds] = useState<number[]>([])
+  const [dueDate, setDueDate] = useState('')
+  const [scheduledDate, setScheduledDate] = useState('')
+  const [recurrenceRule, setRecurrenceRule] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  // Dados disponíveis para seleção
   const [projects, setProjects] = useState<Project[]>([])
   const [contexts, setContexts] = useState<Context[]>([])
 
@@ -67,7 +70,10 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
         category,
         tagIds: selectedTags.map((t) => t.id),
         project_id: projectId,
-        contextIds: selectedContextIds.length > 0 ? selectedContextIds : undefined
+        contextIds: selectedContextIds.length > 0 ? selectedContextIds : undefined,
+        due_date: dueDate || undefined,
+        scheduled_date: scheduledDate || undefined,
+        recurrence_rule: recurrenceRule || undefined
       })
 
       // Reset form
@@ -78,6 +84,9 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
       setSelectedTags([])
       setProjectId(undefined)
       setSelectedContextIds([])
+      setDueDate('')
+      setScheduledDate('')
+      setRecurrenceRule(null)
       onOpenChange(false)
     } finally {
       setLoading(false)
@@ -131,6 +140,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
               className="border-slate-300 focus:ring-slate-900 resize-none"
             />
           </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">Categoria</label>
@@ -148,6 +158,40 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
                 className="border-slate-300 focus:ring-slate-900 font-mono h-8"
               />
             </div>
+          </div>
+
+          {/* Datas */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label htmlFor="scheduledDate" className="text-sm font-medium text-slate-700">
+                Programar para
+              </label>
+              <Input
+                id="scheduledDate"
+                type="date"
+                value={scheduledDate}
+                onChange={(e) => setScheduledDate(e.target.value)}
+                className="border-slate-300 focus:ring-slate-900 h-8 text-sm"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="dueDate" className="text-sm font-medium text-slate-700">
+                Prazo
+              </label>
+              <Input
+                id="dueDate"
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="border-slate-300 focus:ring-slate-900 h-8 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Recorrência */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Recorrência</label>
+            <RecurrenceSelect value={recurrenceRule} onChange={setRecurrenceRule} />
           </div>
 
           {/* Projeto */}
@@ -204,6 +248,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
             />
             <p className="text-xs text-slate-500">Ex: E-mail, Trabalho, Pessoal, Cliente X</p>
           </div>
+
           <DialogFooter className="pt-2">
             <Button
               type="button"

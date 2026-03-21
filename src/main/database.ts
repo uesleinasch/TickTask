@@ -12,7 +12,8 @@ import type {
   UpdateProjectInput,
   ProjectStatus,
   WeeklyReview,
-  ReviewHealthIndicators
+  ReviewHealthIndicators,
+  TaskDependency
 } from '@shared/types'
 import { DEFAULT_CONTEXTS } from '@shared/types'
 
@@ -155,6 +156,25 @@ export function initDatabase(): void {
       insertCtx.run(ctx.name, ctx.icon, ctx.color)
     }
   }
+
+  // ===================== FASE 2: Migrações adicionais =====================
+
+  try { db.exec('ALTER TABLE tasks ADD COLUMN scheduled_date DATE') } catch { /* já existe */ }
+  try { db.exec('ALTER TABLE tasks ADD COLUMN due_date DATETIME') } catch { /* já existe */ }
+  try { db.exec('ALTER TABLE tasks ADD COLUMN recurrence_rule TEXT') } catch { /* já existe */ }
+  try { db.exec('ALTER TABLE tasks ADD COLUMN parent_task_id INTEGER') } catch { /* já existe */ }
+  try { db.exec('ALTER TABLE tasks ADD COLUMN recurrence_source_id INTEGER') } catch { /* já existe */ }
+  try { db.exec('ALTER TABLE tasks ADD COLUMN day_order INTEGER') } catch { /* já existe */ }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS task_dependencies (
+      task_id INTEGER NOT NULL,
+      depends_on_task_id INTEGER NOT NULL,
+      PRIMARY KEY (task_id, depends_on_task_id),
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+      FOREIGN KEY (depends_on_task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    )
+  `)
 }
 
 // ===================== MIGRAÇÃO: someday status =====================
@@ -502,15 +522,21 @@ export function getProjectTasks(projectId: number): Task[] {
 export function createTask(data: CreateTaskInput): Task {
   const transaction = db.transaction(() => {
     const stmt = db.prepare(`
-      INSERT INTO tasks (name, description, time_limit_seconds, category, project_id)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO tasks (name, description, time_limit_seconds, category, project_id,
+                         scheduled_date, due_date, recurrence_rule, parent_task_id, recurrence_source_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const result = stmt.run(
       data.name,
       data.description || null,
       data.time_limit_seconds || null,
       data.category || 'normal',
-      data.project_id || null
+      data.project_id || null,
+      data.scheduled_date || null,
+      data.due_date || null,
+      data.recurrence_rule || null,
+      data.parent_task_id || null,
+      data.recurrence_source_id || null
     )
     const taskId = result.lastInsertRowid as number
 
@@ -543,23 +569,43 @@ export function createTask(data: CreateTaskInput): Task {
   return getTask(taskId)!
 }
 
-export function listTasks(archived: boolean = false): Task[] {
-  const stmt = db.prepare(`
-    SELECT t.*, p.name as project_name
-    FROM tasks t
-    LEFT JOIN projects p ON t.project_id = p.id
-    WHERE t.is_archived = ?
-    ORDER BY t.updated_at DESC
-  `)
-  const rows = stmt.all(archived ? 1 : 0) as (Task & { project_name?: string })[]
-  return rows.map((row) => ({
+function enrichTask(row: Task & { project_name?: string }): Task {
+  const subtaskStats = db.prepare(`
+    SELECT
+      COUNT(*) as total,
+      SUM(CASE WHEN status = 'finalizada' THEN 1 ELSE 0 END) as completed
+    FROM tasks WHERE parent_task_id = ? AND is_archived = 0
+  `).get(row.id) as { total: number; completed: number }
+
+  const blockedRow = db.prepare(`
+    SELECT COUNT(*) as cnt FROM task_dependencies d
+    JOIN tasks dep ON dep.id = d.depends_on_task_id
+    WHERE d.task_id = ? AND dep.status != 'finalizada'
+  `).get(row.id) as { cnt: number }
+
+  return {
     ...row,
     category: row.category || 'normal',
     is_running: Boolean(row.is_running),
     is_archived: Boolean(row.is_archived),
     tags: getTaskTags(row.id),
-    contexts: getTaskContexts(row.id)
-  }))
+    contexts: getTaskContexts(row.id),
+    subtask_count: subtaskStats.total,
+    completed_subtask_count: subtaskStats.completed,
+    is_blocked: blockedRow.cnt > 0
+  }
+}
+
+export function listTasks(archived: boolean = false): Task[] {
+  const stmt = db.prepare(`
+    SELECT t.*, p.name as project_name
+    FROM tasks t
+    LEFT JOIN projects p ON t.project_id = p.id
+    WHERE t.is_archived = ? AND t.parent_task_id IS NULL
+    ORDER BY t.updated_at DESC
+  `)
+  const rows = stmt.all(archived ? 1 : 0) as (Task & { project_name?: string })[]
+  return rows.map(enrichTask)
 }
 
 export function getTask(id: number): Task | undefined {
@@ -570,16 +616,7 @@ export function getTask(id: number): Task | undefined {
     WHERE t.id = ?
   `)
   const row = stmt.get(id) as (Task & { project_name?: string }) | undefined
-  if (row) {
-    return {
-      ...row,
-      category: row.category || 'normal',
-      is_running: Boolean(row.is_running),
-      is_archived: Boolean(row.is_archived),
-      tags: getTaskTags(id),
-      contexts: getTaskContexts(id)
-    }
-  }
+  if (row) return enrichTask(row)
   return undefined
 }
 
@@ -611,6 +648,22 @@ export function updateTask(id: number, data: UpdateTaskInput): void {
     if (data.project_id !== undefined) {
       updates.push('project_id = ?')
       values.push(data.project_id)
+    }
+    if (data.scheduled_date !== undefined) {
+      updates.push('scheduled_date = ?')
+      values.push(data.scheduled_date)
+    }
+    if (data.due_date !== undefined) {
+      updates.push('due_date = ?')
+      values.push(data.due_date)
+    }
+    if (data.recurrence_rule !== undefined) {
+      updates.push('recurrence_rule = ?')
+      values.push(data.recurrence_rule)
+    }
+    if (data.day_order !== undefined) {
+      updates.push('day_order = ?')
+      values.push(data.day_order)
     }
 
     if (updates.length > 0) {
@@ -1112,6 +1165,178 @@ export function getGeneralStats(): GeneralStats {
     totalSessions: sessionsResult.totalSessions || 0,
     avgSessionSeconds: Math.round(sessionsResult.avgSessionSeconds || 0)
   }
+}
+
+// ===================== FASE 2: SUBTAREFAS =====================
+
+export function getSubtasks(parentId: number): Task[] {
+  const stmt = db.prepare(`
+    SELECT t.*, p.name as project_name
+    FROM tasks t
+    LEFT JOIN projects p ON t.project_id = p.id
+    WHERE t.parent_task_id = ? AND t.is_archived = 0
+    ORDER BY t.created_at ASC
+  `)
+  const rows = stmt.all(parentId) as (Task & { project_name?: string })[]
+  return rows.map((row) => ({
+    ...row,
+    category: row.category || 'normal',
+    is_running: Boolean(row.is_running),
+    is_archived: Boolean(row.is_archived),
+    subtask_count: 0,
+    completed_subtask_count: 0,
+    is_blocked: false
+  }))
+}
+
+export function completeSubtasksCheck(parentId: number): void {
+  const stats = db.prepare(`
+    SELECT
+      COUNT(*) as total,
+      SUM(CASE WHEN status = 'finalizada' THEN 1 ELSE 0 END) as completed
+    FROM tasks WHERE parent_task_id = ? AND is_archived = 0
+  `).get(parentId) as { total: number; completed: number }
+
+  if (stats.total > 0 && stats.total === stats.completed) {
+    db.prepare(
+      "UPDATE tasks SET status = 'finalizada', updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    ).run(parentId)
+  }
+}
+
+// ===================== FASE 2: DEPENDÊNCIAS =====================
+
+export function getTaskDependencies(taskId: number): TaskDependency[] {
+  const stmt = db.prepare(`
+    SELECT d.task_id, d.depends_on_task_id, t.name as depends_on_task_name
+    FROM task_dependencies d
+    JOIN tasks t ON t.id = d.depends_on_task_id
+    WHERE d.task_id = ?
+  `)
+  return stmt.all(taskId) as TaskDependency[]
+}
+
+export function getTaskDependents(taskId: number): number[] {
+  const stmt = db.prepare(`
+    SELECT task_id FROM task_dependencies WHERE depends_on_task_id = ?
+  `)
+  return (stmt.all(taskId) as { task_id: number }[]).map((r) => r.task_id)
+}
+
+export function addTaskDependency(taskId: number, dependsOnId: number): void {
+  db.prepare(
+    'INSERT OR IGNORE INTO task_dependencies (task_id, depends_on_task_id) VALUES (?, ?)'
+  ).run(taskId, dependsOnId)
+}
+
+export function removeTaskDependency(taskId: number, dependsOnId: number): void {
+  db.prepare(
+    'DELETE FROM task_dependencies WHERE task_id = ? AND depends_on_task_id = ?'
+  ).run(taskId, dependsOnId)
+}
+
+// ===================== FASE 2: AGENDAMENTO =====================
+
+export function getTasksForDate(date: string): Task[] {
+  const stmt = db.prepare(`
+    SELECT t.*, p.name as project_name
+    FROM tasks t
+    LEFT JOIN projects p ON t.project_id = p.id
+    WHERE t.scheduled_date = ? AND t.is_archived = 0 AND t.parent_task_id IS NULL
+    ORDER BY COALESCE(t.day_order, 999999), t.created_at ASC
+  `)
+  const rows = stmt.all(date) as (Task & { project_name?: string })[]
+  return rows.map(enrichTask)
+}
+
+export function getWeeklySchedule(startDate: string): { date: string; tasks: Task[] }[] {
+  const result: { date: string; tasks: Task[] }[] = []
+  const start = new Date(startDate)
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start)
+    d.setDate(start.getDate() + i)
+    const dateStr = d.toISOString().split('T')[0]
+    result.push({ date: dateStr, tasks: getTasksForDate(dateStr) })
+  }
+
+  return result
+}
+
+export function updateDayOrder(taskId: number, order: number): void {
+  db.prepare('UPDATE tasks SET day_order = ? WHERE id = ?').run(order, taskId)
+}
+
+// ===================== FASE 2: RECORRÊNCIA =====================
+
+function calculateNextDate(rule: { type: string; dayOfWeek?: number; dayOfMonth?: number }, fromDate?: string): string {
+  const base = fromDate ? new Date(fromDate + 'T12:00:00') : new Date()
+  const next = new Date(base)
+
+  switch (rule.type) {
+    case 'daily':
+      next.setDate(next.getDate() + 1)
+      break
+    case 'weekly':
+      next.setDate(next.getDate() + 7)
+      break
+    case 'monthly':
+      next.setMonth(next.getMonth() + 1)
+      break
+  }
+
+  return next.toISOString().split('T')[0]
+}
+
+export function createNextRecurrence(sourceTaskId: number): Task | null {
+  const source = getTask(sourceTaskId)
+  if (!source || !source.recurrence_rule) return null
+
+  let rule: { type: string; dayOfWeek?: number; dayOfMonth?: number }
+  try {
+    rule = JSON.parse(source.recurrence_rule)
+  } catch {
+    return null
+  }
+
+  const nextDate = calculateNextDate(rule, source.scheduled_date)
+  const tags = getTaskTags(sourceTaskId)
+  const ctxs = getTaskContexts(sourceTaskId)
+
+  return createTask({
+    name: source.name,
+    description: source.description,
+    time_limit_seconds: source.time_limit_seconds,
+    category: source.category,
+    project_id: source.project_id || undefined,
+    scheduled_date: nextDate,
+    recurrence_rule: source.recurrence_rule,
+    recurrence_source_id: sourceTaskId,
+    tagIds: tags.map((t) => t.id),
+    contextIds: ctxs.map((c) => c.id)
+  })
+}
+
+export function deleteNextRecurrence(sourceTaskId: number): void {
+  db.prepare(
+    "DELETE FROM tasks WHERE recurrence_source_id = ? AND status != 'finalizada'"
+  ).run(sourceTaskId)
+}
+
+// ===================== FASE 2: PRAZO / NOTIFICAÇÕES =====================
+
+export function getTasksDueForNotification(): Task[] {
+  const stmt = db.prepare(`
+    SELECT t.*, p.name as project_name
+    FROM tasks t
+    LEFT JOIN projects p ON t.project_id = p.id
+    WHERE t.due_date IS NOT NULL
+      AND t.status != 'finalizada'
+      AND t.is_archived = 0
+      AND t.parent_task_id IS NULL
+  `)
+  const rows = stmt.all() as (Task & { project_name?: string })[]
+  return rows.map(enrichTask)
 }
 
 export function closeDatabase(): void {

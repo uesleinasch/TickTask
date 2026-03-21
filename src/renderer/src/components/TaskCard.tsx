@@ -1,8 +1,20 @@
+import { useState, useCallback } from 'react'
 import { StatusBadge } from './StatusBadge'
 import { CategoryBadge } from './CategoryBadge'
+import { DueDateBadge } from './DueDateBadge'
 import { formatTime } from '@renderer/lib/utils'
 import type { Task } from '../../../shared/types'
-import { AlertCircle, Activity, FolderKanban } from 'lucide-react'
+import {
+  AlertCircle,
+  Activity,
+  FolderKanban,
+  Lock,
+  ListChecks,
+  CalendarDays,
+  ChevronRight,
+  ChevronDown,
+  CheckSquare
+} from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 
 interface TaskCardProps {
@@ -10,6 +22,7 @@ interface TaskCardProps {
   selected: boolean
   onToggleSelection: (selected: boolean) => void
   onClick: () => void
+  onScheduleForToday?: (taskId: number) => void
 }
 
 function getTimeLeakStyles(task: Task): {
@@ -48,15 +61,31 @@ function getTimeLeakStyles(task: Task): {
   }
 }
 
+const todayStr = (): string => new Date().toISOString().split('T')[0]
+
 export function TaskCard({
   task,
   selected,
   onToggleSelection,
-  onClick
+  onClick,
+  onScheduleForToday
 }: TaskCardProps): React.JSX.Element {
   const timeLeakStyles = getTimeLeakStyles(task)
   const isTimeLeak = task.category === 'time_leak'
   const isOverOneHour = isTimeLeak && task.total_seconds >= 3600
+  const isScheduledToday = task.scheduled_date === todayStr()
+  const hasSubtasks = (task.subtask_count ?? 0) > 0
+  const [expanded, setExpanded] = useState(false)
+  const [subtasks, setSubtasks] = useState<Task[]>([])
+
+  const toggleExpand = useCallback(async (e: React.MouseEvent): Promise<void> => {
+    e.stopPropagation()
+    if (!expanded && subtasks.length === 0) {
+      const subs = await window.api.listSubtasks(task.id)
+      setSubtasks(subs)
+    }
+    setExpanded((prev) => !prev)
+  }, [expanded, subtasks.length, task.id])
 
   return (
     <div
@@ -72,7 +101,14 @@ export function TaskCard({
         )}
       >
         <div>
-          <div className="flex justify-end mb-1">
+          <div className="flex justify-between items-start mb-1">
+            {/* Lock icon for blocked tasks */}
+            {task.is_blocked && (
+              <span title="Bloqueada por dependências" className="text-orange-400">
+                <Lock size={14} />
+              </span>
+            )}
+            <div className="flex-1" />
             <input
               type="checkbox"
               checked={selected}
@@ -95,6 +131,17 @@ export function TaskCard({
             )}
           </div>
 
+          {/* Due date + scheduled today indicator */}
+          <div className="flex flex-wrap gap-1.5 items-center mb-2">
+            {task.due_date && <DueDateBadge dueDate={task.due_date} />}
+            {isScheduledToday && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                <CalendarDays size={10} />
+                Hoje
+              </span>
+            )}
+          </div>
+
           {/* Project indicator */}
           {task.project_name && (
             <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1.5">
@@ -112,6 +159,43 @@ export function TaskCard({
           <p className="text-slate-500 text-sm line-clamp-2 mb-3">
             {task.description || 'Sem descrição...'}
           </p>
+
+          {/* Subtask progress + expand */}
+          {hasSubtasks && (
+            <div className="mb-2">
+              <button
+                onClick={toggleExpand}
+                className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 transition-colors w-full text-left"
+              >
+                {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                <ListChecks size={12} />
+                <span>
+                  {task.completed_subtask_count}/{task.subtask_count} subtarefas
+                </span>
+              </button>
+              {expanded && (
+                <div className="mt-1.5 pl-3 border-l-2 border-slate-100 space-y-1">
+                  {subtasks.map((sub) => (
+                    <div key={sub.id} className="flex items-center gap-2">
+                      {sub.status === 'finalizada' ? (
+                        <CheckSquare size={12} className="text-purple-400 flex-shrink-0" />
+                      ) : (
+                        <div className="w-3 h-3 rounded-full border-2 border-slate-300 flex-shrink-0" />
+                      )}
+                      <span
+                        className={cn(
+                          'text-xs text-slate-600 truncate',
+                          sub.status === 'finalizada' && 'line-through text-slate-400'
+                        )}
+                      >
+                        {sub.name}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Tags */}
           {task.tags && task.tags.length > 0 && (
@@ -144,7 +228,7 @@ export function TaskCard({
           )}
         </div>
 
-        {/* Footer: Timer */}
+        {/* Footer: Timer + actions */}
         <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
           <div
             className={cn(
@@ -155,16 +239,30 @@ export function TaskCard({
           >
             {formatTime(task.total_seconds)}
           </div>
-          {task.is_running && (
-            <div
-              className={cn(
-                'animate-pulse p-1.5 rounded-full',
-                isTimeLeak ? 'bg-yellow-100 text-yellow-600' : 'bg-emerald-100 text-emerald-600'
-              )}
-            >
-              <Activity size={16} />
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {onScheduleForToday && !isScheduledToday && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onScheduleForToday(task.id)
+                }}
+                title="Programar para hoje"
+                className="opacity-0 group-hover:opacity-100 text-xs text-slate-400 hover:text-blue-600 transition-all px-1.5 py-0.5 rounded hover:bg-blue-50"
+              >
+                📅
+              </button>
+            )}
+            {task.is_running && (
+              <div
+                className={cn(
+                  'animate-pulse p-1.5 rounded-full',
+                  isTimeLeak ? 'bg-yellow-100 text-yellow-600' : 'bg-emerald-100 text-emerald-600'
+                )}
+              >
+                <Activity size={16} />
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

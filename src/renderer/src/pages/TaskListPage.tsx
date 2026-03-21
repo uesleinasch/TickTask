@@ -44,11 +44,14 @@ import {
   Trash2,
   FolderInput,
   CheckCheck,
-  Loader2
+  Loader2,
+  Lock,
+  CalendarDays
 } from 'lucide-react'
 
 type FilterStatus = TaskStatus | 'all'
 type FilterCategory = TaskCategory | 'all'
+type SortMode = 'updated' | 'due_date'
 type ViewMode = 'cards' | 'table'
 type BulkAction =
   | { type: 'delete' }
@@ -94,6 +97,8 @@ export function TaskListPage(): React.JSX.Element {
   const [availableProjects, setAvailableProjects] = useState<Project[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('table')
   const [showFilters, setShowFilters] = useState(false)
+  const [blockedFilter, setBlockedFilter] = useState(false)
+  const [sortMode, setSortMode] = useState<SortMode>('updated')
   const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([])
   const [bulkStatusValue, setBulkStatusValue] = useState<TaskStatus | 'none'>('none')
   const [bulkProjectValue, setBulkProjectValue] = useState<string>('none')
@@ -205,8 +210,21 @@ export function TaskListPage(): React.JSX.Element {
       }
     }
 
+    if (blockedFilter) {
+      result = result.filter((task) => task.is_blocked)
+    }
+
+    if (sortMode === 'due_date') {
+      result = [...result].sort((a, b) => {
+        if (!a.due_date && !b.due_date) return 0
+        if (!a.due_date) return 1
+        if (!b.due_date) return -1
+        return a.due_date.localeCompare(b.due_date)
+      })
+    }
+
     return result
-  }, [statusFilteredTasks, categoryFilter, searchQuery, tagFilter, contextFilter, projectFilter])
+  }, [statusFilteredTasks, categoryFilter, searchQuery, tagFilter, contextFilter, projectFilter, blockedFilter, sortMode])
 
   const filteredTaskIds = useMemo(() => filteredTasks.map((task) => task.id), [filteredTasks])
   const selectedTaskIdSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds])
@@ -225,7 +243,9 @@ export function TaskListPage(): React.JSX.Element {
     searchQuery.trim() !== '' ||
     tagFilter !== null ||
     contextFilter !== null ||
-    projectFilter !== null
+    projectFilter !== null ||
+    blockedFilter ||
+    sortMode !== 'updated'
 
   const clearFilters = (): void => {
     setCategoryFilter('all')
@@ -233,7 +253,21 @@ export function TaskListPage(): React.JSX.Element {
     setTagFilter(null)
     setContextFilter(null)
     setProjectFilter(null)
+    setBlockedFilter(false)
+    setSortMode('updated')
   }
+
+  const handleScheduleForToday = useCallback(async (taskId: number): Promise<void> => {
+    const today = new Date().toISOString().split('T')[0]
+    try {
+      await window.api.scheduleTaskForDate(taskId, today)
+      await refreshTasks()
+      toast.success('Tarefa programada para hoje')
+    } catch (err) {
+      console.error('Erro ao programar tarefa:', err)
+      toast.error('Erro ao programar tarefa')
+    }
+  }, [refreshTasks])
 
   // Ouvir evento de nova tarefa do TitleBar
   useEffect(() => {
@@ -429,7 +463,9 @@ export function TaskListPage(): React.JSX.Element {
                     (searchQuery.trim() ? 1 : 0) +
                     (tagFilter !== null ? 1 : 0) +
                     (contextFilter !== null ? 1 : 0) +
-                    (projectFilter !== null ? 1 : 0)}
+                    (projectFilter !== null ? 1 : 0) +
+                    (blockedFilter ? 1 : 0) +
+                    (sortMode !== 'updated' ? 1 : 0)}
                 </span>
               )}
             </button>
@@ -561,6 +597,42 @@ export function TaskListPage(): React.JSX.Element {
                   />
                 </div>
               )}
+
+              {/* Blocked Filter */}
+              <div className="min-w-fit">
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                  Situação
+                </label>
+                <button
+                  onClick={() => setBlockedFilter(!blockedFilter)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-all ${
+                    blockedFilter
+                      ? 'bg-orange-100 text-orange-700 border-orange-200'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <Lock size={14} />
+                  Bloqueadas
+                </button>
+              </div>
+
+              {/* Sort Mode */}
+              <div className="min-w-fit">
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                  Ordenar por
+                </label>
+                <button
+                  onClick={() => setSortMode(sortMode === 'updated' ? 'due_date' : 'updated')}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-all ${
+                    sortMode === 'due_date'
+                      ? 'bg-blue-100 text-blue-700 border-blue-200'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <CalendarDays size={14} />
+                  {sortMode === 'due_date' ? 'Prazo ↑' : 'Prazo'}
+                </button>
+              </div>
 
               {/* Clear Filters */}
               {hasActiveFilters && (
@@ -697,6 +769,7 @@ export function TaskListPage(): React.JSX.Element {
               onTaskClick={handleTaskClick}
               selectedTaskIds={selectedTaskIdSet}
               onToggleTaskSelection={toggleTaskSelection}
+              onScheduleForToday={handleScheduleForToday}
             />
           ) : (
             <TaskTable
@@ -705,6 +778,7 @@ export function TaskListPage(): React.JSX.Element {
               selectedTaskIds={selectedTaskIdSet}
               onToggleTaskSelection={toggleTaskSelection}
               onToggleSelectAll={toggleSelectAllVisible}
+              onScheduleForToday={handleScheduleForToday}
             />
           )}
         </div>

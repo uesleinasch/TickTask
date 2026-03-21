@@ -6,13 +6,15 @@ interface TaskListProps {
   onTaskClick: (taskId: number) => void
   selectedTaskIds: Set<number>
   onToggleTaskSelection: (taskId: number, selected: boolean) => void
+  onScheduleForToday?: (taskId: number) => void
 }
 
 export function TaskList({
   tasks,
   onTaskClick,
   selectedTaskIds,
-  onToggleTaskSelection
+  onToggleTaskSelection,
+  onScheduleForToday
 }: TaskListProps): React.JSX.Element {
   if (tasks.length === 0) {
     return (
@@ -32,6 +34,7 @@ export function TaskList({
           selected={selectedTaskIds.has(task.id)}
           onToggleSelection={(selected) => onToggleTaskSelection(task.id, selected)}
           onClick={() => onTaskClick(task.id)}
+          onScheduleForToday={onScheduleForToday}
         />
       ))}
     </div>
