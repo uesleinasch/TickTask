@@ -13,7 +13,8 @@ import type {
   ProjectStatus,
   Context,
   WeeklyReview,
-  ReviewHealthIndicators
+  ReviewHealthIndicators,
+  TaskDependency
 } from '../shared/types'
 
 // Custom APIs for renderer
@@ -30,6 +31,11 @@ const api = {
   updateTask: (id: number, data: UpdateTaskInput): Promise<void> =>
     ipcRenderer.invoke('task:update', id, data),
   deleteTask: (id: number): Promise<void> => ipcRenderer.invoke('task:delete', id),
+  bulkDeleteTasks: (ids: number[]): Promise<void> => ipcRenderer.invoke('task:bulkDelete', ids),
+  bulkUpdateStatus: (ids: number[], status: TaskStatus): Promise<void> =>
+    ipcRenderer.invoke('task:bulkUpdateStatus', ids, status),
+  bulkMoveToProject: (ids: number[], projectId: number | null): Promise<void> =>
+    ipcRenderer.invoke('task:bulkMoveToProject', ids, projectId),
 
   // Archive
   archiveTask: (id: number): Promise<void> => ipcRenderer.invoke('task:archive', id),
@@ -170,6 +176,38 @@ const api = {
   ): Promise<void> => ipcRenderer.invoke('review:update', id, data),
   getReviewHealthIndicators: (): Promise<ReviewHealthIndicators> =>
     ipcRenderer.invoke('review:healthIndicators'),
+
+  // ===================== FASE 2: Subtarefas =====================
+  listSubtasks: (parentId: number): Promise<Task[]> => ipcRenderer.invoke('subtask:list', parentId),
+  createSubtask: (data: { name: string; parent_task_id: number }): Promise<Task> =>
+    ipcRenderer.invoke('subtask:create', data),
+
+  // ===================== FASE 2: Dependências =====================
+  getDependencies: (taskId: number): Promise<TaskDependency[]> =>
+    ipcRenderer.invoke('dependency:get', taskId),
+  addDependency: (taskId: number, dependsOnId: number): Promise<void> =>
+    ipcRenderer.invoke('dependency:add', taskId, dependsOnId),
+  removeDependency: (taskId: number, dependsOnId: number): Promise<void> =>
+    ipcRenderer.invoke('dependency:remove', taskId, dependsOnId),
+
+  // ===================== FASE 2: Agendamento =====================
+  getTasksForDate: (date: string): Promise<Task[]> =>
+    ipcRenderer.invoke('schedule:getForDate', date),
+  getWeeklySchedule: (startDate: string): Promise<{ date: string; tasks: Task[] }[]> =>
+    ipcRenderer.invoke('schedule:getWeekly', startDate),
+  updateDayOrder: (taskId: number, order: number): Promise<void> =>
+    ipcRenderer.invoke('schedule:updateDayOrder', taskId, order),
+  scheduleTaskForDate: (taskId: number, date: string | null): Promise<void> =>
+    ipcRenderer.invoke('task:scheduleForDate', taskId, date),
+
+  // ===================== FASE 2: Eventos push =====================
+  onTaskUnblocked: (callback: (taskId: number, taskName: string) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, taskId: number, taskName: string): void => {
+      callback(taskId, taskName)
+    }
+    ipcRenderer.on('task:unblocked', handler)
+    return () => ipcRenderer.removeListener('task:unblocked', handler)
+  },
 
   // ===================== QUICK CAPTURE =====================
   openQuickCapture: (): Promise<void> => ipcRenderer.invoke('quickCapture:open'),

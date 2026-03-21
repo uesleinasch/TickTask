@@ -12,7 +12,8 @@ import type {
   ProjectStatus,
   Context,
   WeeklyReview,
-  ReviewHealthIndicators
+  ReviewHealthIndicators,
+  TaskDependency
 } from '../shared/types'
 
 interface FloatTimerData {
@@ -77,6 +78,9 @@ interface API {
   getTask: (id: number) => Promise<Task | undefined>
   updateTask: (id: number, data: UpdateTaskInput) => Promise<void>
   deleteTask: (id: number) => Promise<void>
+  bulkDeleteTasks: (ids: number[]) => Promise<void>
+  bulkUpdateStatus: (ids: number[], status: TaskStatus) => Promise<void>
+  bulkMoveToProject: (ids: number[], projectId: number | null) => Promise<void>
   archiveTask: (id: number) => Promise<void>
   unarchiveTask: (id: number) => Promise<void>
   startTask: (id: number) => Promise<void>
@@ -149,6 +153,24 @@ interface API {
     }
   ) => Promise<void>
   getReviewHealthIndicators: () => Promise<ReviewHealthIndicators>
+
+  // FASE 2: Subtarefas
+  listSubtasks: (parentId: number) => Promise<Task[]>
+  createSubtask: (data: { name: string; parent_task_id: number }) => Promise<Task>
+
+  // FASE 2: Dependências
+  getDependencies: (taskId: number) => Promise<TaskDependency[]>
+  addDependency: (taskId: number, dependsOnId: number) => Promise<void>
+  removeDependency: (taskId: number, dependsOnId: number) => Promise<void>
+
+  // FASE 2: Agendamento
+  getTasksForDate: (date: string) => Promise<Task[]>
+  getWeeklySchedule: (startDate: string) => Promise<{ date: string; tasks: Task[] }[]>
+  updateDayOrder: (taskId: number, order: number) => Promise<void>
+  scheduleTaskForDate: (taskId: number, date: string | null) => Promise<void>
+
+  // FASE 2: Eventos push
+  onTaskUnblocked: (callback: (taskId: number, taskName: string) => void) => () => void
 
   // Quick Capture
   openQuickCapture: () => Promise<void>
