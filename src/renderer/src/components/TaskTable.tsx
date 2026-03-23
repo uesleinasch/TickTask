@@ -219,11 +219,23 @@ export function TaskTable({
                           {task.name}
                         </p>
                         {task.due_date && <DueDateBadge dueDate={task.due_date} />}
-                        {isScheduledToday && (
-                          <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
-                            <CalendarDays size={9} />
-                            Hoje
-                          </span>
+                        {onScheduleForToday && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onScheduleForToday(task.id)
+                            }}
+                            title={isScheduledToday ? 'Remover do plano de hoje' : 'Adicionar ao plano de hoje'}
+                            className={cn(
+                              'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium border transition-all',
+                              isScheduledToday
+                                ? 'bg-blue-500 border-blue-500 text-white hover:bg-blue-600'
+                                : 'bg-white border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50'
+                            )}
+                          >
+                            <CalendarDays size={10} />
+                            {isScheduledToday ? 'Hoje ✓' : 'Hoje'}
+                          </button>
                         )}
                         {hasSubtasks && (
                           <span className="inline-flex items-center gap-0.5 text-xs text-slate-400">
@@ -312,18 +324,6 @@ export function TaskTable({
                 {/* Limite */}
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-2">
-                    {onScheduleForToday && !isScheduledToday && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onScheduleForToday(task.id)
-                        }}
-                        title="Programar para hoje"
-                        className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-blue-600 transition-all text-xs"
-                      >
-                        📅
-                      </button>
-                    )}
                     {task.time_limit_seconds && task.time_limit_seconds > 0 ? (
                       <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
                         <AlertCircle size={12} />

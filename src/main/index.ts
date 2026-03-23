@@ -58,6 +58,24 @@ import {
   getLastWeeklyReview,
   updateWeeklyReview,
   getReviewHealthIndicators,
+  // FASE 4.3: Blocos de Tempo
+  createTimeBlock,
+  getTimeBlocksForDate,
+  getTimeBlocksForWeek,
+  getTimeBlocksForMonth,
+  updateTimeBlock,
+  deleteTimeBlock,
+  // FASE 4: Horizontes GTD
+  createArea,
+  getArea,
+  listAreas,
+  updateArea,
+  deleteArea,
+  createGoal,
+  getGoal,
+  listGoals,
+  updateGoal,
+  deleteGoal,
   // FASE 2
   getSubtasks,
   completeSubtasksCheck,
@@ -644,6 +662,28 @@ function setupIpcHandlers(): void {
   ipcMain.handle('task:scheduleForDate', (_, taskId: number, date: string | null) => {
     updateTask(taskId, { scheduled_date: date })
   })
+
+  // ===================== FASE 4.3: Blocos de Tempo =====================
+  ipcMain.handle('timeBlock:create', (_, data) => createTimeBlock(data))
+  ipcMain.handle('timeBlock:getForDate', (_, date: string) => getTimeBlocksForDate(date))
+  ipcMain.handle('timeBlock:getForWeek', (_, startDate: string) => getTimeBlocksForWeek(startDate))
+  ipcMain.handle('timeBlock:getForMonth', (_, yearMonth: string) => getTimeBlocksForMonth(yearMonth))
+  ipcMain.handle('timeBlock:update', (_, id: number, data) => updateTimeBlock(id, data))
+  ipcMain.handle('timeBlock:delete', (_, id: number) => deleteTimeBlock(id))
+
+  // ===================== FASE 4: Áreas de Foco =====================
+  ipcMain.handle('area:create', (_, data) => createArea(data))
+  ipcMain.handle('area:get', (_, id: number) => getArea(id))
+  ipcMain.handle('area:list', () => listAreas())
+  ipcMain.handle('area:update', (_, id: number, data) => updateArea(id, data))
+  ipcMain.handle('area:delete', (_, id: number) => deleteArea(id))
+
+  // ===================== FASE 4: Objetivos (Goals) =====================
+  ipcMain.handle('goal:create', (_, data) => createGoal(data))
+  ipcMain.handle('goal:get', (_, id: number) => getGoal(id))
+  ipcMain.handle('goal:list', (_, areaId?: number) => listGoals(areaId))
+  ipcMain.handle('goal:update', (_, id: number, data) => updateGoal(id, data))
+  ipcMain.handle('goal:delete', (_, id: number) => deleteGoal(id))
 }
 
 // ===================== APP LIFECYCLE =====================

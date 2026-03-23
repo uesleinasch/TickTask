@@ -32,6 +32,8 @@ export interface Project {
   outcome?: string
   status: ProjectStatus
   due_date?: string
+  area_id?: number
+  area_name?: string
   created_at: string
   updated_at: string
   task_count?: number
@@ -45,6 +47,7 @@ export interface CreateProjectInput {
   outcome?: string
   status?: ProjectStatus
   due_date?: string
+  area_id?: number
 }
 
 export interface UpdateProjectInput {
@@ -53,6 +56,59 @@ export interface UpdateProjectInput {
   outcome?: string
   status?: ProjectStatus
   due_date?: string
+  area_id?: number | null
+}
+
+// ===================== AREA (GTD Horizonte 2) =====================
+
+export interface Area {
+  id: number
+  name: string
+  description?: string
+  icon: string
+  created_at: string
+  project_count?: number
+}
+
+export interface CreateAreaInput {
+  name: string
+  description?: string
+  icon?: string
+}
+
+export interface UpdateAreaInput {
+  name?: string
+  description?: string
+  icon?: string
+}
+
+// ===================== GOAL (GTD Horizontes 3-5) =====================
+
+export type GoalHorizon = 3 | 4 | 5
+
+export interface Goal {
+  id: number
+  name: string
+  description?: string
+  horizon: GoalHorizon
+  area_id?: number
+  area_name?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateGoalInput {
+  name: string
+  description?: string
+  horizon: GoalHorizon
+  area_id?: number
+}
+
+export interface UpdateGoalInput {
+  name?: string
+  description?: string
+  horizon?: GoalHorizon
+  area_id?: number | null
 }
 
 // ===================== RECURRENCE =====================
@@ -160,6 +216,33 @@ export interface ReviewHealthIndicators {
   staleWaitingTasks: number
   staleNextTasks: number
   somedayCount: number
+}
+
+// ===================== TIME BLOCK (GTD Time Blocking) =====================
+
+export interface TimeBlock {
+  id: number
+  task_id: number
+  task_name?: string
+  task_category?: TaskCategory
+  date: string        // 'YYYY-MM-DD'
+  start_time: string  // 'HH:MM'
+  end_time: string    // 'HH:MM'
+  created_at: string
+}
+
+export interface CreateTimeBlockInput {
+  task_id: number
+  date: string
+  start_time: string
+  end_time: string
+}
+
+export interface UpdateTimeBlockInput {
+  task_id?: number
+  date?: string
+  start_time?: string
+  end_time?: string
 }
 
 // ===================== LABELS & COLORS =====================

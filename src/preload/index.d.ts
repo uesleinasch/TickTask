@@ -13,7 +13,16 @@ import type {
   Context,
   WeeklyReview,
   ReviewHealthIndicators,
-  TaskDependency
+  TaskDependency,
+  Area,
+  CreateAreaInput,
+  UpdateAreaInput,
+  Goal,
+  CreateGoalInput,
+  UpdateGoalInput,
+  TimeBlock,
+  CreateTimeBlockInput,
+  UpdateTimeBlockInput
 } from '../shared/types'
 
 interface FloatTimerData {
@@ -185,6 +194,28 @@ interface API {
   notionSyncTask: (taskId: number) => Promise<string>
   notionSyncAllTasks: () => Promise<{ success: number; failed: number }>
   notionCreateDatabase: () => Promise<string>
+
+  // FASE 4.3: Blocos de Tempo
+  createTimeBlock: (data: CreateTimeBlockInput) => Promise<TimeBlock>
+  getTimeBlocksForDate: (date: string) => Promise<TimeBlock[]>
+  getTimeBlocksForWeek: (startDate: string) => Promise<TimeBlock[]>
+  getTimeBlocksForMonth: (yearMonth: string) => Promise<TimeBlock[]>
+  updateTimeBlock: (id: number, data: UpdateTimeBlockInput) => Promise<void>
+  deleteTimeBlock: (id: number) => Promise<void>
+
+  // FASE 4: Áreas de Foco
+  createArea: (data: CreateAreaInput) => Promise<Area>
+  getArea: (id: number) => Promise<Area | undefined>
+  listAreas: () => Promise<Area[]>
+  updateArea: (id: number, data: UpdateAreaInput) => Promise<void>
+  deleteArea: (id: number) => Promise<void>
+
+  // FASE 4: Objetivos (Goals)
+  createGoal: (data: CreateGoalInput) => Promise<Goal>
+  getGoal: (id: number) => Promise<Goal | undefined>
+  listGoals: (areaId?: number) => Promise<Goal[]>
+  updateGoal: (id: number, data: UpdateGoalInput) => Promise<void>
+  deleteGoal: (id: number) => Promise<void>
 
   // Sync notification events
   onSyncStart?: (callback: (event: unknown, taskName?: string) => void) => void

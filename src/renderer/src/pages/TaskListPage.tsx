@@ -259,15 +259,17 @@ export function TaskListPage(): React.JSX.Element {
 
   const handleScheduleForToday = useCallback(async (taskId: number): Promise<void> => {
     const today = new Date().toISOString().split('T')[0]
+    const task = tasks.find((t) => t.id === taskId)
+    const isAlreadyToday = task?.scheduled_date === today
     try {
-      await window.api.scheduleTaskForDate(taskId, today)
+      await window.api.scheduleTaskForDate(taskId, isAlreadyToday ? null : today)
       await refreshTasks()
-      toast.success('Tarefa programada para hoje')
+      toast.success(isAlreadyToday ? 'Removido do plano de hoje' : 'Adicionado ao plano de hoje')
     } catch (err) {
       console.error('Erro ao programar tarefa:', err)
-      toast.error('Erro ao programar tarefa')
+      toast.error('Erro ao atualizar agendamento')
     }
-  }, [refreshTasks])
+  }, [refreshTasks, tasks])
 
   // Ouvir evento de nova tarefa do TitleBar
   useEffect(() => {

@@ -14,7 +14,16 @@ import type {
   Context,
   WeeklyReview,
   ReviewHealthIndicators,
-  TaskDependency
+  TaskDependency,
+  Area,
+  CreateAreaInput,
+  UpdateAreaInput,
+  Goal,
+  CreateGoalInput,
+  UpdateGoalInput,
+  TimeBlock,
+  CreateTimeBlockInput,
+  UpdateTimeBlockInput
 } from '../shared/types'
 
 // Custom APIs for renderer
@@ -226,6 +235,36 @@ const api = {
   notionSyncAllTasks: (): Promise<{ success: number; failed: number }> =>
     ipcRenderer.invoke('notion:syncAllTasks'),
   notionCreateDatabase: (): Promise<string> => ipcRenderer.invoke('notion:createDatabase'),
+
+  // ===================== FASE 4.3: Blocos de Tempo =====================
+  createTimeBlock: (data: CreateTimeBlockInput): Promise<TimeBlock> =>
+    ipcRenderer.invoke('timeBlock:create', data),
+  getTimeBlocksForDate: (date: string): Promise<TimeBlock[]> =>
+    ipcRenderer.invoke('timeBlock:getForDate', date),
+  getTimeBlocksForWeek: (startDate: string): Promise<TimeBlock[]> =>
+    ipcRenderer.invoke('timeBlock:getForWeek', startDate),
+  getTimeBlocksForMonth: (yearMonth: string): Promise<TimeBlock[]> =>
+    ipcRenderer.invoke('timeBlock:getForMonth', yearMonth),
+  updateTimeBlock: (id: number, data: UpdateTimeBlockInput): Promise<void> =>
+    ipcRenderer.invoke('timeBlock:update', id, data),
+  deleteTimeBlock: (id: number): Promise<void> =>
+    ipcRenderer.invoke('timeBlock:delete', id),
+
+  // ===================== FASE 4: Áreas de Foco =====================
+  createArea: (data: CreateAreaInput): Promise<Area> => ipcRenderer.invoke('area:create', data),
+  getArea: (id: number): Promise<Area | undefined> => ipcRenderer.invoke('area:get', id),
+  listAreas: (): Promise<Area[]> => ipcRenderer.invoke('area:list'),
+  updateArea: (id: number, data: UpdateAreaInput): Promise<void> =>
+    ipcRenderer.invoke('area:update', id, data),
+  deleteArea: (id: number): Promise<void> => ipcRenderer.invoke('area:delete', id),
+
+  // ===================== FASE 4: Objetivos (Goals) =====================
+  createGoal: (data: CreateGoalInput): Promise<Goal> => ipcRenderer.invoke('goal:create', data),
+  getGoal: (id: number): Promise<Goal | undefined> => ipcRenderer.invoke('goal:get', id),
+  listGoals: (areaId?: number): Promise<Goal[]> => ipcRenderer.invoke('goal:list', areaId),
+  updateGoal: (id: number, data: UpdateGoalInput): Promise<void> =>
+    ipcRenderer.invoke('goal:update', id, data),
+  deleteGoal: (id: number): Promise<void> => ipcRenderer.invoke('goal:delete', id),
 
   // Sync notification events
   onSyncStart: (callback: (event: unknown, taskName?: string) => void): void => {

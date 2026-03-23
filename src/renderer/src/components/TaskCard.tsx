@@ -229,10 +229,10 @@ export function TaskCard({
         </div>
 
         {/* Footer: Timer + actions */}
-        <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+        <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
           <div
             className={cn(
-              'text-2xl font-mono font-medium tabular-nums',
+              'text-2xl font-mono font-medium tabular-nums shrink-0',
               task.is_running ? 'text-emerald-600' : 'text-slate-700',
               isOverOneHour && 'text-red-600 animate-pulse'
             )}
@@ -240,16 +240,22 @@ export function TaskCard({
             {formatTime(task.total_seconds)}
           </div>
           <div className="flex items-center gap-2">
-            {onScheduleForToday && !isScheduledToday && (
+            {onScheduleForToday && (
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   onScheduleForToday(task.id)
                 }}
-                title="Programar para hoje"
-                className="opacity-0 group-hover:opacity-100 text-xs text-slate-400 hover:text-blue-600 transition-all px-1.5 py-0.5 rounded hover:bg-blue-50"
+                className={cn(
+                  'flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-all',
+                  isScheduledToday
+                    ? 'bg-blue-500 border-blue-500 text-white hover:bg-blue-600 hover:border-blue-600'
+                    : 'bg-white border-slate-200 text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50'
+                )}
+                title={isScheduledToday ? 'Remover do plano de hoje' : 'Adicionar ao plano de hoje'}
               >
-                📅
+                <CalendarDays size={12} />
+                {isScheduledToday ? 'Hoje ✓' : 'Hoje'}
               </button>
             )}
             {task.is_running && (
