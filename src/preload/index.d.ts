@@ -22,7 +22,9 @@ import type {
   UpdateGoalInput,
   TimeBlock,
   CreateTimeBlockInput,
-  UpdateTimeBlockInput
+  UpdateTimeBlockInput,
+  GtdMetrics,
+  EnergyStats
 } from '../shared/types'
 
 interface FloatTimerData {
@@ -122,6 +124,10 @@ interface API {
   getCategoryStats: () => Promise<CategoryStats[]>
   getHeatmapData: () => Promise<HeatmapData[]>
   getGeneralStats: () => Promise<GeneralStats>
+  // FASE 4.2: Advanced stats
+  getGtdMetrics: () => Promise<GtdMetrics>
+  getEnergyStats: () => Promise<EnergyStats[]>
+  generateWeeklyPDF: () => Promise<void>
 
   // Tags
   createTag: (name: string, color?: string) => Promise<Tag>

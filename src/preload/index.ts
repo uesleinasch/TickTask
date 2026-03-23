@@ -129,6 +129,10 @@ const api = {
   getCategoryStats: (): Promise<CategoryStats[]> => ipcRenderer.invoke('stats:category'),
   getHeatmapData: (): Promise<HeatmapData[]> => ipcRenderer.invoke('stats:heatmap'),
   getGeneralStats: (): Promise<GeneralStats> => ipcRenderer.invoke('stats:general'),
+  // FASE 4.2: Advanced stats
+  getGtdMetrics: () => ipcRenderer.invoke('stats:gtdMetrics'),
+  getEnergyStats: () => ipcRenderer.invoke('stats:energy'),
+  generateWeeklyPDF: () => ipcRenderer.invoke('report:weeklyPDF'),
 
   // Tags
   createTag: (name: string, color?: string): Promise<Tag> =>

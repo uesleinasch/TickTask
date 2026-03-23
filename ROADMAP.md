@@ -38,7 +38,7 @@
 
 ---
 
-## FASE 1 — Fundação GTD (v3.0)
+## FASE 1 — Fundação GTD (v3.0) - COMPLETA
 > **Objetivo:** Completar os pilares centrais do GTD que ainda estão ausentes.
 > **Prioridade:** Alta — sem isso, a metodologia está incompleta.
 
@@ -189,7 +189,7 @@ A Revisão Semanal é o hábito que mantém o sistema confiável. Sem ela, o GTD
 
 ---
 
-## FASE 2 — Produtividade Avançada (v3.1)
+## FASE 2 — Produtividade Avançada (v3.1) COMPLETA
 > **Objetivo:** Ferramentas que amplificam a execução e o planejamento diário.
 
 ---
@@ -302,7 +302,7 @@ Certas tarefas só podem iniciar após outras. O GTD chama isso de sequenciament
 
 ---
 
-## FASE 3 — Processamento Inteligente (v3.2)
+## FASE 3 — Processamento Inteligente (v3.2) - CANCELADA
 > **Objetivo:** Usar IA e automação para reduzir fricção e melhorar decisões.
 
 ---

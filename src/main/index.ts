@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, Notification, screen, globalShortcut } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Notification, screen, globalShortcut, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/512.png?asset'
@@ -30,6 +30,8 @@ import {
   getCategoryStats,
   getHeatmapData,
   getGeneralStats,
+  getGtdMetrics,
+  getEnergyStats,
   // Tags
   createTag,
   listTags,
@@ -547,6 +549,22 @@ function setupIpcHandlers(): void {
   ipcMain.handle('stats:category', () => getCategoryStats())
   ipcMain.handle('stats:heatmap', () => getHeatmapData())
   ipcMain.handle('stats:general', () => getGeneralStats())
+  // FASE 4.2: Advanced stats
+  ipcMain.handle('stats:gtdMetrics', () => getGtdMetrics())
+  ipcMain.handle('stats:energy', () => getEnergyStats())
+  ipcMain.handle('report:weeklyPDF', async () => {
+    if (!mainWindow) return
+    const { filePath } = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: `ticktask-relatorio-${new Date().toISOString().split('T')[0]}.pdf`,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    })
+    if (filePath) {
+      const data = await mainWindow.webContents.printToPDF({ printBackground: true, landscape: true })
+      const { writeFile } = await import('fs/promises')
+      await writeFile(filePath, data)
+      shell.openPath(filePath)
+    }
+  })
 
   // Tags
   ipcMain.handle('tag:create', (_, name: string, color?: string) => createTag(name, color))

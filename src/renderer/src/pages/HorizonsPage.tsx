@@ -8,6 +8,7 @@ import { Progress } from '@renderer/components/ui/progress'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle
@@ -139,6 +140,7 @@ function AreaDialog({ open, onClose, onSave, initial, title }: AreaDialogProps):
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>Preencha os dados da área de foco.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           <div>
@@ -206,7 +208,7 @@ function GoalDialog({ open, onClose, onSave, areas, initial, title }: GoalDialog
   const [name, setName] = useState(initial?.name || '')
   const [description, setDescription] = useState(initial?.description || '')
   const [horizon, setHorizon] = useState<GoalHorizon>(initial?.horizon || 3)
-  const [areaId, setAreaId] = useState<string>(initial?.area_id ? String(initial.area_id) : '')
+  const [areaId, setAreaId] = useState<string>(initial?.area_id ? String(initial.area_id) : 'none')
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -216,7 +218,7 @@ function GoalDialog({ open, onClose, onSave, areas, initial, title }: GoalDialog
         name: name.trim(),
         description: description.trim() || undefined,
         horizon,
-        area_id: areaId ? Number(areaId) : undefined
+        area_id: areaId && areaId !== 'none' ? Number(areaId) : undefined
       })
       onClose()
     },
@@ -228,6 +230,7 @@ function GoalDialog({ open, onClose, onSave, areas, initial, title }: GoalDialog
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>Preencha os dados do objetivo.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           <div>
@@ -259,7 +262,7 @@ function GoalDialog({ open, onClose, onSave, areas, initial, title }: GoalDialog
                 <SelectValue placeholder="Nenhuma área" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Nenhuma área</SelectItem>
+                <SelectItem value="none">Nenhuma área</SelectItem>
                 {areas.map((a) => (
                   <SelectItem key={a.id} value={String(a.id)}>
                     {a.icon} {a.name}

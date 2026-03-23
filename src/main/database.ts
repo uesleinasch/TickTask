@@ -22,7 +22,10 @@ import type {
   UpdateGoalInput,
   TimeBlock,
   CreateTimeBlockInput,
-  UpdateTimeBlockInput
+  UpdateTimeBlockInput,
+  GtdMetrics,
+  EnergyStats,
+  EnergyLevel
 } from '@shared/types'
 import { DEFAULT_CONTEXTS } from '@shared/types'
 
@@ -212,6 +215,9 @@ export function initDatabase(): void {
 
   // Migração: adicionar area_id à tabela projects
   try { db.exec('ALTER TABLE projects ADD COLUMN area_id INTEGER REFERENCES areas(id) ON DELETE SET NULL') } catch { /* já existe */ }
+
+  // ===================== FASE 4.2: Energy Tracking =====================
+  try { db.exec("ALTER TABLE tasks ADD COLUMN energy_level TEXT CHECK(energy_level IN ('alto', 'medio', 'baixo'))") } catch { /* já existe */ }
 
   // ===================== FASE 4.3: Blocos de Tempo =====================
 
@@ -590,8 +596,9 @@ export function createTask(data: CreateTaskInput): Task {
   const transaction = db.transaction(() => {
     const stmt = db.prepare(`
       INSERT INTO tasks (name, description, time_limit_seconds, category, project_id,
-                         scheduled_date, due_date, recurrence_rule, parent_task_id, recurrence_source_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         scheduled_date, due_date, recurrence_rule, parent_task_id, recurrence_source_id,
+                         energy_level)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const result = stmt.run(
       data.name,
@@ -603,7 +610,8 @@ export function createTask(data: CreateTaskInput): Task {
       data.due_date || null,
       data.recurrence_rule || null,
       data.parent_task_id || null,
-      data.recurrence_source_id || null
+      data.recurrence_source_id || null,
+      data.energy_level || null
     )
     const taskId = result.lastInsertRowid as number
 
@@ -731,6 +739,10 @@ export function updateTask(id: number, data: UpdateTaskInput): void {
     if (data.day_order !== undefined) {
       updates.push('day_order = ?')
       values.push(data.day_order)
+    }
+    if (data.energy_level !== undefined) {
+      updates.push('energy_level = ?')
+      values.push(data.energy_level)
     }
 
     if (updates.length > 0) {
@@ -1232,6 +1244,112 @@ export function getGeneralStats(): GeneralStats {
     totalSessions: sessionsResult.totalSessions || 0,
     avgSessionSeconds: Math.round(sessionsResult.avgSessionSeconds || 0)
   }
+}
+
+// ===================== FASE 4.2: MÉTRICAS GTD AVANÇADAS =====================
+
+export function getGtdMetrics(): GtdMetrics {
+  // Taxa de conclusão do inbox (tarefas criadas esta semana que saíram do inbox)
+  const inboxRow = db.prepare(`
+    SELECT
+      COUNT(*) as total,
+      SUM(CASE WHEN status != 'inbox' THEN 1 ELSE 0 END) as processed
+    FROM tasks
+    WHERE created_at >= datetime('now', '-7 days')
+    AND is_archived = 0
+    AND parent_task_id IS NULL
+  `).get() as { total: number; processed: number }
+
+  const inboxCompletionRate = inboxRow.total > 0
+    ? Math.round((inboxRow.processed / inboxRow.total) * 100)
+    : 100
+
+  // Tempo médio de processamento (criação até finalização)
+  const avgRow = db.prepare(`
+    SELECT AVG((julianday(updated_at) - julianday(created_at)) * 86400) as avgSeconds
+    FROM tasks
+    WHERE status = 'finalizada'
+    AND is_archived = 0
+    AND updated_at >= datetime('now', '-30 days')
+  `).get() as { avgSeconds: number | null }
+
+  const avgProcessingTimeSeconds = Math.round(avgRow.avgSeconds || 0)
+
+  // Projetos sem atividade há mais de 7 dias
+  const staleProjectRows = db.prepare(`
+    SELECT p.id, p.name,
+      CAST(julianday('now') - julianday(
+        COALESCE(MAX(t.updated_at), p.created_at)
+      ) AS INTEGER) as daysSinceActivity
+    FROM projects p
+    LEFT JOIN tasks t ON t.project_id = p.id AND t.is_archived = 0
+    WHERE p.status = 'active'
+    GROUP BY p.id
+    HAVING daysSinceActivity > 7
+    ORDER BY daysSinceActivity DESC
+    LIMIT 5
+  `).all() as Array<{ id: number; name: string; daysSinceActivity: number }>
+
+  // Tarefas em aguardando há mais de 14 dias
+  const staleWaitingRows = db.prepare(`
+    SELECT id, name,
+      CAST(julianday('now') - julianday(updated_at) AS INTEGER) as daysSinceUpdate
+    FROM tasks
+    WHERE status = 'aguardando'
+    AND is_archived = 0
+    AND updated_at <= datetime('now', '-14 days')
+    ORDER BY updated_at ASC
+    LIMIT 5
+  `).all() as Array<{ id: number; name: string; daysSinceUpdate: number }>
+
+  // Fluxo de tarefas por status
+  const flowRows = db.prepare(`
+    SELECT status, COUNT(*) as count
+    FROM tasks
+    WHERE is_archived = 0 AND parent_task_id IS NULL
+    GROUP BY status
+  `).all() as Array<{ status: string; count: number }>
+
+  const taskFlowCounts: Record<string, number> = {}
+  for (const row of flowRows) {
+    taskFlowCounts[row.status] = row.count
+  }
+
+  return {
+    inboxCompletionRate,
+    avgProcessingTimeSeconds,
+    staleProjects: staleProjectRows,
+    staleWaitingTasks: staleWaitingRows,
+    taskFlowCounts
+  }
+}
+
+export function getEnergyStats(): EnergyStats[] {
+  const rows = db.prepare(`
+    SELECT
+      energy_level,
+      SUM(total_seconds) as totalSeconds,
+      COUNT(*) as taskCount,
+      AVG(total_seconds) as avgSeconds
+    FROM tasks
+    WHERE energy_level IS NOT NULL
+    AND is_archived = 0
+    AND total_seconds > 0
+    GROUP BY energy_level
+    ORDER BY totalSeconds DESC
+  `).all() as Array<{
+    energy_level: EnergyLevel
+    totalSeconds: number
+    taskCount: number
+    avgSeconds: number
+  }>
+
+  return rows.map((r) => ({
+    energy_level: r.energy_level,
+    totalSeconds: r.totalSeconds || 0,
+    taskCount: r.taskCount || 0,
+    avgSeconds: Math.round(r.avgSeconds || 0)
+  }))
 }
 
 // ===================== FASE 2: SUBTAREFAS =====================

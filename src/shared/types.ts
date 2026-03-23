@@ -3,6 +3,7 @@
 export type TaskStatus = 'inbox' | 'aguardando' | 'proximas' | 'executando' | 'finalizada' | 'someday'
 export type TaskCategory = 'urgente' | 'prioridade' | 'normal' | 'time_leak'
 export type ProjectStatus = 'active' | 'someday' | 'done' | 'archived'
+export type EnergyLevel = 'alto' | 'medio' | 'baixo'
 
 // ===================== TAG =====================
 
@@ -155,6 +156,8 @@ export interface Task {
   subtask_count?: number         // computed
   completed_subtask_count?: number // computed
   is_blocked?: boolean           // computed from dependencies
+  // FASE 4.2: Energy Tracking
+  energy_level?: EnergyLevel
 }
 
 export interface CreateTaskInput {
@@ -172,6 +175,8 @@ export interface CreateTaskInput {
   recurrence_rule?: string
   parent_task_id?: number
   recurrence_source_id?: number
+  // FASE 4.2
+  energy_level?: EnergyLevel
 }
 
 export interface UpdateTaskInput {
@@ -189,6 +194,8 @@ export interface UpdateTaskInput {
   due_date?: string | null
   recurrence_rule?: string | null
   day_order?: number | null
+  // FASE 4.2
+  energy_level?: EnergyLevel | null
 }
 
 export interface TimeEntry {
@@ -243,6 +250,41 @@ export interface UpdateTimeBlockInput {
   date?: string
   start_time?: string
   end_time?: string
+}
+
+// ===================== FASE 4.2: DASHBOARD AVANÇADO =====================
+
+export interface GtdMetrics {
+  inboxCompletionRate: number
+  avgProcessingTimeSeconds: number
+  staleProjects: Array<{ id: number; name: string; daysSinceActivity: number }>
+  staleWaitingTasks: Array<{ id: number; name: string; daysSinceUpdate: number }>
+  taskFlowCounts: Record<string, number>
+}
+
+export interface EnergyStats {
+  energy_level: EnergyLevel
+  totalSeconds: number
+  taskCount: number
+  avgSeconds: number
+}
+
+export const ENERGY_LABELS: Record<EnergyLevel, string> = {
+  alto: 'Alta Energia',
+  medio: 'Energia Média',
+  baixo: 'Baixa Energia'
+}
+
+export const ENERGY_COLORS: Record<EnergyLevel, string> = {
+  alto: '#22c55e',
+  medio: '#f59e0b',
+  baixo: '#94a3b8'
+}
+
+export const ENERGY_ICONS: Record<EnergyLevel, string> = {
+  alto: '⚡',
+  medio: '🔋',
+  baixo: '😴'
 }
 
 // ===================== LABELS & COLORS =====================
