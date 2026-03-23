@@ -19,13 +19,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@renderer/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@renderer/components/ui/select'
+import { SearchableSelect } from '@renderer/components/ui/searchable-select'
 import { useCalendarWeek, useCalendarMonth } from '@renderer/hooks/useCalendar'
 import { useTasks } from '@renderer/hooks/useTasks'
 import { useTimerStore } from '@renderer/stores/timerStore'
@@ -164,38 +158,34 @@ function TimeBlockDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md w-full">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-          <div>
+        <form onSubmit={handleSubmit} className="space-y-4 pt-2 min-w-0 w-full">
+          <div className="min-w-0 w-full">
             <label className="text-sm font-medium text-slate-700 mb-1.5 block">Tarefa *</label>
-            <Select value={taskId} onValueChange={setTaskId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione uma tarefa..." />
-              </SelectTrigger>
-              <SelectContent className="max-h-60">
-                {activeTasks.map((t) => (
-                  <SelectItem key={t.id} value={String(t.id)}>
-                    {t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={taskId}
+              onChange={setTaskId}
+              options={activeTasks.map((t) => ({ value: String(t.id), label: t.name }))}
+              placeholder="Selecione uma tarefa..."
+              searchPlaceholder="Buscar tarefa..."
+              className="w-full min-w-0"
+            />
           </div>
-          <div>
+          <div className="min-w-0 w-full">
             <label className="text-sm font-medium text-slate-700 mb-1.5 block">Data *</label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
+          <div className="grid grid-cols-2 gap-3 min-w-0">
+            <div className="min-w-0">
               <label className="text-sm font-medium text-slate-700 mb-1.5 block">Início *</label>
-              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full" />
             </div>
-            <div>
+            <div className="min-w-0">
               <label className="text-sm font-medium text-slate-700 mb-1.5 block">Fim *</label>
-              <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+              <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full" />
             </div>
           </div>
           {durationMin > 0 && (
