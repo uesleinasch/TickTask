@@ -307,10 +307,10 @@ export function SingleTaskPage(): React.JSX.Element {
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
 
-      {/* ==================== LEFT PANEL — TIMER HERO ==================== */}
+      {/* ==================== LEFT SIDEBAR — TASK DETAILS ==================== */}
       <aside
-        className="w-[300px] shrink-0 flex flex-col overflow-y-auto bg-slate-100 border-r border-slate-200"
-        style={{ scrollbarWidth: 'none' }}
+        className="w-[480px] shrink-0 flex flex-col overflow-y-auto bg-white border-r border-slate-200"
+        style={{ scrollbarWidth: 'thin' }}
       >
         {/* Category accent stripe */}
         <div className="h-[3px] w-full shrink-0" style={{ backgroundColor: accent.hex }} />
@@ -329,190 +329,187 @@ export function SingleTaskPage(): React.JSX.Element {
           </div>
         </div>
 
-        {/* ── TIMER DISPLAY ── */}
-        <div className="px-5 pt-4 pb-4 flex flex-col items-center shrink-0">
-          {/* Blocked warning */}
-          {task.is_blocked && (
-            <div className="w-full flex items-center gap-2 px-3 py-2 mb-4 bg-orange-50 border border-orange-200 rounded-lg text-orange-600 text-xs">
-              <Lock size={12} />
-              Bloqueada por dependências
-            </div>
-          )}
-
-          {/* Time display */}
-          <div
-            className={cn(
-              'font-mono font-bold tabular-nums tracking-tighter transition-all duration-300 select-none',
-              hasReachedLimit ? 'text-red-500' : isRunning ? 'text-slate-900' : 'text-slate-400',
-              displaySeconds >= 3600 ? 'text-5xl' : 'text-6xl'
-            )}
-            style={isRunning ? { textShadow: `0 0 30px ${accent.glow}` } : undefined}
-          >
-            {formatTime(displaySeconds)}
-          </div>
-
-          {/* Running pulse */}
-          {isRunning && (
-            <div className="flex items-center gap-1.5 mt-2 mb-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-xs text-emerald-600 font-medium tracking-wide">em andamento</span>
-            </div>
-          )}
+        {/* Task identity */}
+        <div className="px-5 pb-5 space-y-2 shrink-0">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={handleBlurSave}
+            placeholder="Nome da tarefa"
+            className="w-full text-lg font-bold bg-transparent border-b-2 border-transparent hover:border-slate-200 focus:border-slate-900 focus:outline-none transition-colors text-slate-900 placeholder:text-slate-200 py-1"
+          />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            onBlur={handleBlurSave}
+            placeholder="Adicione uma descrição..."
+            rows={2}
+            className="w-full bg-transparent resize-none text-sm text-slate-500 focus:outline-none focus:text-slate-700 hover:text-slate-600 transition-colors placeholder:text-slate-300 leading-relaxed"
+          />
         </div>
 
-        {/* Progress bar */}
-        {timeLimit && timeLimit > 0 && (
-          <div className="px-5 pb-5 shrink-0">
-            <div className="flex justify-between text-xs text-slate-400 mb-1.5">
-              <span>{Math.round(progress)}%</span>
-              <span className="font-mono">meta {formatTime(timeLimit)}</span>
+        {/* ── ORGANIZAÇÃO ── */}
+        <div className="px-5 pb-5">
+          <SectionHeader icon={FolderKanban} label="Organização" />
+          <div className="space-y-3">
+            {/* Status */}
+            <div className="grid grid-cols-[90px_1fr] items-center gap-3">
+              <span className="text-xs text-slate-400">Status</span>
+              <StatusSelect value={task.status} onChange={handleStatusChange} />
             </div>
-            <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${progress}%`, backgroundColor: progressColor }}
+
+            {/* Projeto */}
+            <div className="grid grid-cols-[90px_1fr] items-start gap-3">
+              <span className="text-xs text-slate-400 pt-2">Projeto</span>
+              <div className="min-w-0">
+                <SearchableSelect
+                  value={selectedProjectId ? String(selectedProjectId) : 'none'}
+                  onChange={handleProjectChange}
+                  options={projectOptions}
+                  placeholder="Nenhum projeto"
+                  searchPlaceholder="Buscar projeto..."
+                />
+                {task.project_name && (
+                  <button
+                    onClick={() => navigate(`/project/${task.project_id}`)}
+                    className="mt-1 text-xs text-blue-500 hover:text-blue-700 hover:underline"
+                  >
+                    Abrir projeto →
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Contextos */}
+            {contexts.length > 0 && (
+              <div className="grid grid-cols-[90px_1fr] items-start gap-3">
+                <span className="text-xs text-slate-400 pt-1.5">Contextos</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {contexts.map((ctx) => {
+                    const isSelected = selectedContextIds.includes(ctx.id)
+                    return (
+                      <button
+                        key={ctx.id}
+                        onClick={() => toggleContext(ctx.id)}
+                        className={cn(
+                          'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-all',
+                          isSelected
+                            ? 'text-white border-transparent shadow-sm'
+                            : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
+                        )}
+                        style={isSelected ? { backgroundColor: ctx.color, borderColor: ctx.color } : {}}
+                      >
+                        <span>{ctx.icon}</span>
+                        {ctx.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Tags */}
+            <div className="grid grid-cols-[90px_1fr] items-start gap-3">
+              <span className="text-xs text-slate-400 pt-2">Tags</span>
+              <TagInput
+                selectedTags={selectedTags}
+                onChange={handleTagsChange}
+                placeholder="Adicionar tag..."
               />
             </div>
+          </div>
+        </div>
+
+        {/* ── AGENDA ── */}
+        <div className="px-5 pb-5">
+          <SectionHeader icon={CalendarDays} label="Agenda" />
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">Programado para</label>
+                <input
+                  type="date"
+                  value={scheduledDate}
+                  onChange={(e) => handleScheduledDateChange(e.target.value)}
+                  className="w-full h-8 text-xs border border-slate-200 rounded-lg px-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-slate-50 text-slate-700"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">Prazo</label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => handleDueDateChange(e.target.value)}
+                  className="w-full h-8 text-xs border border-slate-200 rounded-lg px-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-slate-50 text-slate-700"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5">Recorrência</label>
+              <RecurrenceSelect value={recurrenceRule} onChange={handleRecurrenceChange} />
+            </div>
+
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5">Nível de energia</label>
+              <div className="flex gap-2">
+                {(['alto', 'medio', 'baixo'] as EnergyLevel[]).map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => handleEnergyChange(level)}
+                    className={cn(
+                      'flex-1 flex items-center justify-center gap-1 h-8 rounded-lg text-xs font-medium border transition-all',
+                      energyLevel === level
+                        ? level === 'alto'
+                          ? 'bg-emerald-50 border-emerald-400 text-emerald-700'
+                          : level === 'medio'
+                            ? 'bg-amber-50 border-amber-400 text-amber-700'
+                            : 'bg-slate-100 border-slate-400 text-slate-600'
+                        : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
+                    )}
+                  >
+                    <span>{ENERGY_ICONS[level]}</span>
+                    {ENERGY_LABELS[level]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── SUBTAREFAS ── */}
+        {!task.parent_task_id && (
+          <div className="px-5 pb-5">
+            <SectionHeader icon={ListChecks} label="Subtarefas" />
+            <SubtaskList
+              parentTaskId={task.id}
+              isParentBlocked={task.is_blocked}
+              onSubtaskChange={refreshTask}
+            />
           </div>
         )}
 
-        {/* Controls */}
-        <div className="px-5 pb-5 flex items-center gap-3 shrink-0">
-          {/* Start / Pause */}
-          {!isRunning ? (
-            <button
-              onClick={handleTimerStart}
-              disabled={task.is_blocked}
-              className={cn(
-                'flex-1 h-11 rounded-lg flex items-center justify-center gap-2',
-                'text-sm font-semibold text-white transition-all duration-150',
-                'disabled:opacity-40 disabled:cursor-not-allowed',
-                'active:scale-[0.98]'
-              )}
-              style={{ backgroundColor: task.is_blocked ? '#94a3b8' : accent.startBtn }}
-            >
-              <Play size={16} className="fill-current" />
-              Iniciar
-            </button>
-          ) : (
-            <button
-              onClick={handleTimerPause}
-              className="flex-1 h-11 rounded-lg flex items-center justify-center gap-2 text-sm font-semibold text-slate-600 border border-slate-300 hover:border-slate-400 hover:text-slate-800 bg-white transition-all active:scale-[0.98]"
-            >
-              <Pause size={16} className="fill-current" />
-              Pausar
-            </button>
-          )}
-
-          {/* Reset */}
-          <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
-            <AlertDialogTrigger asChild>
-              <button className="h-11 w-11 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-200 hover:border-red-200 transition-all bg-white">
-                <RotateCcw size={16} />
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Resetar Timer</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Todo o tempo registrado será zerado. Esta ação não pode ser desfeita.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={handleTimerReset} className="bg-red-500 hover:bg-red-600">
-                  Resetar
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+        {/* ── DEPENDÊNCIAS ── */}
+        <div className="px-5 pb-5">
+          <SectionHeader icon={Lock} label="Depende de" />
+          <DependencySelector taskId={task.id} onDependenciesChange={refreshTask} />
         </div>
 
-        {/* Stats strip */}
-        <div className="mx-5 mb-5 px-4 py-3 rounded-lg bg-white border border-slate-200 grid grid-cols-2 gap-3 shrink-0">
-          <div>
-            <p className="text-xs text-slate-400 mb-0.5">Tempo total</p>
-            <p className="text-sm font-mono font-semibold text-slate-700">{formatTime(task.total_seconds)}</p>
+        {/* ── HISTÓRICO ── */}
+        {timeEntries.length > 0 && (
+          <div className="px-5 pb-5">
+            <SectionHeader icon={Activity} label="Histórico de sessões" />
+            <TimeEntryList entries={timeEntries} />
           </div>
-          <div>
-            <p className="text-xs text-slate-400 mb-0.5">Sessões</p>
-            <p className="text-sm font-mono font-semibold text-slate-700">{sessionCount}</p>
-          </div>
-        </div>
-
-        {/* ── TIME CONTROLS ── */}
-        <div className="px-5 pb-4 space-y-3 shrink-0">
-          {/* Add manual time */}
-          <div>
-            <p className="text-xs text-slate-400 mb-1.5 flex items-center gap-1.5">
-              <Plus size={11} /> Adicionar tempo
-            </p>
-            <div className="flex gap-2">
-              <input
-                value={manualTime}
-                onChange={(e) => setManualTime(e.target.value)}
-                placeholder="01:30:00"
-                className="flex-1 h-8 bg-white border border-slate-200 rounded-md px-3 text-xs font-mono text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-slate-400 min-w-0"
-              />
-              <button
-                onClick={handleAddManualTime}
-                disabled={!manualTime.trim()}
-                className="h-8 px-3 text-xs font-medium text-emerald-600 border border-emerald-200 rounded-md hover:bg-emerald-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0"
-              >
-                Adicionar
-              </button>
-            </div>
-          </div>
-
-          {/* Adjust total */}
-          <div>
-            <p className="text-xs text-slate-400 mb-1.5 flex items-center gap-1.5">
-              <Edit3 size={11} /> Ajustar total
-            </p>
-            <div className="flex gap-2">
-              <input
-                value={adjustTime}
-                onChange={(e) => setAdjustTime(e.target.value)}
-                className="flex-1 h-8 bg-white border border-slate-200 rounded-md px-3 text-xs font-mono text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-slate-400 min-w-0"
-              />
-              <button
-                onClick={handleSetTotalTime}
-                disabled={!adjustTime.trim()}
-                className="h-8 px-3 text-xs font-medium text-slate-500 border border-slate-200 rounded-md hover:bg-slate-200 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0"
-              >
-                Definir
-              </button>
-            </div>
-          </div>
-
-          {/* Time limit */}
-          <div>
-            <p className="text-xs text-slate-400 mb-1.5 flex items-center gap-1.5">
-              <AlertCircle size={11} /> Limite de tempo
-            </p>
-            <div className="flex gap-2">
-              <input
-                value={timeLimitInput}
-                onChange={(e) => setTimeLimitInput(e.target.value)}
-                onBlur={handleBlurSave}
-                placeholder="00:00:00"
-                className="flex-1 h-8 bg-white border border-slate-200 rounded-md px-3 text-xs font-mono text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-slate-400 min-w-0"
-              />
-              <button
-                onClick={handleBlurSave}
-                className="h-8 px-3 text-xs font-medium text-slate-500 border border-slate-200 rounded-md hover:bg-slate-200 hover:text-slate-700 transition-colors shrink-0"
-              >
-                Salvar
-              </button>
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* ── ACTIONS ── */}
-        <div className="px-5 pb-6 flex gap-2 mt-auto shrink-0">
+        <div className="px-5 pb-6 flex gap-2 mt-auto shrink-0 pt-4">
           <button
             onClick={handleArchive}
-            className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-white hover:text-slate-700 transition-colors"
+            className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors"
           >
             <Archive size={13} /> Arquivar
           </button>
@@ -525,186 +522,191 @@ export function SingleTaskPage(): React.JSX.Element {
         </div>
       </aside>
 
-      {/* ==================== RIGHT PANEL — DETAILS ==================== */}
-      <div className="flex-1 min-w-0 overflow-y-auto bg-white border-l border-slate-100">
-        <div className="max-w-2xl mx-auto px-8 pt-8 pb-16 space-y-8">
+      {/* ==================== CENTER — TIMER HERO ==================== */}
+      <div className="flex-1 min-w-0 flex flex-col items-center justify-center bg-slate-50 px-8">
+        <div className="flex flex-col items-center w-full max-w-sm">
 
-          {/* ── TASK IDENTITY ── */}
-          <div className="space-y-3">
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onBlur={handleBlurSave}
-              placeholder="Nome da tarefa"
-              className="w-full text-2xl font-bold bg-transparent border-b-2 border-transparent hover:border-slate-200 focus:border-slate-900 focus:outline-none transition-colors text-slate-900 placeholder:text-slate-200 py-1"
-            />
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              onBlur={handleBlurSave}
-              placeholder="Adicione uma descrição..."
-              rows={2}
-              className="w-full bg-transparent resize-none text-sm text-slate-500 focus:outline-none focus:text-slate-700 hover:text-slate-600 transition-colors placeholder:text-slate-200 leading-relaxed"
-            />
+          {/* Blocked warning */}
+          {task.is_blocked && (
+            <div className="w-full flex items-center gap-2 px-4 py-2.5 mb-8 bg-orange-50 border border-orange-200 rounded-xl text-orange-600 text-sm">
+              <Lock size={14} />
+              Bloqueada por dependências
+            </div>
+          )}
+
+          {/* Time display */}
+          <div
+            className={cn(
+              'font-mono font-bold tabular-nums tracking-tighter transition-all duration-300 select-none leading-none',
+              hasReachedLimit ? 'text-red-500' : isRunning ? 'text-slate-900' : 'text-slate-300',
+              displaySeconds >= 3600 ? 'text-7xl' : 'text-8xl'
+            )}
+            style={isRunning ? { textShadow: `0 0 60px ${accent.glow}, 0 0 20px ${accent.glow}` } : undefined}
+          >
+            {formatTime(displaySeconds)}
           </div>
 
-          {/* ── ORGANIZAÇÃO ── */}
-          <div>
-            <SectionHeader icon={FolderKanban} label="Organização" />
-            <div className="space-y-4">
-              {/* Status */}
-              <div className="grid grid-cols-[100px_1fr] items-center gap-3">
-                <span className="text-sm text-slate-400">Status</span>
-                <StatusSelect value={task.status} onChange={handleStatusChange} />
+          {/* Running pulse / idle hint */}
+          <div className="h-7 flex items-center mt-3 mb-8">
+            {isRunning ? (
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-sm text-emerald-600 font-medium tracking-wide">em andamento</span>
               </div>
+            ) : (
+              <span className="text-xs text-slate-400 tracking-widest uppercase">pronto para iniciar</span>
+            )}
+          </div>
 
-              {/* Projeto */}
-              <div className="grid grid-cols-[100px_1fr] items-start gap-3">
-                <span className="text-sm text-slate-400 pt-2">Projeto</span>
-                <div className="min-w-0">
-                  <SearchableSelect
-                    value={selectedProjectId ? String(selectedProjectId) : 'none'}
-                    onChange={handleProjectChange}
-                    options={projectOptions}
-                    placeholder="Nenhum projeto"
-                    searchPlaceholder="Buscar projeto..."
-                  />
-                  {task.project_name && (
-                    <button
-                      onClick={() => navigate(`/project/${task.project_id}`)}
-                      className="mt-1 text-xs text-blue-500 hover:text-blue-700 hover:underline"
-                    >
-                      Abrir projeto →
-                    </button>
-                  )}
-                </div>
+          {/* Progress bar */}
+          {timeLimit && timeLimit > 0 && (
+            <div className="w-full mb-8">
+              <div className="flex justify-between text-xs text-slate-400 mb-2">
+                <span>{Math.round(progress)}%</span>
+                <span className="font-mono">limite {formatTime(timeLimit)}</span>
               </div>
-
-              {/* Contextos */}
-              {contexts.length > 0 && (
-                <div className="grid grid-cols-[100px_1fr] items-start gap-3">
-                  <span className="text-sm text-slate-400 pt-1.5">Contextos</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {contexts.map((ctx) => {
-                      const isSelected = selectedContextIds.includes(ctx.id)
-                      return (
-                        <button
-                          key={ctx.id}
-                          onClick={() => toggleContext(ctx.id)}
-                          className={cn(
-                            'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-all',
-                            isSelected
-                              ? 'text-white border-transparent shadow-sm'
-                              : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
-                          )}
-                          style={isSelected ? { backgroundColor: ctx.color, borderColor: ctx.color } : {}}
-                        >
-                          <span>{ctx.icon}</span>
-                          {ctx.name}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Tags */}
-              <div className="grid grid-cols-[100px_1fr] items-start gap-3">
-                <span className="text-sm text-slate-400 pt-2">Tags</span>
-                <TagInput
-                  selectedTags={selectedTags}
-                  onChange={handleTagsChange}
-                  placeholder="Adicionar tag..."
+              <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${progress}%`, backgroundColor: progressColor }}
                 />
               </div>
             </div>
-          </div>
-
-          {/* ── AGENDA ── */}
-          <div>
-            <SectionHeader icon={CalendarDays} label="Agenda" />
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1.5">Programado para</label>
-                  <input
-                    type="date"
-                    value={scheduledDate}
-                    onChange={(e) => handleScheduledDateChange(e.target.value)}
-                    className="w-full h-9 text-sm border border-slate-200 rounded-lg px-3 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-slate-50 text-slate-700"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1.5">Prazo</label>
-                  <input
-                    type="date"
-                    value={dueDate}
-                    onChange={(e) => handleDueDateChange(e.target.value)}
-                    className="w-full h-9 text-sm border border-slate-200 rounded-lg px-3 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-slate-50 text-slate-700"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs text-slate-400 mb-1.5">Recorrência</label>
-                <RecurrenceSelect value={recurrenceRule} onChange={handleRecurrenceChange} />
-              </div>
-
-              {/* Energy Level */}
-              <div>
-                <label className="block text-xs text-slate-400 mb-1.5">Nível de energia</label>
-                <div className="flex gap-2">
-                  {(['alto', 'medio', 'baixo'] as EnergyLevel[]).map((level) => (
-                    <button
-                      key={level}
-                      type="button"
-                      onClick={() => handleEnergyChange(level)}
-                      className={cn(
-                        'flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg text-xs font-medium border transition-all',
-                        energyLevel === level
-                          ? level === 'alto'
-                            ? 'bg-emerald-50 border-emerald-400 text-emerald-700'
-                            : level === 'medio'
-                              ? 'bg-amber-50 border-amber-400 text-amber-700'
-                              : 'bg-slate-100 border-slate-400 text-slate-600'
-                          : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
-                      )}
-                    >
-                      <span>{ENERGY_ICONS[level]}</span>
-                      {ENERGY_LABELS[level]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ── SUBTAREFAS ── */}
-          {!task.parent_task_id && (
-            <div>
-              <SectionHeader icon={ListChecks} label="Subtarefas" />
-              <SubtaskList
-                parentTaskId={task.id}
-                isParentBlocked={task.is_blocked}
-                onSubtaskChange={refreshTask}
-              />
-            </div>
           )}
 
-          {/* ── DEPENDÊNCIAS ── */}
-          <div>
-            <SectionHeader icon={Lock} label="Depende de" />
-            <DependencySelector taskId={task.id} onDependenciesChange={refreshTask} />
+          {/* Controls */}
+          <div className="flex items-center gap-3 w-full mb-8">
+            {!isRunning ? (
+              <button
+                onClick={handleTimerStart}
+                disabled={task.is_blocked}
+                className={cn(
+                  'flex-1 h-13 rounded-xl flex items-center justify-center gap-2.5',
+                  'text-base font-semibold text-white transition-all duration-150 shadow-md',
+                  'disabled:opacity-40 disabled:cursor-not-allowed',
+                  'active:scale-[0.98] hover:brightness-110'
+                )}
+                style={{
+                  backgroundColor: task.is_blocked ? '#94a3b8' : accent.startBtn,
+                  boxShadow: task.is_blocked ? 'none' : `0 4px 20px ${accent.glow}`
+                }}
+              >
+                <Play size={18} className="fill-current" />
+                Iniciar
+              </button>
+            ) : (
+              <button
+                onClick={handleTimerPause}
+                className="flex-1 h-13 rounded-xl flex items-center justify-center gap-2.5 text-base font-semibold text-slate-700 border-2 border-slate-200 hover:border-slate-300 hover:text-slate-900 bg-white transition-all active:scale-[0.98] shadow-sm"
+              >
+                <Pause size={18} className="fill-current" />
+                Pausar
+              </button>
+            )}
+
+            <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+              <AlertDialogTrigger asChild>
+                <button className="h-13 w-13 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 border-2 border-slate-200 hover:border-red-200 transition-all bg-white shadow-sm">
+                  <RotateCcw size={18} />
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Resetar Timer</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Todo o tempo registrado será zerado. Esta ação não pode ser desfeita.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleTimerReset} className="bg-red-500 hover:bg-red-600">
+                    Resetar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
 
-          {/* ── HISTÓRICO ── */}
-          {timeEntries.length > 0 && (
-            <div>
-              <SectionHeader icon={Activity} label="Histórico de sessões" />
-              <TimeEntryList entries={timeEntries} />
+          {/* Stats */}
+          <div className="w-full grid grid-cols-2 gap-3 mb-8">
+            <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 text-center shadow-sm">
+              <p className="text-xs text-slate-400 mb-1">Tempo total</p>
+              <p className="text-lg font-mono font-bold text-slate-700">{formatTime(task.total_seconds)}</p>
             </div>
-          )}
+            <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 text-center shadow-sm">
+              <p className="text-xs text-slate-400 mb-1">Sessões</p>
+              <p className="text-lg font-mono font-bold text-slate-700">{sessionCount}</p>
+            </div>
+          </div>
+
+          {/* Time controls */}
+          <div className="w-full space-y-3">
+            {/* Add manual time */}
+            <div>
+              <p className="text-xs text-slate-400 mb-1.5 flex items-center gap-1.5">
+                <Plus size={11} /> Adicionar tempo
+              </p>
+              <div className="flex gap-2">
+                <input
+                  value={manualTime}
+                  onChange={(e) => setManualTime(e.target.value)}
+                  placeholder="01:30:00"
+                  className="flex-1 h-9 bg-white border border-slate-200 rounded-lg px-3 text-sm font-mono text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-slate-400 shadow-sm min-w-0"
+                />
+                <button
+                  onClick={handleAddManualTime}
+                  disabled={!manualTime.trim()}
+                  className="h-9 px-4 text-sm font-medium text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0 bg-white shadow-sm"
+                >
+                  Adicionar
+                </button>
+              </div>
+            </div>
+
+            {/* Adjust total */}
+            <div>
+              <p className="text-xs text-slate-400 mb-1.5 flex items-center gap-1.5">
+                <Edit3 size={11} /> Ajustar total
+              </p>
+              <div className="flex gap-2">
+                <input
+                  value={adjustTime}
+                  onChange={(e) => setAdjustTime(e.target.value)}
+                  className="flex-1 h-9 bg-white border border-slate-200 rounded-lg px-3 text-sm font-mono text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-slate-400 shadow-sm min-w-0"
+                />
+                <button
+                  onClick={handleSetTotalTime}
+                  disabled={!adjustTime.trim()}
+                  className="h-9 px-4 text-sm font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0 bg-white shadow-sm"
+                >
+                  Definir
+                </button>
+              </div>
+            </div>
+
+            {/* Time limit */}
+            <div>
+              <p className="text-xs text-slate-400 mb-1.5 flex items-center gap-1.5">
+                <AlertCircle size={11} /> Limite de tempo
+              </p>
+              <div className="flex gap-2">
+                <input
+                  value={timeLimitInput}
+                  onChange={(e) => setTimeLimitInput(e.target.value)}
+                  onBlur={handleBlurSave}
+                  placeholder="00:00:00"
+                  className="flex-1 h-9 bg-white border border-slate-200 rounded-lg px-3 text-sm font-mono text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-slate-400 shadow-sm min-w-0"
+                />
+                <button
+                  onClick={handleBlurSave}
+                  className="h-9 px-4 text-sm font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-100 hover:text-slate-700 transition-colors shrink-0 bg-white shadow-sm"
+                >
+                  Salvar
+                </button>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
