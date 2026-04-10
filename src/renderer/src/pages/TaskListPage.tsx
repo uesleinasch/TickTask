@@ -3,12 +3,31 @@ import { useNavigate } from 'react-router-dom'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Input } from '@renderer/components/ui/input'
 import { SearchableSelect } from '@renderer/components/ui/searchable-select'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@renderer/components/ui/alert-dialog'
+import { toast } from '@renderer/components/ui/sonner'
 import { TaskList } from '@renderer/components/TaskList'
 import { TaskTable } from '@renderer/components/TaskTable'
 import { TaskDialog } from '@renderer/components/TaskDialog'
 import { useTasks, useFilteredTasks } from '@renderer/hooks/useTasks'
 import { eventEmitter } from '@renderer/App'
-import type { TaskStatus, TaskCategory, CreateTaskInput, Tag } from '../../../shared/types'
+import {
+  STATUS_LABELS,
+  type TaskStatus,
+  type TaskCategory,
+  type CreateTaskInput,
+  type Tag,
+  type Context,
+  type Project
+} from '../../../shared/types'
 import {
   ListTodo,
   Inbox,
@@ -20,12 +39,24 @@ import {
   List,
   Search,
   Filter,
-  X
+  X,
+  Lightbulb,
+  Trash2,
+  FolderInput,
+  CheckCheck,
+  Loader2,
+  Lock,
+  CalendarDays
 } from 'lucide-react'
 
 type FilterStatus = TaskStatus | 'all'
 type FilterCategory = TaskCategory | 'all'
+type SortMode = 'updated' | 'due_date'
 type ViewMode = 'cards' | 'table'
+type BulkAction =
+  | { type: 'delete' }
+  | { type: 'status'; status: TaskStatus }
+  | { type: 'project'; projectId: number | null }
 
 interface TabItem {
   id: FilterStatus
@@ -39,39 +70,61 @@ const tabs: TabItem[] = [
   { id: 'aguardando', label: 'Aguardando', icon: Hourglass },
   { id: 'proximas', label: 'Próximas', icon: Calendar },
   { id: 'executando', label: 'Executando', icon: Activity },
-  { id: 'finalizada', label: 'Finalizadas', icon: CheckSquare }
+  { id: 'finalizada', label: 'Finalizadas', icon: CheckSquare },
+  { id: 'someday', label: 'Someday', icon: Lightbulb }
 ]
 
-// Definição de cores para categorias (usado no dropdown)
 const CATEGORY_COLOR_MAP: Record<TaskCategory | 'all', string> = {
-  all: '#64748b', // slate-500
-  urgente: '#ef4444', // red-500
-  prioridade: '#f97316', // orange-500
-  normal: '#3b82f6', // blue-500
-  time_leak: '#eab308' // yellow-500
+  all: '#64748b',
+  urgente: '#ef4444',
+  prioridade: '#f97316',
+  normal: '#3b82f6',
+  time_leak: '#eab308'
 }
 
 export function TaskListPage(): React.JSX.Element {
   const navigate = useNavigate()
-  const { tasks, loading, createTask } = useTasks(false)
+  const { tasks, loading, createTask, refreshTasks } = useTasks(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('inbox')
   const [categoryFilter, setCategoryFilter] = useState<FilterCategory>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [tagFilter, setTagFilter] = useState<number | null>(null)
+  const [contextFilter, setContextFilter] = useState<number | null>(null)
+  const [projectFilter, setProjectFilter] = useState<number | null>(null)
   const [availableTags, setAvailableTags] = useState<Tag[]>([])
+  const [availableContexts, setAvailableContexts] = useState<Context[]>([])
+  const [availableProjects, setAvailableProjects] = useState<Project[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('table')
   const [showFilters, setShowFilters] = useState(false)
+  const [blockedFilter, setBlockedFilter] = useState(false)
+  const [sortMode, setSortMode] = useState<SortMode>('updated')
+  const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([])
+  const [bulkStatusValue, setBulkStatusValue] = useState<TaskStatus | 'none'>('none')
+  const [bulkProjectValue, setBulkProjectValue] = useState<string>('none')
+  const [bulkAction, setBulkAction] = useState<BulkAction | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [bulkLoading, setBulkLoading] = useState(false)
 
-  // Carregar tags disponíveis
+  // Carregar dados de filtros
   useEffect(() => {
     window.api.listTags().then(setAvailableTags).catch(console.error)
+    window.api.listContexts().then(setAvailableContexts).catch(console.error)
+    window.api.listProjects().then(setAvailableProjects).catch(console.error)
   }, [])
 
-  // Filtrar por status usando o hook existente
+  // Listener para refresh vindo do quick capture
+  useEffect(() => {
+    const unsubscribe = window.api.onTasksRefresh(() => {
+      refreshTasks()
+    })
+    return unsubscribe
+  }, [refreshTasks])
+
+  // Filtrar por status
   const statusFilteredTasks = useFilteredTasks(tasks, statusFilter)
 
-  // Opções para dropdown de categorias
+  // Opções de filtros
   const categoryOptions = useMemo(
     () => [
       { value: 'all', label: 'Todas', color: CATEGORY_COLOR_MAP['all'] },
@@ -83,7 +136,6 @@ export function TaskListPage(): React.JSX.Element {
     []
   )
 
-  // Opções para dropdown de tags
   const tagOptions = useMemo(
     () => [
       { value: 'all', label: 'Todas' },
@@ -96,16 +148,38 @@ export function TaskListPage(): React.JSX.Element {
     [availableTags]
   )
 
-  // Aplicar filtros adicionais (categoria, busca e tags)
+  const contextOptions = useMemo(
+    () => [
+      { value: 'all', label: 'Todos' },
+      ...availableContexts.map((ctx) => ({
+        value: String(ctx.id),
+        label: `${ctx.icon} ${ctx.name}`,
+        color: ctx.color
+      }))
+    ],
+    [availableContexts]
+  )
+
+  const projectOptions = useMemo(
+    () => [
+      { value: 'all', label: 'Todos' },
+      { value: 'none', label: 'Sem projeto' },
+      ...availableProjects.map((proj) => ({
+        value: String(proj.id),
+        label: proj.name
+      }))
+    ],
+    [availableProjects]
+  )
+
+  // Aplicar filtros adicionais
   const filteredTasks = useMemo(() => {
     let result = statusFilteredTasks
 
-    // Filtrar por categoria
     if (categoryFilter !== 'all') {
       result = result.filter((task) => task.category === categoryFilter)
     }
 
-    // Filtrar por nome/descrição
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim()
       result = result.filter(
@@ -115,25 +189,87 @@ export function TaskListPage(): React.JSX.Element {
       )
     }
 
-    // Filtrar por tag
     if (tagFilter !== null) {
       result = result.filter(
         (task) => task.tags && task.tags.some((t) => t.id === tagFilter)
       )
     }
 
+    if (contextFilter !== null) {
+      result = result.filter(
+        (task) => task.contexts && task.contexts.some((c) => c.id === contextFilter)
+      )
+    }
+
+    if (projectFilter !== null) {
+      if (projectFilter === -1) {
+        // "Sem projeto"
+        result = result.filter((task) => !task.project_id)
+      } else {
+        result = result.filter((task) => task.project_id === projectFilter)
+      }
+    }
+
+    if (blockedFilter) {
+      result = result.filter((task) => task.is_blocked)
+    }
+
+    if (sortMode === 'due_date') {
+      result = [...result].sort((a, b) => {
+        if (!a.due_date && !b.due_date) return 0
+        if (!a.due_date) return 1
+        if (!b.due_date) return -1
+        return a.due_date.localeCompare(b.due_date)
+      })
+    }
+
     return result
-  }, [statusFilteredTasks, categoryFilter, searchQuery, tagFilter])
+  }, [statusFilteredTasks, categoryFilter, searchQuery, tagFilter, contextFilter, projectFilter, blockedFilter, sortMode])
 
-  // Verificar se há filtros ativos
-  const hasActiveFilters = categoryFilter !== 'all' || searchQuery.trim() !== '' || tagFilter !== null
+  const filteredTaskIds = useMemo(() => filteredTasks.map((task) => task.id), [filteredTasks])
+  const selectedTaskIdSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds])
+  const selectedCount = selectedTaskIds.length
 
-  // Limpar todos os filtros
+  useEffect(() => {
+    setSelectedTaskIds((current) => {
+      const allowedIds = new Set(filteredTaskIds)
+      const next = current.filter((id) => allowedIds.has(id))
+      return next.length === current.length ? current : next
+    })
+  }, [filteredTaskIds])
+
+  const hasActiveFilters =
+    categoryFilter !== 'all' ||
+    searchQuery.trim() !== '' ||
+    tagFilter !== null ||
+    contextFilter !== null ||
+    projectFilter !== null ||
+    blockedFilter ||
+    sortMode !== 'updated'
+
   const clearFilters = (): void => {
     setCategoryFilter('all')
     setSearchQuery('')
     setTagFilter(null)
+    setContextFilter(null)
+    setProjectFilter(null)
+    setBlockedFilter(false)
+    setSortMode('updated')
   }
+
+  const handleScheduleForToday = useCallback(async (taskId: number): Promise<void> => {
+    const today = new Date().toISOString().split('T')[0]
+    const task = tasks.find((t) => t.id === taskId)
+    const isAlreadyToday = task?.scheduled_date === today
+    try {
+      await window.api.scheduleTaskForDate(taskId, isAlreadyToday ? null : today)
+      await refreshTasks()
+      toast.success(isAlreadyToday ? 'Removido do plano de hoje' : 'Adicionado ao plano de hoje')
+    } catch (err) {
+      console.error('Erro ao programar tarefa:', err)
+      toast.error('Erro ao atualizar agendamento')
+    }
+  }, [refreshTasks, tasks])
 
   // Ouvir evento de nova tarefa do TitleBar
   useEffect(() => {
@@ -154,12 +290,138 @@ export function TaskListPage(): React.JSX.Element {
     navigate(`/task/${taskId}`)
   }
 
+  const toggleTaskSelection = useCallback((taskId: number, selected: boolean): void => {
+    setSelectedTaskIds((current) => {
+      if (selected) {
+        if (current.includes(taskId)) return current
+        return [...current, taskId]
+      }
+      return current.filter((id) => id !== taskId)
+    })
+  }, [])
+
+  const toggleSelectAllVisible = useCallback(
+    (selected: boolean): void => {
+      if (!selected) {
+        setSelectedTaskIds([])
+        return
+      }
+      setSelectedTaskIds(filteredTaskIds)
+    },
+    [filteredTaskIds]
+  )
+
+  const openConfirm = (action: BulkAction): void => {
+    if (selectedCount === 0) {
+      toast.error('Selecione pelo menos uma tarefa')
+      return
+    }
+    setBulkAction(action)
+    setConfirmOpen(true)
+  }
+
+  const handleBulkActionConfirm = useCallback(async (): Promise<void> => {
+    if (!bulkAction || selectedCount === 0) return
+
+    setBulkLoading(true)
+    try {
+      if (bulkAction.type === 'delete') {
+        await window.api.bulkDeleteTasks(selectedTaskIds)
+        toast.success(`${selectedCount} tarefa(s) deletada(s) com sucesso`)
+      }
+
+      if (bulkAction.type === 'status') {
+        await window.api.bulkUpdateStatus(selectedTaskIds, bulkAction.status)
+        toast.success(`${selectedCount} tarefa(s) marcadas como ${STATUS_LABELS[bulkAction.status]}`)
+      }
+
+      if (bulkAction.type === 'project') {
+        await window.api.bulkMoveToProject(selectedTaskIds, bulkAction.projectId)
+        const targetProjectName =
+          bulkAction.projectId === null
+            ? 'sem projeto'
+            : availableProjects.find((project) => project.id === bulkAction.projectId)?.name || 'projeto selecionado'
+        toast.success(
+          `${selectedCount} tarefa(s) movidas para ${targetProjectName}`
+        )
+      }
+
+      setSelectedTaskIds([])
+      setConfirmOpen(false)
+      setBulkAction(null)
+      await refreshTasks()
+    } catch (error) {
+      console.error('Erro ao executar ação em massa:', error)
+      toast.error('Não foi possível aplicar a ação em massa')
+    } finally {
+      setBulkLoading(false)
+    }
+  }, [bulkAction, selectedCount, selectedTaskIds, refreshTasks, availableProjects])
+
+  const confirmDialogContent = useMemo(() => {
+    if (!bulkAction) {
+      return {
+        title: 'Confirmar ação em massa',
+        description: 'Confirme para continuar.',
+        actionLabel: 'Confirmar'
+      }
+    }
+
+    if (bulkAction.type === 'delete') {
+      return {
+        title: `Deletar ${selectedCount} tarefa(s)?`,
+        description:
+          'Essa ação remove as tarefas selecionadas localmente e também no Notion quando a sincronização automática estiver ativa.',
+        actionLabel: 'Deletar'
+      }
+    }
+
+    if (bulkAction.type === 'status') {
+      return {
+        title: `Marcar ${selectedCount} tarefa(s)?`,
+        description: `As tarefas selecionadas terão o status alterado para ${STATUS_LABELS[bulkAction.status]}.`,
+        actionLabel: 'Marcar'
+      }
+    }
+
+    return {
+      title: `Mover ${selectedCount} tarefa(s)?`,
+      description:
+        bulkAction.projectId === null
+          ? 'As tarefas selecionadas serão desvinculadas de qualquer projeto.'
+          : 'As tarefas selecionadas serão movidas para o projeto escolhido.',
+      actionLabel: 'Mover'
+    }
+  }, [bulkAction, selectedCount])
+
+  const bulkStatusOptions = useMemo(
+    () => [
+      { value: 'none', label: 'Marcar como...' },
+      { value: 'inbox', label: STATUS_LABELS.inbox },
+      { value: 'aguardando', label: STATUS_LABELS.aguardando },
+      { value: 'proximas', label: STATUS_LABELS.proximas },
+      { value: 'executando', label: STATUS_LABELS.executando },
+      { value: 'finalizada', label: STATUS_LABELS.finalizada },
+      { value: 'someday', label: STATUS_LABELS.someday }
+    ],
+    []
+  )
+
+  const bulkProjectOptions = useMemo(
+    () => [
+      { value: 'none', label: 'Mover para projeto...' },
+      { value: 'no-project', label: 'Sem projeto' },
+      ...availableProjects.map((project) => ({ value: String(project.id), label: project.name }))
+    ],
+    [availableProjects]
+  )
+
   return (
     <div className="flex flex-col h-full overflow-hidden bg-slate-50">
       {/* Header: Tabs + View Toggle */}
       <div className="px-6 pt-6 pb-2">
         <div className="flex items-center justify-between gap-4">
-          {/* Tabs - Pills Style */}
+          {/* Tabs */}
           <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide flex-1">
             {tabs.map((tab) => {
               const Icon = tab.icon
@@ -183,9 +445,8 @@ export function TaskListPage(): React.JSX.Element {
             })}
           </div>
 
-          {/* Actions: Filter Toggle + View Toggle */}
+          {/* Actions */}
           <div className="flex items-center gap-2">
-            {/* Filter Toggle Button */}
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`
@@ -200,19 +461,24 @@ export function TaskListPage(): React.JSX.Element {
               Filtros
               {hasActiveFilters && (
                 <span className="bg-white text-slate-900 text-xs px-1.5 py-0.5 rounded-full font-bold">
-                  {(categoryFilter !== 'all' ? 1 : 0) + (searchQuery.trim() ? 1 : 0) + (tagFilter !== null ? 1 : 0)}
+                  {(categoryFilter !== 'all' ? 1 : 0) +
+                    (searchQuery.trim() ? 1 : 0) +
+                    (tagFilter !== null ? 1 : 0) +
+                    (contextFilter !== null ? 1 : 0) +
+                    (projectFilter !== null ? 1 : 0) +
+                    (blockedFilter ? 1 : 0) +
+                    (sortMode !== 'updated' ? 1 : 0)}
                 </span>
               )}
             </button>
 
-            {/* View Toggle */}
             <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
               <button
                 onClick={() => setViewMode('cards')}
                 className={`
                   p-2 rounded-md transition-all
-                  ${viewMode === 'cards' 
-                    ? 'bg-slate-900 text-white shadow-sm' 
+                  ${viewMode === 'cards'
+                    ? 'bg-slate-900 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
                   }
                 `}
@@ -224,8 +490,8 @@ export function TaskListPage(): React.JSX.Element {
                 onClick={() => setViewMode('table')}
                 className={`
                   p-2 rounded-md transition-all
-                  ${viewMode === 'table' 
-                    ? 'bg-slate-900 text-white shadow-sm' 
+                  ${viewMode === 'table'
+                    ? 'bg-slate-900 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
                   }
                 `}
@@ -243,7 +509,7 @@ export function TaskListPage(): React.JSX.Element {
         <div className="px-6 pb-4 animate-in slide-in-from-top-2 fade-in duration-200">
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
             <div className="flex flex-wrap items-end gap-4">
-              {/* Search Input */}
+              {/* Search */}
               <div className="flex-1 min-w-[200px]">
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
                   Buscar
@@ -269,7 +535,7 @@ export function TaskListPage(): React.JSX.Element {
               </div>
 
               {/* Category Filter */}
-              <div className="min-w-[200px]">
+              <div className="min-w-[160px]">
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
                   Categoria
                 </label>
@@ -277,14 +543,50 @@ export function TaskListPage(): React.JSX.Element {
                   value={categoryFilter}
                   onChange={(value) => setCategoryFilter(value as FilterCategory)}
                   options={categoryOptions}
-                  placeholder="Selecione categoria..."
+                  placeholder="Selecione..."
                   searchPlaceholder="Buscar categoria..."
                 />
               </div>
 
+              {/* Context Filter */}
+              {availableContexts.length > 0 && (
+                <div className="min-w-[160px]">
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                    Contexto
+                  </label>
+                  <SearchableSelect
+                    value={contextFilter !== null ? String(contextFilter) : 'all'}
+                    onChange={(value) => setContextFilter(value === 'all' ? null : Number(value))}
+                    options={contextOptions}
+                    placeholder="Selecione..."
+                    searchPlaceholder="Buscar contexto..."
+                  />
+                </div>
+              )}
+
+              {/* Project Filter */}
+              {availableProjects.length > 0 && (
+                <div className="min-w-[160px]">
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                    Projeto
+                  </label>
+                  <SearchableSelect
+                    value={projectFilter !== null ? (projectFilter === -1 ? 'none' : String(projectFilter)) : 'all'}
+                    onChange={(value) => {
+                      if (value === 'all') setProjectFilter(null)
+                      else if (value === 'none') setProjectFilter(-1)
+                      else setProjectFilter(Number(value))
+                    }}
+                    options={projectOptions}
+                    placeholder="Selecione..."
+                    searchPlaceholder="Buscar projeto..."
+                  />
+                </div>
+              )}
+
               {/* Tag Filter */}
               {availableTags.length > 0 && (
-                <div className="min-w-[200px]">
+                <div className="min-w-[160px]">
                   <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
                     Fonte / Tag
                   </label>
@@ -292,11 +594,47 @@ export function TaskListPage(): React.JSX.Element {
                     value={tagFilter !== null ? String(tagFilter) : 'all'}
                     onChange={(value) => setTagFilter(value === 'all' ? null : Number(value))}
                     options={tagOptions}
-                    placeholder="Selecione tag..."
+                    placeholder="Selecione..."
                     searchPlaceholder="Buscar tag..."
                   />
                 </div>
               )}
+
+              {/* Blocked Filter */}
+              <div className="min-w-fit">
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                  Situação
+                </label>
+                <button
+                  onClick={() => setBlockedFilter(!blockedFilter)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-all ${
+                    blockedFilter
+                      ? 'bg-orange-100 text-orange-700 border-orange-200'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <Lock size={14} />
+                  Bloqueadas
+                </button>
+              </div>
+
+              {/* Sort Mode */}
+              <div className="min-w-fit">
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                  Ordenar por
+                </label>
+                <button
+                  onClick={() => setSortMode(sortMode === 'updated' ? 'due_date' : 'updated')}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-all ${
+                    sortMode === 'due_date'
+                      ? 'bg-blue-100 text-blue-700 border-blue-200'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <CalendarDays size={14} />
+                  {sortMode === 'due_date' ? 'Prazo ↑' : 'Prazo'}
+                </button>
+              </div>
 
               {/* Clear Filters */}
               {hasActiveFilters && (
@@ -310,19 +648,108 @@ export function TaskListPage(): React.JSX.Element {
               )}
             </div>
 
-            {/* Active Filters Summary */}
             {hasActiveFilters && (
               <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-500">
-                <span>Mostrando {filteredTasks.length} de {tasks.length} tarefas</span>
+                <span>
+                  Mostrando {filteredTasks.length} de {tasks.length} tarefas
+                </span>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Content: Cards ou Table */}
+      {/* Content */}
       <ScrollArea className="flex-1 h-0">
         <div className="p-6 pt-2 pb-24">
+          {!loading && filteredTasks.length > 0 && (
+            <div className="mb-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="font-semibold text-slate-800">
+                    {selectedCount} selecionada(s)
+                  </span>
+                  <button
+                    onClick={() => toggleSelectAllVisible(true)}
+                    disabled={filteredTasks.length === selectedCount}
+                    className="text-slate-600 hover:text-slate-900 disabled:text-slate-300"
+                  >
+                    Selecionar todas visíveis ({filteredTasks.length})
+                  </button>
+                  <button
+                    onClick={() => setSelectedTaskIds([])}
+                    disabled={selectedCount === 0}
+                    className="text-slate-600 hover:text-slate-900 disabled:text-slate-300"
+                  >
+                    Limpar seleção
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="min-w-[180px]">
+                    <SearchableSelect
+                      value={bulkStatusValue}
+                      onChange={(value) => setBulkStatusValue(value as TaskStatus | 'none')}
+                      options={bulkStatusOptions}
+                      placeholder="Marcar como..."
+                      searchPlaceholder="Buscar status..."
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (bulkStatusValue === 'none') {
+                        toast.error('Selecione um status para marcar')
+                        return
+                      }
+                      openConfirm({ type: 'status', status: bulkStatusValue })
+                    }}
+                    disabled={selectedCount === 0 || bulkLoading}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <CheckCheck size={15} />
+                    Marcar
+                  </button>
+
+                  <div className="min-w-[200px]">
+                    <SearchableSelect
+                      value={bulkProjectValue}
+                      onChange={setBulkProjectValue}
+                      options={bulkProjectOptions}
+                      placeholder="Mover para projeto..."
+                      searchPlaceholder="Buscar projeto..."
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (bulkProjectValue === 'none') {
+                        toast.error('Selecione um projeto para mover')
+                        return
+                      }
+                      openConfirm({
+                        type: 'project',
+                        projectId: bulkProjectValue === 'no-project' ? null : Number(bulkProjectValue)
+                      })
+                    }}
+                    disabled={selectedCount === 0 || bulkLoading}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <FolderInput size={15} />
+                    Mover
+                  </button>
+
+                  <button
+                    onClick={() => openConfirm({ type: 'delete' })}
+                    disabled={selectedCount === 0 || bulkLoading}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 disabled:opacity-50"
+                  >
+                    <Trash2 size={15} />
+                    Excluir
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
               <p>Carregando...</p>
@@ -339,15 +766,65 @@ export function TaskListPage(): React.JSX.Element {
               </p>
             </div>
           ) : viewMode === 'cards' ? (
-            <TaskList tasks={filteredTasks} onTaskClick={handleTaskClick} />
+            <TaskList
+              tasks={filteredTasks}
+              onTaskClick={handleTaskClick}
+              selectedTaskIds={selectedTaskIdSet}
+              onToggleTaskSelection={toggleTaskSelection}
+              onScheduleForToday={handleScheduleForToday}
+            />
           ) : (
-            <TaskTable tasks={filteredTasks} onTaskClick={handleTaskClick} />
+            <TaskTable
+              tasks={filteredTasks}
+              onTaskClick={handleTaskClick}
+              selectedTaskIds={selectedTaskIdSet}
+              onToggleTaskSelection={toggleTaskSelection}
+              onToggleSelectAll={toggleSelectAllVisible}
+              onScheduleForToday={handleScheduleForToday}
+            />
           )}
         </div>
       </ScrollArea>
 
       {/* Create Task Dialog */}
       <TaskDialog open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleCreateTask} />
+
+      <AlertDialog
+        open={confirmOpen}
+        onOpenChange={(open) => {
+          setConfirmOpen(open)
+          if (!open && !bulkLoading) {
+            setBulkAction(null)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDialogContent.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmDialogContent.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkLoading}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault()
+                void handleBulkActionConfirm()
+              }}
+              disabled={bulkLoading}
+              className={bulkAction?.type === 'delete' ? 'bg-destructive hover:bg-destructive/90' : ''}
+            >
+              {bulkLoading ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 size={14} className="animate-spin" />
+                  Aplicando...
+                </span>
+              ) : (
+                confirmDialogContent.actionLabel
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

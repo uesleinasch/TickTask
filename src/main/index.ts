@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, Notification, screen } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Notification, screen, globalShortcut, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/512.png?asset'
@@ -10,9 +10,12 @@ import {
   getTask,
   updateTask,
   deleteTask,
+  deleteTasks,
   archiveTask,
   unarchiveTask,
   updateTaskStatus,
+  updateTasksStatus,
+  moveTasksToProject,
   startTask,
   stopTask,
   updateTimer,
@@ -27,13 +30,67 @@ import {
   getCategoryStats,
   getHeatmapData,
   getGeneralStats,
+  getGtdMetrics,
+  getEnergyStats,
   // Tags
   createTag,
   listTags,
   getOrCreateTag,
   deleteTag,
   getTaskTags,
-  setTaskTags
+  setTaskTags,
+  // Projects
+  createProject,
+  getProject,
+  listProjects,
+  updateProject,
+  deleteProject,
+  getProjectTasks,
+  // Contexts
+  createContext,
+  listContexts,
+  updateContext,
+  deleteContext,
+  getTaskContexts,
+  setTaskContexts,
+  // Weekly Reviews
+  createWeeklyReview,
+  getWeeklyReview,
+  listWeeklyReviews,
+  getLastWeeklyReview,
+  updateWeeklyReview,
+  getReviewHealthIndicators,
+  // FASE 4.3: Blocos de Tempo
+  createTimeBlock,
+  getTimeBlocksForDate,
+  getTimeBlocksForWeek,
+  getTimeBlocksForMonth,
+  updateTimeBlock,
+  deleteTimeBlock,
+  // FASE 4: Horizontes GTD
+  createArea,
+  getArea,
+  listAreas,
+  updateArea,
+  deleteArea,
+  createGoal,
+  getGoal,
+  listGoals,
+  updateGoal,
+  deleteGoal,
+  // FASE 2
+  getSubtasks,
+  completeSubtasksCheck,
+  getTaskDependencies,
+  getTaskDependents,
+  addTaskDependency,
+  removeTaskDependency,
+  getTasksForDate,
+  getWeeklySchedule,
+  updateDayOrder,
+  createNextRecurrence,
+  deleteNextRecurrence,
+  getTasksDueForNotification
 } from './database'
 import {
   // Notion
@@ -47,11 +104,32 @@ import {
   deleteTaskFromNotion,
   type NotionConfig
 } from './notion'
-import type { CreateTaskInput, UpdateTaskInput, TaskStatus } from '../shared/types'
+import type {
+  CreateTaskInput,
+  UpdateTaskInput,
+  TaskStatus,
+  CreateProjectInput,
+  UpdateProjectInput,
+  ProjectStatus
+} from '../shared/types'
 
 let mainWindow: BrowserWindow | null = null
 let floatWindow: BrowserWindow | null = null
+let quickCaptureWindow: BrowserWindow | null = null
 let currentTimerData: { taskId: number; taskName: string; seconds: number } | null = null
+
+// Atalho global padrão para captura rápida
+const quickCaptureShortcut = 'CommandOrControl+Shift+Space'
+
+function normalizeTaskIds(ids: number[]): number[] {
+  const unique = new Set<number>()
+  for (const id of ids) {
+    if (Number.isInteger(id) && id > 0) {
+      unique.add(id)
+    }
+  }
+  return [...unique]
+}
 
 // Helper para sincronização automática com Notion
 async function autoSyncToNotion(taskId: number): Promise<void> {
@@ -60,23 +138,20 @@ async function autoSyncToNotion(taskId: number): Promise<void> {
     try {
       const task = getTask(taskId)
       if (task) {
-        // Notificar início da sincronização
         mainWindow?.webContents.send('notion:syncStart', task.name)
-        
         await syncTaskToNotion(task)
         console.log('Tarefa sincronizada automaticamente:', task.name)
-        
-        // Notificar sucesso
         mainWindow?.webContents.send('notion:syncSuccess', task.name)
       }
     } catch (error) {
       console.error('Erro na sincronização automática:', error)
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
-      // Notificar erro
       mainWindow?.webContents.send('notion:syncError', errorMessage)
     }
   }
 }
+
+// ===================== FLOAT WINDOW =====================
 
 function createFloatWindow(): void {
   if (floatWindow) {
@@ -106,7 +181,6 @@ function createFloatWindow(): void {
     }
   })
 
-  // Carregar a mesma URL mas com hash para float
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     floatWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/float`)
   } else {
@@ -123,26 +197,21 @@ function showFloatWindow(): void {
     createFloatWindow()
   }
 
-  // Aguardar a janela carregar antes de mostrar
   if (floatWindow && !floatWindow.isVisible()) {
     floatWindow.once('ready-to-show', () => {
       floatWindow?.show()
-      // Enviar dados do timer atual OU limpar se não há timer
       if (currentTimerData) {
         floatWindow?.webContents.send('float:update', currentTimerData)
       } else {
-        // Garantir que a janela está limpa
         floatWindow?.webContents.send('float:clear')
       }
     })
 
-    // Se já está pronta, apenas mostrar
     if (floatWindow.webContents.isLoading() === false) {
       floatWindow.show()
       if (currentTimerData) {
         floatWindow.webContents.send('float:update', currentTimerData)
       } else {
-        // Garantir que a janela está limpa
         floatWindow.webContents.send('float:clear')
       }
     }
@@ -155,15 +224,9 @@ function hideFloatWindow(): void {
   }
 }
 
-// Limpar completamente o estado do float window e DESTRUIR a janela
 function clearFloatWindowState(): void {
-  console.log('[Main] clearFloatWindowState() chamado')
   currentTimerData = null
-  
-  // Destruir a janela float completamente
-  // Isso garante que não há estado residual
   if (floatWindow && !floatWindow.isDestroyed()) {
-    console.log('[Main] Destruindo janela float')
     floatWindow.destroy()
     floatWindow = null
   }
@@ -171,15 +234,74 @@ function clearFloatWindowState(): void {
 
 function updateFloatWindow(data: { taskId: number; taskName: string; seconds: number }): void {
   currentTimerData = data
-  // IMPORTANTE: Enviar apenas se a janela estiver visível
-  // Se não estiver visível, os dados serão enviados quando a janela for mostrada (showFloatWindow)
   if (floatWindow && !floatWindow.isDestroyed() && floatWindow.isVisible()) {
     floatWindow.webContents.send('float:update', data)
   }
 }
 
+// ===================== QUICK CAPTURE WINDOW =====================
+
+function createQuickCaptureWindow(): void {
+  if (quickCaptureWindow && !quickCaptureWindow.isDestroyed()) {
+    quickCaptureWindow.focus()
+    return
+  }
+
+  const display = screen.getPrimaryDisplay()
+  const { width, height } = display.workAreaSize
+
+  quickCaptureWindow = new BrowserWindow({
+    width: 400,
+    height: 140,
+    x: Math.round(width / 2 - 200),
+    y: Math.round(height / 3),
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    movable: true,
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false
+    }
+  })
+
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    quickCaptureWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/quick-capture`)
+  } else {
+    quickCaptureWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/quick-capture' })
+  }
+
+  quickCaptureWindow.once('ready-to-show', () => {
+    quickCaptureWindow?.show()
+  })
+
+  quickCaptureWindow.on('blur', () => {
+    if (quickCaptureWindow && !quickCaptureWindow.isDestroyed()) {
+      quickCaptureWindow.close()
+    }
+  })
+
+  quickCaptureWindow.on('closed', () => {
+    quickCaptureWindow = null
+  })
+}
+
+function registerGlobalShortcut(): void {
+  try {
+    globalShortcut.register(quickCaptureShortcut, () => {
+      createQuickCaptureWindow()
+    })
+  } catch (error) {
+    console.error('Erro ao registrar atalho global:', error)
+  }
+}
+
+// ===================== MAIN WINDOW =====================
+
 function createWindow(): void {
-  // Create the browser window.
   mainWindow = new BrowserWindow({
     width: 1024,
     height: 700,
@@ -199,14 +321,12 @@ function createWindow(): void {
     mainWindow?.show()
   })
 
-  // Mostrar float window quando minimizar (se houver timer ativo)
   mainWindow.on('minimize', () => {
     if (currentTimerData) {
       showFloatWindow()
     }
   })
 
-  // Esconder float window quando restaurar
   mainWindow.on('restore', () => {
     hideFloatWindow()
   })
@@ -220,8 +340,6 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -229,7 +347,8 @@ function createWindow(): void {
   }
 }
 
-// Setup IPC Handlers
+// ===================== IPC HANDLERS =====================
+
 function setupIpcHandlers(): void {
   // Window controls
   ipcMain.handle('window:minimize', () => mainWindow?.minimize())
@@ -242,10 +361,9 @@ function setupIpcHandlers(): void {
   })
   ipcMain.handle('window:close', () => mainWindow?.close())
 
-  // Task CRUD - com sincronização automática do Notion (em background)
+  // Task CRUD
   ipcMain.handle('task:create', (_, data: CreateTaskInput) => {
     const task = createTask(data)
-    // Sincronizar em background - não bloqueia o retorno
     autoSyncToNotion(task.id)
     return task
   })
@@ -253,11 +371,9 @@ function setupIpcHandlers(): void {
   ipcMain.handle('task:get', (_, id: number) => getTask(id))
   ipcMain.handle('task:update', (_, id: number, data: UpdateTaskInput) => {
     updateTask(id, data)
-    // Sincronizar em background
     autoSyncToNotion(id)
   })
   ipcMain.handle('task:delete', (_, id: number) => {
-    // Tentar remover do Notion em background antes de deletar localmente
     const config = getNotionConfig()
     if (config?.autoSync && config.databaseId) {
       deleteTaskFromNotion(id).catch((error) => {
@@ -266,8 +382,45 @@ function setupIpcHandlers(): void {
     }
     deleteTask(id)
   })
+  ipcMain.handle('task:bulkDelete', async (_, ids: number[]) => {
+    const taskIds = normalizeTaskIds(ids)
+    if (taskIds.length === 0) return
 
-  // Archive - com sincronização em background
+    const config = getNotionConfig()
+    if (config?.autoSync && config.databaseId) {
+      await Promise.all(
+        taskIds.map(async (id) => {
+          try {
+            await deleteTaskFromNotion(id)
+          } catch (error) {
+            console.error(`Erro ao deletar tarefa ${id} do Notion:`, error)
+          }
+        })
+      )
+    }
+
+    deleteTasks(taskIds)
+  })
+  ipcMain.handle('task:bulkUpdateStatus', (_, ids: number[], status: TaskStatus) => {
+    const taskIds = normalizeTaskIds(ids)
+    if (taskIds.length === 0) return
+
+    updateTasksStatus(taskIds, status)
+    for (const id of taskIds) {
+      autoSyncToNotion(id)
+    }
+  })
+  ipcMain.handle('task:bulkMoveToProject', (_, ids: number[], projectId: number | null) => {
+    const taskIds = normalizeTaskIds(ids)
+    if (taskIds.length === 0) return
+
+    moveTasksToProject(taskIds, projectId)
+    for (const id of taskIds) {
+      autoSyncToNotion(id)
+    }
+  })
+
+  // Archive
   ipcMain.handle('task:archive', (_, id: number) => {
     archiveTask(id)
     autoSyncToNotion(id)
@@ -277,11 +430,16 @@ function setupIpcHandlers(): void {
     autoSyncToNotion(id)
   })
 
-  // Timer - com sincronização em background ao parar
-  ipcMain.handle('task:start', (_, id: number) => startTask(id))
+  // Timer
+  ipcMain.handle('task:start', (_, id: number) => {
+    const task = getTask(id)
+    if (task?.is_blocked) {
+      throw new Error('Tarefa bloqueada por dependências não concluídas')
+    }
+    startTask(id)
+  })
   ipcMain.handle('task:stop', (_, id: number) => {
     const result = stopTask(id)
-    // Sincronizar tempo em background - não bloqueia o pause
     autoSyncToNotion(id)
     return result
   })
@@ -299,9 +457,53 @@ function setupIpcHandlers(): void {
     autoSyncToNotion(id)
   })
 
-  // Status - com sincronização em background
+  // Status
   ipcMain.handle('task:updateStatus', (_, id: number, status: TaskStatus) => {
+    const task = getTask(id)
+    if (!task) return
+
+    // Block setting 'executando' for blocked tasks
+    if (status === 'executando' && task.is_blocked) {
+      throw new Error('Tarefa bloqueada por dependências não concluídas')
+    }
+
+    // Block completing a subtask when the parent task has unresolved dependencies
+    if (status === 'finalizada' && task.parent_task_id) {
+      const parentTask = getTask(task.parent_task_id)
+      if (parentTask?.is_blocked) {
+        throw new Error('A tarefa pai possui dependências não concluídas')
+      }
+    }
+
+    const previousStatus: string = task.status
     updateTaskStatus(id, status)
+
+    if (status === 'finalizada') {
+      // Recurrence: create next instance for top-level recurring tasks
+      if (task.recurrence_rule && !task.parent_task_id) {
+        createNextRecurrence(id)
+      }
+
+      // Subtask: check if parent should auto-complete
+      if (task.parent_task_id) {
+        completeSubtasksCheck(task.parent_task_id)
+      }
+
+      // Notify dependents that a dependency was resolved
+      const dependents = getTaskDependents(id)
+      for (const depTaskId of dependents) {
+        const depTask = getTask(depTaskId)
+        if (depTask && !depTask.is_blocked) {
+          mainWindow?.webContents.send('task:unblocked', depTaskId, depTask.name)
+        }
+      }
+    } else if (previousStatus === 'finalizada') {
+      // Undo completion: delete auto-created recurrence instance
+      if (task.recurrence_rule && !task.parent_task_id) {
+        deleteNextRecurrence(id)
+      }
+    }
+
     autoSyncToNotion(id)
   })
 
@@ -311,10 +513,7 @@ function setupIpcHandlers(): void {
 
   // Notifications
   ipcMain.handle('notification:show', (_, title: string, body: string) => {
-    new Notification({
-      title,
-      body
-    }).show()
+    new Notification({ title, body }).show()
   })
 
   // Float window controls
@@ -324,12 +523,10 @@ function setupIpcHandlers(): void {
       updateFloatWindow(data)
     }
   )
-
   ipcMain.handle('float:clearTimer', () => {
     clearFloatWindowState()
     hideFloatWindow()
   })
-
   ipcMain.handle('float:restore', () => {
     if (mainWindow) {
       mainWindow.restore()
@@ -337,12 +534,10 @@ function setupIpcHandlers(): void {
     }
     hideFloatWindow()
   })
-
   ipcMain.handle('float:stopTimer', async (_, taskId: number) => {
     const result = await stopTask(taskId)
     clearFloatWindowState()
     hideFloatWindow()
-    // Notificar a janela principal para atualizar
     mainWindow?.webContents.send('timer:stopped', taskId)
     return result
   })
@@ -354,8 +549,24 @@ function setupIpcHandlers(): void {
   ipcMain.handle('stats:category', () => getCategoryStats())
   ipcMain.handle('stats:heatmap', () => getHeatmapData())
   ipcMain.handle('stats:general', () => getGeneralStats())
+  // FASE 4.2: Advanced stats
+  ipcMain.handle('stats:gtdMetrics', () => getGtdMetrics())
+  ipcMain.handle('stats:energy', () => getEnergyStats())
+  ipcMain.handle('report:weeklyPDF', async () => {
+    if (!mainWindow) return
+    const { filePath } = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: `ticktask-relatorio-${new Date().toISOString().split('T')[0]}.pdf`,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    })
+    if (filePath) {
+      const data = await mainWindow.webContents.printToPDF({ printBackground: true, landscape: true })
+      const { writeFile } = await import('fs/promises')
+      await writeFile(filePath, data)
+      shell.openPath(filePath)
+    }
+  })
 
-  // Tags - com sincronização ao atualizar tags da tarefa
+  // Tags
   ipcMain.handle('tag:create', (_, name: string, color?: string) => createTag(name, color))
   ipcMain.handle('tag:list', () => listTags())
   ipcMain.handle('tag:getOrCreate', (_, name: string) => getOrCreateTag(name))
@@ -364,6 +575,68 @@ function setupIpcHandlers(): void {
   ipcMain.handle('tag:setTaskTags', (_, taskId: number, tagIds: number[]) => {
     setTaskTags(taskId, tagIds)
     autoSyncToNotion(taskId)
+  })
+
+  // ===================== PROJECTS =====================
+  ipcMain.handle('project:create', (_, data: CreateProjectInput) => createProject(data))
+  ipcMain.handle('project:get', (_, id: number) => getProject(id))
+  ipcMain.handle('project:list', (_, status?: ProjectStatus) => listProjects(status))
+  ipcMain.handle('project:update', (_, id: number, data: UpdateProjectInput) => updateProject(id, data))
+  ipcMain.handle('project:delete', (_, id: number) => deleteProject(id))
+  ipcMain.handle('project:getTasks', (_, projectId: number) => getProjectTasks(projectId))
+
+  // ===================== CONTEXTS =====================
+  ipcMain.handle('context:create', (_, name: string, icon?: string, color?: string) =>
+    createContext(name, icon, color)
+  )
+  ipcMain.handle('context:list', () => listContexts())
+  ipcMain.handle('context:update', (_, id: number, data: { name?: string; icon?: string; color?: string }) =>
+    updateContext(id, data)
+  )
+  ipcMain.handle('context:delete', (_, id: number) => deleteContext(id))
+  ipcMain.handle('context:getTaskContexts', (_, taskId: number) => getTaskContexts(taskId))
+  ipcMain.handle('context:setTaskContexts', (_, taskId: number, contextIds: number[]) =>
+    setTaskContexts(taskId, contextIds)
+  )
+
+  // ===================== WEEKLY REVIEWS =====================
+  ipcMain.handle('review:create', () => createWeeklyReview())
+  ipcMain.handle('review:get', (_, id: number) => getWeeklyReview(id))
+  ipcMain.handle('review:list', () => listWeeklyReviews())
+  ipcMain.handle('review:getLast', () => getLastWeeklyReview())
+  ipcMain.handle(
+    'review:update',
+    (
+      _,
+      id: number,
+      data: { inbox_cleared?: boolean; notes?: string; checklist_state?: string; completed_at?: string }
+    ) => updateWeeklyReview(id, data)
+  )
+  ipcMain.handle('review:healthIndicators', () => getReviewHealthIndicators())
+
+  // ===================== QUICK CAPTURE =====================
+  ipcMain.handle('quickCapture:open', () => {
+    createQuickCaptureWindow()
+  })
+  ipcMain.handle('quickCapture:capture', (_, name: string) => {
+    const task = createTask({ name })
+    // Fechar a janela de captura
+    if (quickCaptureWindow && !quickCaptureWindow.isDestroyed()) {
+      quickCaptureWindow.close()
+    }
+    // Notificar a janela principal para atualizar
+    mainWindow?.webContents.send('tasks:refresh')
+    // Mostrar notificação
+    new Notification({
+      title: 'TickTask',
+      body: `"${name}" capturado para Inbox`
+    }).show()
+    return task
+  })
+  ipcMain.handle('quickCapture:close', () => {
+    if (quickCaptureWindow && !quickCaptureWindow.isDestroyed()) {
+      quickCaptureWindow.close()
+    }
   })
 
   // Notion Integration
@@ -377,58 +650,150 @@ function setupIpcHandlers(): void {
     return syncTaskToNotion(task)
   })
   ipcMain.handle('notion:syncAllTasks', async () => {
-    const tasks = listTasks(false) // Apenas tarefas não arquivadas
+    const tasks = listTasks(false)
     return syncAllTasks(tasks)
   })
   ipcMain.handle('notion:createDatabase', () => findOrCreateDatabase())
+
+  // ===================== FASE 2: Subtarefas =====================
+  ipcMain.handle('subtask:list', (_, parentId: number) => getSubtasks(parentId))
+  ipcMain.handle('subtask:create', (_, data: { name: string; parent_task_id: number }) => {
+    const task = createTask({ name: data.name, parent_task_id: data.parent_task_id })
+    return task
+  })
+
+  // ===================== FASE 2: Dependências =====================
+  ipcMain.handle('dependency:get', (_, taskId: number) => getTaskDependencies(taskId))
+  ipcMain.handle('dependency:add', (_, taskId: number, dependsOnId: number) =>
+    addTaskDependency(taskId, dependsOnId)
+  )
+  ipcMain.handle('dependency:remove', (_, taskId: number, dependsOnId: number) =>
+    removeTaskDependency(taskId, dependsOnId)
+  )
+
+  // ===================== FASE 2: Agendamento =====================
+  ipcMain.handle('schedule:getForDate', (_, date: string) => getTasksForDate(date))
+  ipcMain.handle('schedule:getWeekly', (_, startDate: string) => getWeeklySchedule(startDate))
+  ipcMain.handle('schedule:updateDayOrder', (_, taskId: number, order: number) =>
+    updateDayOrder(taskId, order)
+  )
+  ipcMain.handle('task:scheduleForDate', (_, taskId: number, date: string | null) => {
+    updateTask(taskId, { scheduled_date: date })
+  })
+
+  // ===================== FASE 4.3: Blocos de Tempo =====================
+  ipcMain.handle('timeBlock:create', (_, data) => createTimeBlock(data))
+  ipcMain.handle('timeBlock:getForDate', (_, date: string) => getTimeBlocksForDate(date))
+  ipcMain.handle('timeBlock:getForWeek', (_, startDate: string) => getTimeBlocksForWeek(startDate))
+  ipcMain.handle('timeBlock:getForMonth', (_, yearMonth: string) => getTimeBlocksForMonth(yearMonth))
+  ipcMain.handle('timeBlock:update', (_, id: number, data) => updateTimeBlock(id, data))
+  ipcMain.handle('timeBlock:delete', (_, id: number) => deleteTimeBlock(id))
+
+  // ===================== FASE 4: Áreas de Foco =====================
+  ipcMain.handle('area:create', (_, data) => createArea(data))
+  ipcMain.handle('area:get', (_, id: number) => getArea(id))
+  ipcMain.handle('area:list', () => listAreas())
+  ipcMain.handle('area:update', (_, id: number, data) => updateArea(id, data))
+  ipcMain.handle('area:delete', (_, id: number) => deleteArea(id))
+
+  // ===================== FASE 4: Objetivos (Goals) =====================
+  ipcMain.handle('goal:create', (_, data) => createGoal(data))
+  ipcMain.handle('goal:get', (_, id: number) => getGoal(id))
+  ipcMain.handle('goal:list', (_, areaId?: number) => listGoals(areaId))
+  ipcMain.handle('goal:update', (_, id: number, data) => updateGoal(id, data))
+  ipcMain.handle('goal:delete', (_, id: number) => deleteGoal(id))
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
+// ===================== APP LIFECYCLE =====================
+
+// ===================== NOTIFICATION SCHEDULER =====================
+
+const notifiedToday = new Set<string>() // 'taskId-type' keys to avoid spam
+let notificationInterval: NodeJS.Timeout | null = null
+
+function checkDueDateNotifications(): void {
+  const now = new Date()
+  const todayStr = now.toISOString().split('T')[0]
+  const tomorrow = new Date(now)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = tomorrow.toISOString().split('T')[0]
+
+  // Reset daily notification set at midnight
+  const dayKey = `day-${todayStr}`
+  if (!notifiedToday.has(dayKey)) {
+    notifiedToday.clear()
+    notifiedToday.add(dayKey)
+  }
+
+  const tasks = getTasksDueForNotification()
+  for (const task of tasks) {
+    if (!task.due_date) continue
+    const dueDate = task.due_date.split('T')[0]
+
+    if (dueDate === todayStr && now.getHours() >= 9) {
+      const key = `${task.id}-today`
+      if (!notifiedToday.has(key)) {
+        notifiedToday.add(key)
+        new Notification({
+          title: '⏰ Prazo hoje!',
+          body: `"${task.name}" vence hoje.`
+        }).show()
+      }
+    } else if (dueDate === tomorrowStr) {
+      const key = `${task.id}-tomorrow`
+      if (!notifiedToday.has(key)) {
+        notifiedToday.add(key)
+        new Notification({
+          title: '📅 Prazo amanhã',
+          body: `"${task.name}" vence amanhã.`
+        }).show()
+      }
+    }
+  }
+}
+
+function startNotificationScheduler(): void {
+  checkDueDateNotifications()
+  notificationInterval = setInterval(checkDueDateNotifications, 60 * 60 * 1000) // a cada hora
+}
+
 app.whenReady().then(() => {
-  // Initialize database
   initDatabase()
-
-  // Setup IPC handlers
   setupIpcHandlers()
+  startNotificationScheduler()
 
-  // Set app user model id for windows (matches appId in electron-builder.yml)
   electronApp.setAppUserModelId('com.ticktask.app')
-  // Set app name for macOS menus and about dialogs
   try {
     app.setName('TickTask App')
-  } catch (error) {
+  } catch {
     // setName isn't available on all platforms/versions
   }
 
-  // (Already set above)
-
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
   createWindow()
 
+  // Registrar atalho global para captura rápida
+  registerGlobalShortcut()
+
   app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
 })
 
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
+})
+
 app.on('before-quit', () => {
+  if (notificationInterval) clearInterval(notificationInterval)
   closeDatabase()
 })

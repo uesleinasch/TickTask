@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx electron-vite:*)",
+      "Bash(grep:*)",
+      "Bash(npm install:*)",
+      "Bash(node -e \"const r = require\\(''recharts''\\); console.log\\(Object.keys\\(r\\).filter\\(k => k.toLowerCase\\(\\).includes\\(''funnel''\\)\\)\\)\")",
+      "Bash(grep '\"\"recharts\"\"' package.json)"
+    ]
+  }
+}
