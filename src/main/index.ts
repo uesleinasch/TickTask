@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, Notification, screen, globalShortcut } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Notification, screen, globalShortcut, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/512.png?asset'
@@ -30,6 +30,8 @@ import {
   getCategoryStats,
   getHeatmapData,
   getGeneralStats,
+  getGtdMetrics,
+  getEnergyStats,
   // Tags
   createTag,
   listTags,
@@ -58,6 +60,24 @@ import {
   getLastWeeklyReview,
   updateWeeklyReview,
   getReviewHealthIndicators,
+  // FASE 4.3: Blocos de Tempo
+  createTimeBlock,
+  getTimeBlocksForDate,
+  getTimeBlocksForWeek,
+  getTimeBlocksForMonth,
+  updateTimeBlock,
+  deleteTimeBlock,
+  // FASE 4: Horizontes GTD
+  createArea,
+  getArea,
+  listAreas,
+  updateArea,
+  deleteArea,
+  createGoal,
+  getGoal,
+  listGoals,
+  updateGoal,
+  deleteGoal,
   // FASE 2
   getSubtasks,
   completeSubtasksCheck,
@@ -529,6 +549,22 @@ function setupIpcHandlers(): void {
   ipcMain.handle('stats:category', () => getCategoryStats())
   ipcMain.handle('stats:heatmap', () => getHeatmapData())
   ipcMain.handle('stats:general', () => getGeneralStats())
+  // FASE 4.2: Advanced stats
+  ipcMain.handle('stats:gtdMetrics', () => getGtdMetrics())
+  ipcMain.handle('stats:energy', () => getEnergyStats())
+  ipcMain.handle('report:weeklyPDF', async () => {
+    if (!mainWindow) return
+    const { filePath } = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: `ticktask-relatorio-${new Date().toISOString().split('T')[0]}.pdf`,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    })
+    if (filePath) {
+      const data = await mainWindow.webContents.printToPDF({ printBackground: true, landscape: true })
+      const { writeFile } = await import('fs/promises')
+      await writeFile(filePath, data)
+      shell.openPath(filePath)
+    }
+  })
 
   // Tags
   ipcMain.handle('tag:create', (_, name: string, color?: string) => createTag(name, color))
@@ -644,6 +680,28 @@ function setupIpcHandlers(): void {
   ipcMain.handle('task:scheduleForDate', (_, taskId: number, date: string | null) => {
     updateTask(taskId, { scheduled_date: date })
   })
+
+  // ===================== FASE 4.3: Blocos de Tempo =====================
+  ipcMain.handle('timeBlock:create', (_, data) => createTimeBlock(data))
+  ipcMain.handle('timeBlock:getForDate', (_, date: string) => getTimeBlocksForDate(date))
+  ipcMain.handle('timeBlock:getForWeek', (_, startDate: string) => getTimeBlocksForWeek(startDate))
+  ipcMain.handle('timeBlock:getForMonth', (_, yearMonth: string) => getTimeBlocksForMonth(yearMonth))
+  ipcMain.handle('timeBlock:update', (_, id: number, data) => updateTimeBlock(id, data))
+  ipcMain.handle('timeBlock:delete', (_, id: number) => deleteTimeBlock(id))
+
+  // ===================== FASE 4: Áreas de Foco =====================
+  ipcMain.handle('area:create', (_, data) => createArea(data))
+  ipcMain.handle('area:get', (_, id: number) => getArea(id))
+  ipcMain.handle('area:list', () => listAreas())
+  ipcMain.handle('area:update', (_, id: number, data) => updateArea(id, data))
+  ipcMain.handle('area:delete', (_, id: number) => deleteArea(id))
+
+  // ===================== FASE 4: Objetivos (Goals) =====================
+  ipcMain.handle('goal:create', (_, data) => createGoal(data))
+  ipcMain.handle('goal:get', (_, id: number) => getGoal(id))
+  ipcMain.handle('goal:list', (_, areaId?: number) => listGoals(areaId))
+  ipcMain.handle('goal:update', (_, id: number, data) => updateGoal(id, data))
+  ipcMain.handle('goal:delete', (_, id: number) => deleteGoal(id))
 }
 
 // ===================== APP LIFECYCLE =====================

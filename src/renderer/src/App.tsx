@@ -12,6 +12,8 @@ import { ContextsPage } from './pages/ContextsPage'
 import { WeeklyReviewPage } from './pages/WeeklyReviewPage'
 import { QuickCapturePage } from './pages/QuickCapturePage'
 import { TodayPage } from './pages/TodayPage'
+import { HorizonsPage } from './pages/HorizonsPage'
+import { CalendarPage } from './pages/CalendarPage'
 import { TitleBar } from './components/TitleBar'
 import { FloatingTimer } from './components/FloatingTimer'
 import { SyncNotification } from './components/SyncNotification'
@@ -73,7 +75,9 @@ function AppContent(): React.JSX.Element {
     location.pathname === '/review' ||
     location.pathname === '/archived' ||
     location.pathname === '/settings' ||
-    location.pathname === '/today'
+    location.pathname === '/today' ||
+    location.pathname === '/horizons' ||
+    location.pathname === '/calendar'
 
   // Listener para eventos de sincronização do main process
   useEffect(() => {
@@ -143,6 +147,8 @@ function AppContent(): React.JSX.Element {
           <Route path="/contexts" element={<ContextsPage />} />
           <Route path="/review" element={<WeeklyReviewPage />} />
           <Route path="/today" element={<TodayPage />} />
+          <Route path="/horizons" element={<HorizonsPage />} />
+          <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/float" element={<FloatTimerPage />} />
           <Route path="/quick-capture" element={<QuickCapturePage />} />
         </Routes>

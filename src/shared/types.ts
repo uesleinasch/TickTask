@@ -3,6 +3,7 @@
 export type TaskStatus = 'inbox' | 'aguardando' | 'proximas' | 'executando' | 'finalizada' | 'someday'
 export type TaskCategory = 'urgente' | 'prioridade' | 'normal' | 'time_leak'
 export type ProjectStatus = 'active' | 'someday' | 'done' | 'archived'
+export type EnergyLevel = 'alto' | 'medio' | 'baixo'
 
 // ===================== TAG =====================
 
@@ -32,6 +33,8 @@ export interface Project {
   outcome?: string
   status: ProjectStatus
   due_date?: string
+  area_id?: number
+  area_name?: string
   created_at: string
   updated_at: string
   task_count?: number
@@ -45,6 +48,7 @@ export interface CreateProjectInput {
   outcome?: string
   status?: ProjectStatus
   due_date?: string
+  area_id?: number
 }
 
 export interface UpdateProjectInput {
@@ -53,6 +57,59 @@ export interface UpdateProjectInput {
   outcome?: string
   status?: ProjectStatus
   due_date?: string
+  area_id?: number | null
+}
+
+// ===================== AREA (GTD Horizonte 2) =====================
+
+export interface Area {
+  id: number
+  name: string
+  description?: string
+  icon: string
+  created_at: string
+  project_count?: number
+}
+
+export interface CreateAreaInput {
+  name: string
+  description?: string
+  icon?: string
+}
+
+export interface UpdateAreaInput {
+  name?: string
+  description?: string
+  icon?: string
+}
+
+// ===================== GOAL (GTD Horizontes 3-5) =====================
+
+export type GoalHorizon = 3 | 4 | 5
+
+export interface Goal {
+  id: number
+  name: string
+  description?: string
+  horizon: GoalHorizon
+  area_id?: number
+  area_name?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateGoalInput {
+  name: string
+  description?: string
+  horizon: GoalHorizon
+  area_id?: number
+}
+
+export interface UpdateGoalInput {
+  name?: string
+  description?: string
+  horizon?: GoalHorizon
+  area_id?: number | null
 }
 
 // ===================== RECURRENCE =====================
@@ -99,6 +156,8 @@ export interface Task {
   subtask_count?: number         // computed
   completed_subtask_count?: number // computed
   is_blocked?: boolean           // computed from dependencies
+  // FASE 4.2: Energy Tracking
+  energy_level?: EnergyLevel
 }
 
 export interface CreateTaskInput {
@@ -116,6 +175,8 @@ export interface CreateTaskInput {
   recurrence_rule?: string
   parent_task_id?: number
   recurrence_source_id?: number
+  // FASE 4.2
+  energy_level?: EnergyLevel
 }
 
 export interface UpdateTaskInput {
@@ -133,6 +194,8 @@ export interface UpdateTaskInput {
   due_date?: string | null
   recurrence_rule?: string | null
   day_order?: number | null
+  // FASE 4.2
+  energy_level?: EnergyLevel | null
 }
 
 export interface TimeEntry {
@@ -160,6 +223,68 @@ export interface ReviewHealthIndicators {
   staleWaitingTasks: number
   staleNextTasks: number
   somedayCount: number
+}
+
+// ===================== TIME BLOCK (GTD Time Blocking) =====================
+
+export interface TimeBlock {
+  id: number
+  task_id: number
+  task_name?: string
+  task_category?: TaskCategory
+  date: string        // 'YYYY-MM-DD'
+  start_time: string  // 'HH:MM'
+  end_time: string    // 'HH:MM'
+  created_at: string
+}
+
+export interface CreateTimeBlockInput {
+  task_id: number
+  date: string
+  start_time: string
+  end_time: string
+}
+
+export interface UpdateTimeBlockInput {
+  task_id?: number
+  date?: string
+  start_time?: string
+  end_time?: string
+}
+
+// ===================== FASE 4.2: DASHBOARD AVANÇADO =====================
+
+export interface GtdMetrics {
+  inboxCompletionRate: number
+  avgProcessingTimeSeconds: number
+  staleProjects: Array<{ id: number; name: string; daysSinceActivity: number }>
+  staleWaitingTasks: Array<{ id: number; name: string; daysSinceUpdate: number }>
+  taskFlowCounts: Record<string, number>
+}
+
+export interface EnergyStats {
+  energy_level: EnergyLevel
+  totalSeconds: number
+  taskCount: number
+  avgSeconds: number
+}
+
+export const ENERGY_LABELS: Record<EnergyLevel, string> = {
+  alto: 'Alta Energia',
+  medio: 'Energia Média',
+  baixo: 'Baixa Energia'
+}
+
+export const ENERGY_COLORS: Record<EnergyLevel, string> = {
+  alto: '#22c55e',
+  medio: '#f59e0b',
+  baixo: '#94a3b8'
+}
+
+export const ENERGY_ICONS: Record<EnergyLevel, string> = {
+  alto: '⚡',
+  medio: '🔋',
+  baixo: '😴'
 }
 
 // ===================== LABELS & COLORS =====================

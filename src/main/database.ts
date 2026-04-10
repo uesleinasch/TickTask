@@ -13,7 +13,19 @@ import type {
   ProjectStatus,
   WeeklyReview,
   ReviewHealthIndicators,
-  TaskDependency
+  TaskDependency,
+  Area,
+  CreateAreaInput,
+  UpdateAreaInput,
+  Goal,
+  CreateGoalInput,
+  UpdateGoalInput,
+  TimeBlock,
+  CreateTimeBlockInput,
+  UpdateTimeBlockInput,
+  GtdMetrics,
+  EnergyStats,
+  EnergyLevel
 } from '@shared/types'
 import { DEFAULT_CONTEXTS } from '@shared/types'
 
@@ -173,6 +185,51 @@ export function initDatabase(): void {
       PRIMARY KEY (task_id, depends_on_task_id),
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
       FOREIGN KEY (depends_on_task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    )
+  `)
+
+  // ===================== FASE 4: Horizontes GTD =====================
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS areas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      icon TEXT DEFAULT '🎯',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS goals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      horizon INTEGER NOT NULL CHECK(horizon IN (3, 4, 5)),
+      area_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (area_id) REFERENCES areas(id) ON DELETE SET NULL
+    )
+  `)
+
+  // Migração: adicionar area_id à tabela projects
+  try { db.exec('ALTER TABLE projects ADD COLUMN area_id INTEGER REFERENCES areas(id) ON DELETE SET NULL') } catch { /* já existe */ }
+
+  // ===================== FASE 4.2: Energy Tracking =====================
+  try { db.exec("ALTER TABLE tasks ADD COLUMN energy_level TEXT CHECK(energy_level IN ('alto', 'medio', 'baixo'))") } catch { /* já existe */ }
+
+  // ===================== FASE 4.3: Blocos de Tempo =====================
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS time_blocks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL,
+      date DATE NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
     )
   `)
 }
@@ -415,33 +472,45 @@ export function getTaskContexts(taskId: number): ContextRow[] {
 
 export function createProject(data: CreateProjectInput): Project {
   const stmt = db.prepare(`
-    INSERT INTO projects (name, description, outcome, status, due_date)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO projects (name, description, outcome, status, due_date, area_id)
+    VALUES (?, ?, ?, ?, ?, ?)
   `)
   const result = stmt.run(
     data.name,
     data.description || null,
     data.outcome || null,
     data.status || 'active',
-    data.due_date || null
+    data.due_date || null,
+    data.area_id || null
   )
   return getProject(result.lastInsertRowid as number)!
 }
 
 export function getProject(id: number): Project | undefined {
-  const stmt = db.prepare('SELECT * FROM projects WHERE id = ?')
+  const stmt = db.prepare(`
+    SELECT p.*, a.name as area_name FROM projects p
+    LEFT JOIN areas a ON a.id = p.area_id
+    WHERE p.id = ?
+  `)
   const row = stmt.get(id) as Project | undefined
   if (!row) return undefined
   return enrichProject(row)
 }
 
 export function listProjects(status?: ProjectStatus): Project[] {
-  let stmt
   if (status) {
-    stmt = db.prepare('SELECT * FROM projects WHERE status = ? ORDER BY updated_at DESC')
+    const stmt = db.prepare(`
+      SELECT p.*, a.name as area_name FROM projects p
+      LEFT JOIN areas a ON a.id = p.area_id
+      WHERE p.status = ? ORDER BY p.updated_at DESC
+    `)
     return (stmt.all(status) as Project[]).map(enrichProject)
   }
-  stmt = db.prepare('SELECT * FROM projects ORDER BY updated_at DESC')
+  const stmt = db.prepare(`
+    SELECT p.*, a.name as area_name FROM projects p
+    LEFT JOIN areas a ON a.id = p.area_id
+    ORDER BY p.updated_at DESC
+  `)
   return (stmt.all() as Project[]).map(enrichProject)
 }
 
@@ -490,6 +559,10 @@ export function updateProject(id: number, data: UpdateProjectInput): void {
     updates.push('due_date = ?')
     values.push(data.due_date)
   }
+  if (data.area_id !== undefined) {
+    updates.push('area_id = ?')
+    values.push(data.area_id)
+  }
 
   if (updates.length > 0) {
     updates.push('updated_at = CURRENT_TIMESTAMP')
@@ -523,8 +596,9 @@ export function createTask(data: CreateTaskInput): Task {
   const transaction = db.transaction(() => {
     const stmt = db.prepare(`
       INSERT INTO tasks (name, description, time_limit_seconds, category, project_id,
-                         scheduled_date, due_date, recurrence_rule, parent_task_id, recurrence_source_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         scheduled_date, due_date, recurrence_rule, parent_task_id, recurrence_source_id,
+                         energy_level)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const result = stmt.run(
       data.name,
@@ -536,7 +610,8 @@ export function createTask(data: CreateTaskInput): Task {
       data.due_date || null,
       data.recurrence_rule || null,
       data.parent_task_id || null,
-      data.recurrence_source_id || null
+      data.recurrence_source_id || null,
+      data.energy_level || null
     )
     const taskId = result.lastInsertRowid as number
 
@@ -664,6 +739,10 @@ export function updateTask(id: number, data: UpdateTaskInput): void {
     if (data.day_order !== undefined) {
       updates.push('day_order = ?')
       values.push(data.day_order)
+    }
+    if (data.energy_level !== undefined) {
+      updates.push('energy_level = ?')
+      values.push(data.energy_level)
     }
 
     if (updates.length > 0) {
@@ -1167,6 +1246,112 @@ export function getGeneralStats(): GeneralStats {
   }
 }
 
+// ===================== FASE 4.2: MÉTRICAS GTD AVANÇADAS =====================
+
+export function getGtdMetrics(): GtdMetrics {
+  // Taxa de conclusão do inbox (tarefas criadas esta semana que saíram do inbox)
+  const inboxRow = db.prepare(`
+    SELECT
+      COUNT(*) as total,
+      SUM(CASE WHEN status != 'inbox' THEN 1 ELSE 0 END) as processed
+    FROM tasks
+    WHERE created_at >= datetime('now', '-7 days')
+    AND is_archived = 0
+    AND parent_task_id IS NULL
+  `).get() as { total: number; processed: number }
+
+  const inboxCompletionRate = inboxRow.total > 0
+    ? Math.round((inboxRow.processed / inboxRow.total) * 100)
+    : 100
+
+  // Tempo médio de processamento (criação até finalização)
+  const avgRow = db.prepare(`
+    SELECT AVG((julianday(updated_at) - julianday(created_at)) * 86400) as avgSeconds
+    FROM tasks
+    WHERE status = 'finalizada'
+    AND is_archived = 0
+    AND updated_at >= datetime('now', '-30 days')
+  `).get() as { avgSeconds: number | null }
+
+  const avgProcessingTimeSeconds = Math.round(avgRow.avgSeconds || 0)
+
+  // Projetos sem atividade há mais de 7 dias
+  const staleProjectRows = db.prepare(`
+    SELECT p.id, p.name,
+      CAST(julianday('now') - julianday(
+        COALESCE(MAX(t.updated_at), p.created_at)
+      ) AS INTEGER) as daysSinceActivity
+    FROM projects p
+    LEFT JOIN tasks t ON t.project_id = p.id AND t.is_archived = 0
+    WHERE p.status = 'active'
+    GROUP BY p.id
+    HAVING daysSinceActivity > 7
+    ORDER BY daysSinceActivity DESC
+    LIMIT 5
+  `).all() as Array<{ id: number; name: string; daysSinceActivity: number }>
+
+  // Tarefas em aguardando há mais de 14 dias
+  const staleWaitingRows = db.prepare(`
+    SELECT id, name,
+      CAST(julianday('now') - julianday(updated_at) AS INTEGER) as daysSinceUpdate
+    FROM tasks
+    WHERE status = 'aguardando'
+    AND is_archived = 0
+    AND updated_at <= datetime('now', '-14 days')
+    ORDER BY updated_at ASC
+    LIMIT 5
+  `).all() as Array<{ id: number; name: string; daysSinceUpdate: number }>
+
+  // Fluxo de tarefas por status
+  const flowRows = db.prepare(`
+    SELECT status, COUNT(*) as count
+    FROM tasks
+    WHERE is_archived = 0 AND parent_task_id IS NULL
+    GROUP BY status
+  `).all() as Array<{ status: string; count: number }>
+
+  const taskFlowCounts: Record<string, number> = {}
+  for (const row of flowRows) {
+    taskFlowCounts[row.status] = row.count
+  }
+
+  return {
+    inboxCompletionRate,
+    avgProcessingTimeSeconds,
+    staleProjects: staleProjectRows,
+    staleWaitingTasks: staleWaitingRows,
+    taskFlowCounts
+  }
+}
+
+export function getEnergyStats(): EnergyStats[] {
+  const rows = db.prepare(`
+    SELECT
+      energy_level,
+      SUM(total_seconds) as totalSeconds,
+      COUNT(*) as taskCount,
+      AVG(total_seconds) as avgSeconds
+    FROM tasks
+    WHERE energy_level IS NOT NULL
+    AND is_archived = 0
+    AND total_seconds > 0
+    GROUP BY energy_level
+    ORDER BY totalSeconds DESC
+  `).all() as Array<{
+    energy_level: EnergyLevel
+    totalSeconds: number
+    taskCount: number
+    avgSeconds: number
+  }>
+
+  return rows.map((r) => ({
+    energy_level: r.energy_level,
+    totalSeconds: r.totalSeconds || 0,
+    taskCount: r.taskCount || 0,
+    avgSeconds: Math.round(r.avgSeconds || 0)
+  }))
+}
+
 // ===================== FASE 2: SUBTAREFAS =====================
 
 export function getSubtasks(parentId: number): Task[] {
@@ -1343,4 +1528,192 @@ export function closeDatabase(): void {
   if (db) {
     db.close()
   }
+}
+
+// ===================== FASE 4: ÁREAS DE FOCO =====================
+
+export function createArea(data: CreateAreaInput): Area {
+  const stmt = db.prepare(
+    'INSERT INTO areas (name, description, icon) VALUES (?, ?, ?)'
+  )
+  const result = stmt.run(data.name.trim(), data.description || null, data.icon || '🎯')
+  return getArea(result.lastInsertRowid as number)!
+}
+
+export function getArea(id: number): Area | undefined {
+  const stmt = db.prepare(`
+    SELECT a.*, COUNT(p.id) as project_count
+    FROM areas a
+    LEFT JOIN projects p ON p.area_id = a.id
+    WHERE a.id = ?
+    GROUP BY a.id
+  `)
+  return stmt.get(id) as Area | undefined
+}
+
+export function listAreas(): Area[] {
+  const stmt = db.prepare(`
+    SELECT a.*, COUNT(p.id) as project_count
+    FROM areas a
+    LEFT JOIN projects p ON p.area_id = a.id
+    GROUP BY a.id
+    ORDER BY a.name ASC
+  `)
+  return stmt.all() as Area[]
+}
+
+export function updateArea(id: number, data: UpdateAreaInput): void {
+  const updates: string[] = []
+  const values: unknown[] = []
+
+  if (data.name !== undefined) { updates.push('name = ?'); values.push(data.name.trim()) }
+  if (data.description !== undefined) { updates.push('description = ?'); values.push(data.description || null) }
+  if (data.icon !== undefined) { updates.push('icon = ?'); values.push(data.icon) }
+
+  if (updates.length === 0) return
+  values.push(id)
+  db.prepare(`UPDATE areas SET ${updates.join(', ')} WHERE id = ?`).run(...values)
+}
+
+export function deleteArea(id: number): void {
+  db.prepare('DELETE FROM areas WHERE id = ?').run(id)
+}
+
+// ===================== FASE 4: OBJETIVOS (GOALS) =====================
+
+export function createGoal(data: CreateGoalInput): Goal {
+  const stmt = db.prepare(
+    'INSERT INTO goals (name, description, horizon, area_id) VALUES (?, ?, ?, ?)'
+  )
+  const result = stmt.run(
+    data.name.trim(),
+    data.description || null,
+    data.horizon,
+    data.area_id || null
+  )
+  return getGoal(result.lastInsertRowid as number)!
+}
+
+export function getGoal(id: number): Goal | undefined {
+  const stmt = db.prepare(`
+    SELECT g.*, a.name as area_name
+    FROM goals g
+    LEFT JOIN areas a ON a.id = g.area_id
+    WHERE g.id = ?
+  `)
+  return stmt.get(id) as Goal | undefined
+}
+
+export function listGoals(areaId?: number): Goal[] {
+  if (areaId !== undefined) {
+    const stmt = db.prepare(`
+      SELECT g.*, a.name as area_name
+      FROM goals g
+      LEFT JOIN areas a ON a.id = g.area_id
+      WHERE g.area_id = ?
+      ORDER BY g.horizon ASC, g.name ASC
+    `)
+    return stmt.all(areaId) as Goal[]
+  }
+  const stmt = db.prepare(`
+    SELECT g.*, a.name as area_name
+    FROM goals g
+    LEFT JOIN areas a ON a.id = g.area_id
+    ORDER BY g.horizon ASC, g.name ASC
+  `)
+  return stmt.all() as Goal[]
+}
+
+export function updateGoal(id: number, data: UpdateGoalInput): void {
+  const updates: string[] = ['updated_at = CURRENT_TIMESTAMP']
+  const values: unknown[] = []
+
+  if (data.name !== undefined) { updates.push('name = ?'); values.push(data.name.trim()) }
+  if (data.description !== undefined) { updates.push('description = ?'); values.push(data.description || null) }
+  if (data.horizon !== undefined) { updates.push('horizon = ?'); values.push(data.horizon) }
+  if (data.area_id !== undefined) { updates.push('area_id = ?'); values.push(data.area_id) }
+
+  values.push(id)
+  db.prepare(`UPDATE goals SET ${updates.join(', ')} WHERE id = ?`).run(...values)
+}
+
+export function deleteGoal(id: number): void {
+  db.prepare('DELETE FROM goals WHERE id = ?').run(id)
+}
+
+// ===================== FASE 4.3: BLOCOS DE TEMPO =====================
+
+export function createTimeBlock(data: CreateTimeBlockInput): TimeBlock {
+  const stmt = db.prepare(
+    'INSERT INTO time_blocks (task_id, date, start_time, end_time) VALUES (?, ?, ?, ?)'
+  )
+  const result = stmt.run(data.task_id, data.date, data.start_time, data.end_time)
+  return getTimeBlock(result.lastInsertRowid as number)!
+}
+
+export function getTimeBlock(id: number): TimeBlock | undefined {
+  const stmt = db.prepare(`
+    SELECT tb.*, t.name as task_name, t.category as task_category
+    FROM time_blocks tb
+    JOIN tasks t ON t.id = tb.task_id
+    WHERE tb.id = ?
+  `)
+  return stmt.get(id) as TimeBlock | undefined
+}
+
+export function getTimeBlocksForDate(date: string): TimeBlock[] {
+  const stmt = db.prepare(`
+    SELECT tb.*, t.name as task_name, t.category as task_category
+    FROM time_blocks tb
+    JOIN tasks t ON t.id = tb.task_id
+    WHERE tb.date = ?
+    ORDER BY tb.start_time ASC
+  `)
+  return stmt.all(date) as TimeBlock[]
+}
+
+export function getTimeBlocksForWeek(startDate: string): TimeBlock[] {
+  const start = new Date(startDate + 'T00:00:00')
+  const end = new Date(start)
+  end.setDate(end.getDate() + 6)
+  const endDate = end.toISOString().split('T')[0]
+
+  const stmt = db.prepare(`
+    SELECT tb.*, t.name as task_name, t.category as task_category
+    FROM time_blocks tb
+    JOIN tasks t ON t.id = tb.task_id
+    WHERE tb.date >= ? AND tb.date <= ?
+    ORDER BY tb.date ASC, tb.start_time ASC
+  `)
+  return stmt.all(startDate, endDate) as TimeBlock[]
+}
+
+export function getTimeBlocksForMonth(yearMonth: string): TimeBlock[] {
+  // yearMonth: 'YYYY-MM'
+  const stmt = db.prepare(`
+    SELECT tb.*, t.name as task_name, t.category as task_category
+    FROM time_blocks tb
+    JOIN tasks t ON t.id = tb.task_id
+    WHERE strftime('%Y-%m', tb.date) = ?
+    ORDER BY tb.date ASC, tb.start_time ASC
+  `)
+  return stmt.all(yearMonth) as TimeBlock[]
+}
+
+export function updateTimeBlock(id: number, data: UpdateTimeBlockInput): void {
+  const updates: string[] = []
+  const values: unknown[] = []
+
+  if (data.task_id !== undefined) { updates.push('task_id = ?'); values.push(data.task_id) }
+  if (data.date !== undefined) { updates.push('date = ?'); values.push(data.date) }
+  if (data.start_time !== undefined) { updates.push('start_time = ?'); values.push(data.start_time) }
+  if (data.end_time !== undefined) { updates.push('end_time = ?'); values.push(data.end_time) }
+
+  if (updates.length === 0) return
+  values.push(id)
+  db.prepare(`UPDATE time_blocks SET ${updates.join(', ')} WHERE id = ?`).run(...values)
+}
+
+export function deleteTimeBlock(id: number): void {
+  db.prepare('DELETE FROM time_blocks WHERE id = ?').run(id)
 }
