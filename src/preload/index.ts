@@ -39,6 +39,9 @@ const api = {
   getTask: (id: number): Promise<Task | undefined> => ipcRenderer.invoke('task:get', id),
   updateTask: (id: number, data: UpdateTaskInput): Promise<void> =>
     ipcRenderer.invoke('task:update', id, data),
+  updateTaskNotes: (id: number, notes: string | null): Promise<void> =>
+    ipcRenderer.invoke('task:updateNotes', id, notes),
+  syncTaskNotes: (id: number): Promise<void> => ipcRenderer.invoke('notion:syncTaskNotes', id),
   deleteTask: (id: number): Promise<void> => ipcRenderer.invoke('task:delete', id),
   bulkDeleteTasks: (ids: number[]): Promise<void> => ipcRenderer.invoke('task:bulkDelete', ids),
   bulkUpdateStatus: (ids: number[], status: TaskStatus): Promise<void> =>
