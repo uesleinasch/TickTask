@@ -23,13 +23,17 @@ const DEBOUNCE_MS = 800
 
 export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditorProps>(
   function TaskNotesEditor({ taskId, initialData, onSaved }, ref) {
-    const holderRef = useRef<HTMLDivElement>(null)
+    // Wrapper estável controlado pelo React. O Editor.js é montado em um filho
+    // criado a cada execução do efeito (ver useEffect) — isso evita que o destroy
+    // assíncrono de uma instância (StrictMode double-mount) apague o DOM de outra.
+    const wrapperRef = useRef<HTMLDivElement>(null)
     const editorRef = useRef<EditorJS | null>(null)
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const persist = useCallback(async (): Promise<void> => {
       const editor = editorRef.current
       if (!editor) return
+      await editor.isReady
       const data = await editor.save()
       await window.api.updateTaskNotes(taskId, JSON.stringify(data))
       onSaved?.()
@@ -47,9 +51,15 @@ export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditor
     )
 
     useEffect(() => {
-      if (!holderRef.current) return
+      const wrapper = wrapperRef.current
+      if (!wrapper) return
+
+      // Holder dedicado a esta execução do efeito.
+      const holder = document.createElement('div')
+      wrapper.appendChild(holder)
+
       const editor = new EditorJS({
-        holder: holderRef.current,
+        holder,
         autofocus: false,
         placeholder: 'Escreva suas anotações...',
         data: initialData,
@@ -74,18 +84,21 @@ export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditor
 
       return () => {
         if (debounceRef.current) clearTimeout(debounceRef.current)
-        // destroy só após o editor estar pronto (evita erro no StrictMode double-mount)
         editor.isReady
           .then(() => {
             editor.destroy()
-            editorRef.current = null
+            // só remove o holder desta instância; nunca o de outra
+            holder.remove()
+            if (editorRef.current === editor) editorRef.current = null
           })
-          .catch(() => {})
+          .catch(() => {
+            holder.remove()
+          })
       }
-      // initialData só importa no mount; trocar de task remonta a página inteira
+      // initialData é capturado no mount; trocar de task remonta com novo holder
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [taskId])
 
-    return <div ref={holderRef} className="prose prose-sm max-w-none px-1" />
+    return <div ref={wrapperRef} className="px-1 min-h-[200px] text-slate-800" />
   }
 )
