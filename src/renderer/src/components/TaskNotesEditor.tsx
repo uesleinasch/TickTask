@@ -17,18 +17,23 @@ interface TaskNotesEditorProps {
   taskId: number
   initialData?: OutputData
   onSaved?: () => void
+  onChange?: () => void
 }
 
-const DEBOUNCE_MS = 800
+// Salvamento local em tempo real (debounce curto).
+const DEBOUNCE_MS = 400
 
 export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditorProps>(
-  function TaskNotesEditor({ taskId, initialData, onSaved }, ref) {
+  function TaskNotesEditor({ taskId, initialData, onSaved, onChange }, ref) {
     // Wrapper estável controlado pelo React. O Editor.js é montado em um filho
     // criado a cada execução do efeito (ver useEffect) — isso evita que o destroy
     // assíncrono de uma instância (StrictMode double-mount) apague o DOM de outra.
     const wrapperRef = useRef<HTMLDivElement>(null)
     const editorRef = useRef<EditorJS | null>(null)
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    // mantém o onChange mais recente sem recriar o editor
+    const onChangeRef = useRef(onChange)
+    onChangeRef.current = onChange
 
     const persist = useCallback(async (): Promise<void> => {
       const editor = editorRef.current
@@ -64,7 +69,11 @@ export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditor
         placeholder: 'Escreva suas anotações...',
         data: initialData,
         tools: {
-          header: { class: Header as never, inlineToolbar: true },
+          header: {
+            class: Header as never,
+            inlineToolbar: true,
+            config: { levels: [1, 2, 3], defaultLevel: 2 }
+          },
           list: { class: List as never, inlineToolbar: true },
           checklist: { class: Checklist as never, inlineToolbar: true },
           quote: { class: Quote as never, inlineToolbar: true },
@@ -74,6 +83,7 @@ export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditor
           inlineCode: InlineCode as never
         },
         onChange: () => {
+          onChangeRef.current?.()
           if (debounceRef.current) clearTimeout(debounceRef.current)
           debounceRef.current = setTimeout(() => {
             persist().catch((e) => console.error('Falha ao salvar notas:', e))
@@ -99,6 +109,6 @@ export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditor
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [taskId])
 
-    return <div ref={wrapperRef} className="px-1 min-h-[200px] text-slate-800" />
+    return <div ref={wrapperRef} className="notes-editor-content px-1 min-h-[200px] text-slate-800" />
   }
 )
