@@ -109,6 +109,6 @@ export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditor
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [taskId])
 
-    return <div ref={wrapperRef} className="notes-editor-content px-1 min-h-[200px] text-slate-800" />
+    return <div ref={wrapperRef} className="notes-editor-content p-5 min-h-[200px] text-slate-800" />
   }
 )

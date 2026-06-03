@@ -806,7 +806,7 @@ export function SingleTaskPage(): React.JSX.Element {
               {syncingNotes ? 'Sincronizando...' : 'Salvar e sincronizar'}
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto py-4" style={{ scrollbarWidth: 'thin' }}>
+          <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
             <TaskNotesEditor
               ref={notesEditorRef}
               taskId={task.id}
