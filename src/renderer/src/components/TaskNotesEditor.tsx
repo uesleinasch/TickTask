@@ -2,7 +2,6 @@ import { useEffect, useImperativeHandle, useRef, forwardRef, useCallback } from 
 import EditorJS, { type OutputData } from '@editorjs/editorjs'
 import Header from '@editorjs/header'
 import List from '@editorjs/list'
-import Checklist from '@editorjs/checklist'
 import Quote from '@editorjs/quote'
 import Code from '@editorjs/code'
 import Delimiter from '@editorjs/delimiter'
@@ -75,7 +74,6 @@ export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditor
             config: { levels: [1, 2, 3], defaultLevel: 2 }
           },
           list: { class: List as never, inlineToolbar: true },
-          checklist: { class: Checklist as never, inlineToolbar: true },
           quote: { class: Quote as never, inlineToolbar: true },
           code: Code as never,
           delimiter: Delimiter as never,

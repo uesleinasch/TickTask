@@ -177,16 +177,33 @@ export function editorJsToNotionBlocks(notesJson: string | null | undefined): No
         break
       }
       case 'list': {
-        const ordered = data.style === 'ordered'
-        const itemType = ordered ? 'numbered_list_item' : 'bulleted_list_item'
-        const items = (data.items ?? []) as Array<string | { content?: string }>
+        // @editorjs/list v2: style ordered|unordered|checklist; itens são objetos
+        // { content, meta: { checked } } (ou strings no formato antigo).
+        const style = data.style
+        const itemType =
+          style === 'ordered'
+            ? 'numbered_list_item'
+            : style === 'checklist'
+              ? 'to_do'
+              : 'bulleted_list_item'
+        const items = (data.items ?? []) as Array<
+          string | { content?: string; text?: string; meta?: { checked?: boolean }; checked?: boolean }
+        >
         for (const item of items) {
-          const text = typeof item === 'string' ? item : String(item?.content ?? '')
-          blocks.push(textBlock(itemType, text))
+          const text =
+            typeof item === 'string' ? item : String(item?.content ?? item?.text ?? '')
+          if (itemType === 'to_do') {
+            const checked =
+              typeof item === 'object' ? Boolean(item?.meta?.checked ?? item?.checked) : false
+            blocks.push(textBlock('to_do', text, { checked }))
+          } else {
+            blocks.push(textBlock(itemType, text))
+          }
         }
         break
       }
       case 'checklist': {
+        // Formato do tool standalone antigo (compatibilidade).
         const items = (data.items ?? []) as Array<{ text?: string; checked?: boolean }>
         for (const item of items) {
           blocks.push(
