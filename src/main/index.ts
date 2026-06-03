@@ -9,6 +9,7 @@ import {
   listTasks,
   getTask,
   updateTask,
+  updateTaskNotes,
   deleteTask,
   deleteTasks,
   archiveTask,
@@ -99,6 +100,7 @@ import {
   clearNotionConfig,
   testNotionConnection,
   syncTaskToNotion,
+  syncTaskNotesToNotion,
   syncAllTasks,
   findOrCreateDatabase,
   deleteTaskFromNotion,
@@ -372,6 +374,9 @@ function setupIpcHandlers(): void {
   ipcMain.handle('task:update', (_, id: number, data: UpdateTaskInput) => {
     updateTask(id, data)
     autoSyncToNotion(id)
+  })
+  ipcMain.handle('task:updateNotes', (_, id: number, notes: string | null) => {
+    updateTaskNotes(id, notes)
   })
   ipcMain.handle('task:delete', (_, id: number) => {
     const config = getNotionConfig()
@@ -648,6 +653,19 @@ function setupIpcHandlers(): void {
     const task = getTask(taskId)
     if (!task) throw new Error('Tarefa não encontrada')
     return syncTaskToNotion(task)
+  })
+  ipcMain.handle('notion:syncTaskNotes', async (_, taskId: number) => {
+    const task = getTask(taskId)
+    if (!task) throw new Error('Tarefa não encontrada')
+    mainWindow?.webContents.send('notion:syncStart', task.name)
+    try {
+      await syncTaskNotesToNotion(task)
+      mainWindow?.webContents.send('notion:syncSuccess', task.name)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+      mainWindow?.webContents.send('notion:syncError', errorMessage)
+      throw error
+    }
   })
   ipcMain.handle('notion:syncAllTasks', async () => {
     const tasks = listTasks(false)

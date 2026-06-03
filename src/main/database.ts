@@ -219,6 +219,9 @@ export function initDatabase(): void {
   // ===================== FASE 4.2: Energy Tracking =====================
   try { db.exec("ALTER TABLE tasks ADD COLUMN energy_level TEXT CHECK(energy_level IN ('alto', 'medio', 'baixo'))") } catch { /* já existe */ }
 
+  // ===================== FASE 5: Notas ricas (Editor.js) =====================
+  try { db.exec('ALTER TABLE tasks ADD COLUMN notes TEXT') } catch { /* já existe */ }
+
   // ===================== FASE 4.3: Blocos de Tempo =====================
 
   db.exec(`
@@ -776,6 +779,11 @@ export function updateTask(id: number, data: UpdateTaskInput): void {
   })
 
   transaction()
+}
+
+export function updateTaskNotes(id: number, notes: string | null): void {
+  const stmt = db.prepare('UPDATE tasks SET notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+  stmt.run(notes, id)
 }
 
 export function deleteTask(id: number): void {
