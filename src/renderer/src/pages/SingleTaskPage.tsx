@@ -121,6 +121,8 @@ export function SingleTaskPage(): React.JSX.Element {
   const [notesOpen, setNotesOpen] = useState(false)
   const [syncingNotes, setSyncingNotes] = useState(false)
   const notesEditorRef = useRef<TaskNotesEditorHandle>(null)
+  const notesDirtyRef = useRef(false)
+  const notesSyncingRef = useRef(false)
 
   const initialNotes: OutputData | undefined = (() => {
     if (!task?.notes) return undefined
@@ -259,19 +261,49 @@ export function SingleTaskPage(): React.JSX.Element {
     toast.success(`Tempo ajustado para ${formatTime(seconds)}`)
   }, [taskId, adjustTime, refreshTask])
 
+  const handleNotesChange = useCallback((): void => {
+    notesDirtyRef.current = true
+  }, [])
+
   const handleSaveAndSync = useCallback(async (): Promise<void> => {
+    if (notesSyncingRef.current) return
+    notesSyncingRef.current = true
     setSyncingNotes(true)
     try {
       await notesEditorRef.current?.flushSave()
       await window.api.syncTaskNotes(taskId)
+      notesDirtyRef.current = false
       toast.success('Notas sincronizadas com o Notion')
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Erro ao sincronizar'
       toast.error(msg)
     } finally {
+      notesSyncingRef.current = false
       setSyncingNotes(false)
     }
   }, [taskId])
+
+  // Auto-sync com o Notion a cada 1 minuto enquanto o painel está aberto
+  // (só quando há alterações pendentes e o Notion está configurado).
+  useEffect(() => {
+    if (!notesOpen) return
+    const interval = setInterval(async () => {
+      if (!notesDirtyRef.current || notesSyncingRef.current) return
+      const config = await window.api.notionGetConfig()
+      if (!config?.apiKey || !config?.databaseId) return
+      notesSyncingRef.current = true
+      try {
+        await notesEditorRef.current?.flushSave()
+        await window.api.syncTaskNotes(taskId)
+        notesDirtyRef.current = false
+      } catch (e) {
+        console.error('Auto-sync de notas falhou:', e)
+      } finally {
+        notesSyncingRef.current = false
+      }
+    }, 60_000)
+    return () => clearInterval(interval)
+  }, [notesOpen, taskId])
 
   const handleDueDateChange = useCallback(async (value: string): Promise<void> => {
     setDueDate(value)
@@ -760,7 +792,7 @@ export function SingleTaskPage(): React.JSX.Element {
 
       {/* ==================== RIGHT — EDITOR DE NOTAS ==================== */}
       {notesOpen && (
-        <aside className="w-[480px] shrink-0 flex flex-col bg-white border-l border-slate-200">
+        <aside className="w-[550px] shrink-0 flex flex-col bg-white border-l border-slate-200">
           <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
               Notas
@@ -775,7 +807,12 @@ export function SingleTaskPage(): React.JSX.Element {
             </button>
           </div>
           <div className="flex-1 overflow-y-auto py-4" style={{ scrollbarWidth: 'thin' }}>
-            <TaskNotesEditor ref={notesEditorRef} taskId={task.id} initialData={initialNotes} />
+            <TaskNotesEditor
+              ref={notesEditorRef}
+              taskId={task.id}
+              initialData={initialNotes}
+              onChange={handleNotesChange}
+            />
           </div>
         </aside>
       )}
