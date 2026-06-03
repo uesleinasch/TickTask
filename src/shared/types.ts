@@ -158,6 +158,8 @@ export interface Task {
   is_blocked?: boolean           // computed from dependencies
   // FASE 4.2: Energy Tracking
   energy_level?: EnergyLevel
+  // FASE 5: Notas ricas (JSON serializado do Editor.js)
+  notes?: string
 }
 
 export interface CreateTaskInput {
