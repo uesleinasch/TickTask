@@ -3,6 +3,7 @@ import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import type { Task, Tag } from '@shared/types'
+import { editorJsToNotionBlocks } from './notionBlocks'
 
 // Caminho do arquivo de configuração
 const configPath = path.join(app.getPath('userData'), 'notion-config.json')
@@ -522,6 +523,50 @@ export async function syncTaskToNotion(task: Task): Promise<string> {
       }
     }
     throw error
+  }
+}
+
+/**
+ * Reescreve o corpo da página do Notion da task com as notas ricas (Editor.js).
+ * O Notion não tem "replace all children": listamos, deletamos e recriamos.
+ */
+export async function syncTaskNotesToNotion(task: Task): Promise<void> {
+  const client = getClient() // lança se Notion não configurado
+
+  // Garante que a página existe e está com as properties atualizadas.
+  await syncTaskToNotion(task)
+  const pageId = await findTaskInNotion(task.id)
+  if (!pageId) throw new Error('Não foi possível localizar a página da tarefa no Notion')
+
+  // 1. Listar e deletar children atuais (paginando).
+  let cursor: string | undefined = undefined
+  const existingIds: string[] = []
+  do {
+    const res = await client.blocks.children.list({
+      block_id: pageId,
+      start_cursor: cursor,
+      page_size: 100
+    })
+    for (const block of res.results) existingIds.push(block.id)
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
+  } while (cursor)
+
+  for (const blockId of existingIds) {
+    try {
+      await client.blocks.delete({ block_id: blockId })
+    } catch (error) {
+      console.error('Erro ao deletar bloco do Notion:', error)
+    }
+  }
+
+  // 2. Converter e adicionar os novos blocos (lotes de 100 — limite da API).
+  const blocks = editorJsToNotionBlocks(task.notes)
+  for (let i = 0; i < blocks.length; i += 100) {
+    const batch = blocks.slice(i, i + 100)
+    await client.blocks.children.append({
+      block_id: pageId,
+      children: batch as Parameters<typeof client.blocks.children.append>[0]['children']
+    })
   }
 }
 

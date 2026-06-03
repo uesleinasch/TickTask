@@ -194,3 +194,28 @@ body.float-window #root {
   background: transparent !important;
   min-height: auto;
 }
+
+/* Editor.js (notas da task) — restaura estilos achatados pelo Preflight do Tailwind.
+   O @editorjs/header renderiza <h1/h2/h3> reais mas não define font-size próprio. */
+.notes-editor-content h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 0.3em 0;
+}
+.notes-editor-content h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 0.3em 0;
+}
+.notes-editor-content h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 0.3em 0;
+}
+.notes-editor-content a {
+  color: #2563eb;
+  text-decoration: underline;
+}

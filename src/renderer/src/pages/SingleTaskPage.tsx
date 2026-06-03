@@ -42,9 +42,13 @@ import {
   Play,
   Pause,
   RotateCcw,
-  Activity
+  Activity,
+  NotebookPen,
+  RefreshCw
 } from 'lucide-react'
 import { toast } from '@renderer/components/ui/sonner'
+import { TaskNotesEditor, type TaskNotesEditorHandle } from '@renderer/components/TaskNotesEditor'
+import type { OutputData } from '@editorjs/editorjs'
 
 // ===================== CATEGORY ACCENT STYLES =====================
 
@@ -112,6 +116,22 @@ export function SingleTaskPage(): React.JSX.Element {
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [hasReachedLimit, setHasReachedLimit] = useState(false)
   const notifiedRef = useRef(false)
+
+  // Painel de notas (Editor.js)
+  const [notesOpen, setNotesOpen] = useState(false)
+  const [syncingNotes, setSyncingNotes] = useState(false)
+  const notesEditorRef = useRef<TaskNotesEditorHandle>(null)
+  const notesDirtyRef = useRef(false)
+  const notesSyncingRef = useRef(false)
+
+  const initialNotes: OutputData | undefined = (() => {
+    if (!task?.notes) return undefined
+    try {
+      return JSON.parse(task.notes) as OutputData
+    } catch {
+      return undefined
+    }
+  })()
 
   // Form state
   const [name, setName] = useState('')
@@ -240,6 +260,50 @@ export function SingleTaskPage(): React.JSX.Element {
     await refreshTask()
     toast.success(`Tempo ajustado para ${formatTime(seconds)}`)
   }, [taskId, adjustTime, refreshTask])
+
+  const handleNotesChange = useCallback((): void => {
+    notesDirtyRef.current = true
+  }, [])
+
+  const handleSaveAndSync = useCallback(async (): Promise<void> => {
+    if (notesSyncingRef.current) return
+    notesSyncingRef.current = true
+    setSyncingNotes(true)
+    try {
+      await notesEditorRef.current?.flushSave()
+      await window.api.syncTaskNotes(taskId)
+      notesDirtyRef.current = false
+      toast.success('Notas sincronizadas com o Notion')
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Erro ao sincronizar'
+      toast.error(msg)
+    } finally {
+      notesSyncingRef.current = false
+      setSyncingNotes(false)
+    }
+  }, [taskId])
+
+  // Auto-sync com o Notion a cada 1 minuto enquanto o painel está aberto
+  // (só quando há alterações pendentes e o Notion está configurado).
+  useEffect(() => {
+    if (!notesOpen) return
+    const interval = setInterval(async () => {
+      if (!notesDirtyRef.current || notesSyncingRef.current) return
+      const config = await window.api.notionGetConfig()
+      if (!config?.apiKey || !config?.databaseId) return
+      notesSyncingRef.current = true
+      try {
+        await notesEditorRef.current?.flushSave()
+        await window.api.syncTaskNotes(taskId)
+        notesDirtyRef.current = false
+      } catch (e) {
+        console.error('Auto-sync de notas falhou:', e)
+      } finally {
+        notesSyncingRef.current = false
+      }
+    }, 60_000)
+    return () => clearInterval(interval)
+  }, [notesOpen, taskId])
 
   const handleDueDateChange = useCallback(async (value: string): Promise<void> => {
     setDueDate(value)
@@ -523,7 +587,22 @@ export function SingleTaskPage(): React.JSX.Element {
       </aside>
 
       {/* ==================== CENTER — TIMER HERO ==================== */}
-      <div className="flex-1 min-w-0 flex flex-col items-center justify-center bg-slate-50 px-8">
+      <div className="flex-1 min-w-0 flex flex-col bg-slate-50">
+        <div className="flex justify-end px-6 pt-4">
+          <button
+            onClick={() => setNotesOpen((v) => !v)}
+            className={cn(
+              'flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium border transition-colors',
+              notesOpen
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700 hover:border-slate-300'
+            )}
+          >
+            <NotebookPen size={14} />
+            Notas
+          </button>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center px-8 min-h-0 overflow-y-auto">
         <div className="flex flex-col items-center w-full max-w-sm">
 
           {/* Blocked warning */}
@@ -708,7 +787,35 @@ export function SingleTaskPage(): React.JSX.Element {
           </div>
 
         </div>
+        </div>
       </div>
+
+      {/* ==================== RIGHT — EDITOR DE NOTAS ==================== */}
+      {notesOpen && (
+        <aside className="w-[550px] shrink-0 flex flex-col bg-white border-l border-slate-200">
+          <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
+              Notas
+            </span>
+            <button
+              onClick={handleSaveAndSync}
+              disabled={syncingNotes}
+              className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-emerald-600 border border-emerald-200 hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <RefreshCw size={13} className={syncingNotes ? 'animate-spin' : ''} />
+              {syncingNotes ? 'Sincronizando...' : 'Salvar e sincronizar'}
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+            <TaskNotesEditor
+              ref={notesEditorRef}
+              taskId={task.id}
+              initialData={initialNotes}
+              onChange={handleNotesChange}
+            />
+          </div>
+        </aside>
+      )}
 
       <DeleteConfirmDialog
         open={deleteDialogOpen}

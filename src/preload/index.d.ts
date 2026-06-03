@@ -88,6 +88,8 @@ interface API {
   listTasks: (archived?: boolean) => Promise<Task[]>
   getTask: (id: number) => Promise<Task | undefined>
   updateTask: (id: number, data: UpdateTaskInput) => Promise<void>
+  updateTaskNotes: (id: number, notes: string | null) => Promise<void>
+  syncTaskNotes: (id: number) => Promise<void>
   deleteTask: (id: number) => Promise<void>
   bulkDeleteTasks: (ids: number[]) => Promise<void>
   bulkUpdateStatus: (ids: number[], status: TaskStatus) => Promise<void>
