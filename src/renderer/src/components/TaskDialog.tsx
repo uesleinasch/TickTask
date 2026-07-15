@@ -42,7 +42,10 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
 
   useEffect(() => {
     if (open) {
-      window.api.listProjects('active').then(setProjects).catch(console.error)
+      window.api
+        .listProjects()
+        .then((all) => setProjects(all.filter((p) => p.status === 'active' || p.status === 'someday')))
+        .catch(console.error)
       window.api.listContexts().then(setContexts).catch(console.error)
     }
   }, [open])
@@ -110,7 +113,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-white rounded-xl shadow-2xl border-slate-200 max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-white rounded-sm shadow-2xl border-slate-200 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-slate-900">Nova Tarefa</DialogTitle>
           <DialogDescription className="text-slate-500">
@@ -228,7 +231,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
                         inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border
                         ${
                           isSelected
-                            ? 'text-white shadow-sm'
+                            ? 'text-white'
                             : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
                         }
                       `}

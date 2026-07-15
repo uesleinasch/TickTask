@@ -108,11 +108,12 @@ interface API {
   showNotification: (title: string, body: string) => void
 
   // Float window controls
-  updateFloatTimer: (data: FloatTimerData) => Promise<void>
+  updateFloatTimer: (timers: FloatTimerData[]) => Promise<void>
   clearFloatTimer: () => Promise<void>
   restoreFromFloat: () => Promise<void>
   stopFromFloat: (taskId: number) => Promise<void>
-  onFloatUpdate: (callback: (data: FloatTimerData) => void) => () => void
+  stopAllFromFloat: () => Promise<void>
+  onFloatUpdate: (callback: (timers: FloatTimerData[]) => void) => () => void
   onFloatClear: (callback: () => void) => () => void
   onTimerStopped: (callback: (taskId: number) => void) => () => void
 

@@ -18,9 +18,13 @@ import { TaskList } from '@renderer/components/TaskList'
 import { TaskTable } from '@renderer/components/TaskTable'
 import { TaskDialog } from '@renderer/components/TaskDialog'
 import { useTasks, useFilteredTasks } from '@renderer/hooks/useTasks'
+import { usePersistedState } from '@renderer/hooks/usePersistedState'
+import { TaskGroups, type TaskGroup } from '@renderer/components/TaskGroups'
+import { TaskKanban } from '@renderer/components/TaskKanban'
 import { eventEmitter } from '@renderer/App'
 import {
   STATUS_LABELS,
+  type Task,
   type TaskStatus,
   type TaskCategory,
   type CreateTaskInput,
@@ -46,7 +50,9 @@ import {
   CheckCheck,
   Loader2,
   Lock,
-  CalendarDays
+  CalendarDays,
+  Layers,
+  Columns3
 } from 'lucide-react'
 
 type FilterStatus = TaskStatus | 'all'
@@ -86,7 +92,10 @@ export function TaskListPage(): React.JSX.Element {
   const navigate = useNavigate()
   const { tasks, loading, createTask, refreshTasks } = useTasks(false)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [statusFilter, setStatusFilter] = useState<FilterStatus>('inbox')
+  const [statusFilter, setStatusFilter] = usePersistedState<FilterStatus>(
+    'ticktask:taskListStatusFilter',
+    'inbox'
+  )
   const [categoryFilter, setCategoryFilter] = useState<FilterCategory>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [tagFilter, setTagFilter] = useState<number | null>(null)
@@ -95,7 +104,19 @@ export function TaskListPage(): React.JSX.Element {
   const [availableTags, setAvailableTags] = useState<Tag[]>([])
   const [availableContexts, setAvailableContexts] = useState<Context[]>([])
   const [availableProjects, setAvailableProjects] = useState<Project[]>([])
-  const [viewMode, setViewMode] = useState<ViewMode>('table')
+  const [viewMode, setViewMode] = usePersistedState<ViewMode>('ticktask:taskListViewMode', 'table')
+  const [groupingEnabled, setGroupingEnabled] = usePersistedState<boolean>(
+    'ticktask:taskListGrouping',
+    false
+  )
+  const [groupBy, setGroupBy] = usePersistedState<'project' | 'context'>(
+    'ticktask:taskListGroupBy',
+    'project'
+  )
+  const [kanbanEnabled, setKanbanEnabled] = usePersistedState<boolean>(
+    'ticktask:executandoKanban',
+    false
+  )
   const [showFilters, setShowFilters] = useState(false)
   const [blockedFilter, setBlockedFilter] = useState(false)
   const [sortMode, setSortMode] = useState<SortMode>('updated')
@@ -227,6 +248,60 @@ export function TaskListPage(): React.JSX.Element {
   }, [statusFilteredTasks, categoryFilter, searchQuery, tagFilter, contextFilter, projectFilter, blockedFilter, sortMode])
 
   const filteredTaskIds = useMemo(() => filteredTasks.map((task) => task.id), [filteredTasks])
+
+  const taskGroups = useMemo<TaskGroup[]>(() => {
+    if (!groupingEnabled && !kanbanEnabled) return []
+
+    if (groupBy === 'project') {
+      const map = new Map<string, TaskGroup>()
+      const noProject: Task[] = []
+      for (const task of filteredTasks) {
+        if (task.project_id && task.project_name) {
+          const key = `p:${task.project_id}`
+          let group = map.get(key)
+          if (!group) {
+            group = { key, label: task.project_name, color: task.project_color, tasks: [] }
+            map.set(key, group)
+          }
+          group.tasks.push(task)
+        } else {
+          noProject.push(task)
+        }
+      }
+      const groups = Array.from(map.values()).sort((a, b) =>
+        a.label.localeCompare(b.label, 'pt-BR')
+      )
+      if (noProject.length > 0) {
+        groups.push({ key: 'p:none', label: 'Sem projeto', tasks: noProject })
+      }
+      return groups
+    }
+
+    // groupBy === 'context' — task com múltiplos contextos aparece em todos os grupos
+    const map = new Map<string, TaskGroup>()
+    const noContext: Task[] = []
+    for (const task of filteredTasks) {
+      const contexts = task.contexts ?? []
+      if (contexts.length === 0) {
+        noContext.push(task)
+      } else {
+        for (const ctx of contexts) {
+          const key = `c:${ctx.id}`
+          let group = map.get(key)
+          if (!group) {
+            group = { key, label: ctx.name, color: ctx.color, icon: ctx.icon, tasks: [] }
+            map.set(key, group)
+          }
+          group.tasks.push(task)
+        }
+      }
+    }
+    const groups = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'))
+    if (noContext.length > 0) {
+      groups.push({ key: 'c:none', label: 'Sem contexto', tasks: noContext })
+    }
+    return groups
+  }, [groupingEnabled, kanbanEnabled, groupBy, filteredTasks])
   const selectedTaskIdSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds])
   const selectedCount = selectedTaskIds.length
 
@@ -452,7 +527,7 @@ export function TaskListPage(): React.JSX.Element {
               className={`
                 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all
                 ${showFilters || hasActiveFilters
-                  ? 'bg-slate-900 text-white shadow-sm'
+                  ? 'bg-slate-900 text-white'
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                 }
               `}
@@ -472,13 +547,13 @@ export function TaskListPage(): React.JSX.Element {
               )}
             </button>
 
-            <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
+            <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1">
               <button
                 onClick={() => setViewMode('cards')}
                 className={`
                   p-2 rounded-md transition-all
                   ${viewMode === 'cards'
-                    ? 'bg-slate-900 text-white shadow-sm'
+                    ? 'bg-slate-900 text-white'
                     : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
                   }
                 `}
@@ -491,7 +566,7 @@ export function TaskListPage(): React.JSX.Element {
                 className={`
                   p-2 rounded-md transition-all
                   ${viewMode === 'table'
-                    ? 'bg-slate-900 text-white shadow-sm'
+                    ? 'bg-slate-900 text-white'
                     : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
                   }
                 `}
@@ -500,6 +575,70 @@ export function TaskListPage(): React.JSX.Element {
                 <List size={18} />
               </button>
             </div>
+
+            {/* Agrupar / Kanban */}
+            <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1">
+              <button
+                onClick={() => {
+                  const next = !groupingEnabled
+                  setGroupingEnabled(next)
+                  if (next) setKanbanEnabled(false)
+                }}
+                className={`
+                  flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-all
+                  ${groupingEnabled
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                  }
+                `}
+                title="Agrupar tarefas"
+              >
+                <Layers size={16} /> Agrupar
+              </button>
+              {statusFilter === 'executando' && (
+                <button
+                  onClick={() => {
+                    const next = !kanbanEnabled
+                    setKanbanEnabled(next)
+                    if (next) setGroupingEnabled(false)
+                  }}
+                  className={`
+                    flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-all
+                    ${kanbanEnabled
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                    }
+                  `}
+                  title="Modo Kanban"
+                >
+                  <Columns3 size={16} /> Kanban
+                </button>
+              )}
+              {(groupingEnabled || (statusFilter === 'executando' && kanbanEnabled)) && (
+                <div className="flex items-center gap-1 pl-1 ml-1 border-l border-slate-200">
+                  <button
+                    onClick={() => setGroupBy('project')}
+                    className={`px-2 py-1 rounded-md text-xs font-medium transition-all ${
+                      groupBy === 'project'
+                        ? 'bg-slate-200 text-slate-900'
+                        : 'text-slate-500 hover:bg-slate-100'
+                    }`}
+                  >
+                    Projeto
+                  </button>
+                  <button
+                    onClick={() => setGroupBy('context')}
+                    className={`px-2 py-1 rounded-md text-xs font-medium transition-all ${
+                      groupBy === 'context'
+                        ? 'bg-slate-200 text-slate-900'
+                        : 'text-slate-500 hover:bg-slate-100'
+                    }`}
+                  >
+                    Contexto
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -507,7 +646,7 @@ export function TaskListPage(): React.JSX.Element {
       {/* Filter Area - Collapsible */}
       {showFilters && (
         <div className="px-6 pb-4 animate-in slide-in-from-top-2 fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+          <div className="bg-white border border-slate-200 rounded-sm p-4">
             <div className="flex flex-wrap items-end gap-4">
               {/* Search */}
               <div className="flex-1 min-w-[200px]">
@@ -663,7 +802,7 @@ export function TaskListPage(): React.JSX.Element {
       <ScrollArea className="flex-1 h-0">
         <div className="p-6 pt-2 pb-24">
           {!loading && filteredTasks.length > 0 && (
-            <div className="mb-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <div className="mb-4 bg-white border border-slate-200 rounded-sm p-4">
               <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="font-semibold text-slate-800">
@@ -765,6 +904,24 @@ export function TaskListPage(): React.JSX.Element {
                   : `Nenhuma tarefa com status "${statusFilter}"`}
               </p>
             </div>
+          ) : statusFilter === 'executando' && kanbanEnabled ? (
+            <TaskKanban
+              columns={taskGroups}
+              onTaskClick={handleTaskClick}
+              selectedTaskIds={selectedTaskIdSet}
+              onToggleTaskSelection={toggleTaskSelection}
+              onScheduleForToday={handleScheduleForToday}
+            />
+          ) : groupingEnabled ? (
+            <TaskGroups
+              groups={taskGroups}
+              viewMode={viewMode}
+              onTaskClick={handleTaskClick}
+              selectedTaskIds={selectedTaskIdSet}
+              onToggleTaskSelection={toggleTaskSelection}
+              onToggleSelectAll={toggleSelectAllVisible}
+              onScheduleForToday={handleScheduleForToday}
+            />
           ) : viewMode === 'cards' ? (
             <TaskList
               tasks={filteredTasks}

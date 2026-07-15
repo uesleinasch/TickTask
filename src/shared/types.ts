@@ -32,6 +32,7 @@ export interface Project {
   description?: string
   outcome?: string
   status: ProjectStatus
+  color: string
   due_date?: string
   area_id?: number
   area_name?: string
@@ -47,6 +48,7 @@ export interface CreateProjectInput {
   description?: string
   outcome?: string
   status?: ProjectStatus
+  color?: string
   due_date?: string
   area_id?: number
 }
@@ -56,6 +58,7 @@ export interface UpdateProjectInput {
   description?: string
   outcome?: string
   status?: ProjectStatus
+  color?: string
   due_date?: string
   area_id?: number | null
 }
@@ -142,6 +145,7 @@ export interface Task {
   is_archived: boolean
   project_id?: number
   project_name?: string
+  project_color?: string
   created_at: string
   updated_at: string
   tags?: Tag[]

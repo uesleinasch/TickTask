@@ -90,22 +90,15 @@ export function SingleTaskPage(): React.JSX.Element {
   } = useTaskDetail(taskId)
 
   // Timer store
-  const {
-    activeTask,
-    displaySeconds: storeSeconds,
-    isRunning: storeIsRunning,
-    startTimer,
-    pauseTimer,
-    resetTimer,
-    syncWithDatabase
-  } = useTimerStore()
+  const { timers, startTimer, stopTimer, resetTimer, syncWithDatabase } = useTimerStore()
 
   const { notify } = useNotification()
 
   // Timer is this task?
-  const isThisTaskActive = activeTask?.id === taskId
-  const displaySeconds = isThisTaskActive ? storeSeconds : (task?.total_seconds || 0)
-  const isRunning = isThisTaskActive ? storeIsRunning : false
+  const active = timers[taskId]
+  const isThisTaskActive = !!active
+  const displaySeconds = isThisTaskActive ? active.displaySeconds : (task?.total_seconds || 0)
+  const isRunning = isThisTaskActive
 
   // Time limit progress
   const timeLimit = task?.time_limit_seconds
@@ -325,8 +318,8 @@ export function SingleTaskPage(): React.JSX.Element {
   }, [taskId, startTimer])
 
   const handleTimerPause = useCallback(async (): Promise<void> => {
-    try { await pauseTimer(taskId); onStateChange() } catch (e) { console.error(e) }
-  }, [taskId, pauseTimer])
+    try { await stopTimer(taskId); onStateChange() } catch (e) { console.error(e) }
+  }, [taskId, stopTimer])
 
   const handleTimerReset = useCallback(async (): Promise<void> => {
     try {
@@ -364,7 +357,9 @@ export function SingleTaskPage(): React.JSX.Element {
   const accent = CATEGORY_ACCENT[task.category] || CATEGORY_ACCENT.normal
   const projectOptions = [
     { value: 'none', label: 'Nenhum projeto' },
-    ...projects.map((p) => ({ value: String(p.id), label: p.name }))
+    ...projects
+      .filter((p) => p.status === 'active' || p.status === 'someday' || p.id === task.project_id)
+      .map((p) => ({ value: String(p.id), label: p.name }))
   ]
   const sessionCount = timeEntries.length
 
@@ -382,7 +377,7 @@ export function SingleTaskPage(): React.JSX.Element {
         {/* Header */}
         <div className="px-5 pt-4 pb-3 flex items-center justify-between shrink-0">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate(-1)}
             className="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 transition-colors text-sm"
           >
             <ArrowLeft size={16} />
@@ -459,7 +454,7 @@ export function SingleTaskPage(): React.JSX.Element {
                         className={cn(
                           'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-all',
                           isSelected
-                            ? 'text-white border-transparent shadow-sm'
+                            ? 'text-white border-transparent'
                             : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
                         )}
                         style={isSelected ? { backgroundColor: ctx.color, borderColor: ctx.color } : {}}
@@ -607,7 +602,7 @@ export function SingleTaskPage(): React.JSX.Element {
 
           {/* Blocked warning */}
           {task.is_blocked && (
-            <div className="w-full flex items-center gap-2 px-4 py-2.5 mb-8 bg-orange-50 border border-orange-200 rounded-xl text-orange-600 text-sm">
+            <div className="w-full flex items-center gap-2 px-4 py-2.5 mb-8 bg-orange-50 border border-orange-200 rounded-sm text-orange-600 text-sm">
               <Lock size={14} />
               Bloqueada por dependências
             </div>
@@ -660,7 +655,7 @@ export function SingleTaskPage(): React.JSX.Element {
                 onClick={handleTimerStart}
                 disabled={task.is_blocked}
                 className={cn(
-                  'flex-1 h-13 rounded-xl flex items-center justify-center gap-2.5',
+                  'flex-1 h-13 rounded-sm flex items-center justify-center gap-2.5',
                   'text-base font-semibold text-white transition-all duration-150 shadow-md',
                   'disabled:opacity-40 disabled:cursor-not-allowed',
                   'active:scale-[0.98] hover:brightness-110'
@@ -676,7 +671,7 @@ export function SingleTaskPage(): React.JSX.Element {
             ) : (
               <button
                 onClick={handleTimerPause}
-                className="flex-1 h-13 rounded-xl flex items-center justify-center gap-2.5 text-base font-semibold text-slate-700 border-2 border-slate-200 hover:border-slate-300 hover:text-slate-900 bg-white transition-all active:scale-[0.98] shadow-sm"
+                className="flex-1 h-13 rounded-sm flex items-center justify-center gap-2.5 text-base font-semibold text-slate-700 border-2 border-slate-200 hover:border-slate-300 hover:text-slate-900 bg-white transition-all active:scale-[0.98]"
               >
                 <Pause size={18} className="fill-current" />
                 Pausar
@@ -685,7 +680,7 @@ export function SingleTaskPage(): React.JSX.Element {
 
             <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
               <AlertDialogTrigger asChild>
-                <button className="h-13 w-13 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 border-2 border-slate-200 hover:border-red-200 transition-all bg-white shadow-sm">
+                <button className="h-13 w-13 rounded-sm flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 border-2 border-slate-200 hover:border-red-200 transition-all bg-white">
                   <RotateCcw size={18} />
                 </button>
               </AlertDialogTrigger>
@@ -708,11 +703,11 @@ export function SingleTaskPage(): React.JSX.Element {
 
           {/* Stats */}
           <div className="w-full grid grid-cols-2 gap-3 mb-8">
-            <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 text-center shadow-sm">
+            <div className="bg-white rounded-sm border border-slate-200 px-4 py-3 text-center">
               <p className="text-xs text-slate-400 mb-1">Tempo total</p>
               <p className="text-lg font-mono font-bold text-slate-700">{formatTime(task.total_seconds)}</p>
             </div>
-            <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 text-center shadow-sm">
+            <div className="bg-white rounded-sm border border-slate-200 px-4 py-3 text-center">
               <p className="text-xs text-slate-400 mb-1">Sessões</p>
               <p className="text-lg font-mono font-bold text-slate-700">{sessionCount}</p>
             </div>
@@ -730,12 +725,12 @@ export function SingleTaskPage(): React.JSX.Element {
                   value={manualTime}
                   onChange={(e) => setManualTime(e.target.value)}
                   placeholder="01:30:00"
-                  className="flex-1 h-9 bg-white border border-slate-200 rounded-lg px-3 text-sm font-mono text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-slate-400 shadow-sm min-w-0"
+                  className="flex-1 h-9 bg-white border border-slate-200 rounded-lg px-3 text-sm font-mono text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-slate-400 min-w-0"
                 />
                 <button
                   onClick={handleAddManualTime}
                   disabled={!manualTime.trim()}
-                  className="h-9 px-4 text-sm font-medium text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0 bg-white shadow-sm"
+                  className="h-9 px-4 text-sm font-medium text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0 bg-white"
                 >
                   Adicionar
                 </button>
@@ -751,12 +746,12 @@ export function SingleTaskPage(): React.JSX.Element {
                 <input
                   value={adjustTime}
                   onChange={(e) => setAdjustTime(e.target.value)}
-                  className="flex-1 h-9 bg-white border border-slate-200 rounded-lg px-3 text-sm font-mono text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-slate-400 shadow-sm min-w-0"
+                  className="flex-1 h-9 bg-white border border-slate-200 rounded-lg px-3 text-sm font-mono text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-slate-400 min-w-0"
                 />
                 <button
                   onClick={handleSetTotalTime}
                   disabled={!adjustTime.trim()}
-                  className="h-9 px-4 text-sm font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0 bg-white shadow-sm"
+                  className="h-9 px-4 text-sm font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0 bg-white"
                 >
                   Definir
                 </button>
@@ -774,11 +769,11 @@ export function SingleTaskPage(): React.JSX.Element {
                   onChange={(e) => setTimeLimitInput(e.target.value)}
                   onBlur={handleBlurSave}
                   placeholder="00:00:00"
-                  className="flex-1 h-9 bg-white border border-slate-200 rounded-lg px-3 text-sm font-mono text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-slate-400 shadow-sm min-w-0"
+                  className="flex-1 h-9 bg-white border border-slate-200 rounded-lg px-3 text-sm font-mono text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-slate-400 min-w-0"
                 />
                 <button
                   onClick={handleBlurSave}
-                  className="h-9 px-4 text-sm font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-100 hover:text-slate-700 transition-colors shrink-0 bg-white shadow-sm"
+                  className="h-9 px-4 text-sm font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-100 hover:text-slate-700 transition-colors shrink-0 bg-white"
                 >
                   Salvar
                 </button>
