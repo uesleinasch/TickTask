@@ -63,11 +63,13 @@ export const useTimerStore = create<ActiveTimerState>((set, get) => ({
     })
 
     // Atualizar a janela flutuante
-    window.api.updateFloatTimer({
-      taskId: task.id,
-      taskName: task.name,
-      seconds: totalSeconds
-    })
+    window.api.updateFloatTimer([
+      {
+        taskId: task.id,
+        taskName: task.name,
+        seconds: totalSeconds
+      }
+    ])
 
     // Iniciar o novo intervalo
     get().startInterval()
@@ -124,11 +126,13 @@ export const useTimerStore = create<ActiveTimerState>((set, get) => ({
     set({ displaySeconds: newSeconds })
 
     // Atualizar a janela flutuante
-    window.api.updateFloatTimer({
-      taskId: activeTask.id,
-      taskName: activeTask.name,
-      seconds: newSeconds
-    })
+    window.api.updateFloatTimer([
+      {
+        taskId: activeTask.id,
+        taskName: activeTask.name,
+        seconds: newSeconds
+      }
+    ])
 
     // Time Leak: notificação a cada 5 minutos após 1 hora
     if (activeTask.category === 'time_leak' && newSeconds >= 3600) {

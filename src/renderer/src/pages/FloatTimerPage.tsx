@@ -1,17 +1,16 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { Activity, Square, Maximize2 } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Activity, Square, Maximize2, StopCircle } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { formatTime } from '@renderer/lib/utils'
 
-interface TimerData {
+interface TimerRow {
   taskId: number
   taskName: string
   seconds: number
 }
 
 export function FloatTimerPage(): React.JSX.Element {
-  const [timerData, setTimerData] = useState<TimerData | null>(null)
-  const currentTaskIdRef = useRef<number | null>(null)
+  const [timers, setTimers] = useState<TimerRow[]>([])
 
   // Adiciona classe ao body para background transparente
   useEffect(() => {
@@ -22,30 +21,15 @@ export function FloatTimerPage(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
-    // Escutar atualizações do timer principal
-    // Usa apenas os dados recebidos via IPC, sem contador local adicional
     const unsubscribeUpdate = window.api.onFloatUpdate((data) => {
-      // Ignorar atualizações de tarefas diferentes da atual (se já houver uma)
-      // Isso previne o flicker quando há múltiplos timers em memória
-      if (currentTaskIdRef.current !== null && currentTaskIdRef.current !== data.taskId) {
-        // Uma nova tarefa foi iniciada, atualizar referência
-        console.log('[FloatTimer] Tarefa mudou de', currentTaskIdRef.current, 'para', data.taskId)
-      }
-      currentTaskIdRef.current = data.taskId
-      setTimerData(data)
+      setTimers(data)
     })
-
-    // Escutar evento de limpeza - quando o timer é pausado/parado
     const unsubscribeClear = window.api.onFloatClear(() => {
-      console.log('[FloatTimer] Recebido evento clear, limpando estado')
-      currentTaskIdRef.current = null
-      setTimerData(null)
+      setTimers([])
     })
-
     return () => {
       unsubscribeUpdate()
       unsubscribeClear()
-      currentTaskIdRef.current = null
     }
   }, [])
 
@@ -53,13 +37,15 @@ export function FloatTimerPage(): React.JSX.Element {
     window.api.restoreFromFloat()
   }, [])
 
-  const handleStop = useCallback(async () => {
-    if (timerData) {
-      await window.api.stopFromFloat(timerData.taskId)
-    }
-  }, [timerData])
+  const handleStop = useCallback((taskId: number) => {
+    window.api.stopFromFloat(taskId)
+  }, [])
 
-  if (!timerData) {
+  const handleStopAll = useCallback(() => {
+    window.api.stopAllFromFloat()
+  }, [])
+
+  if (timers.length === 0) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-slate-900/95 rounded-xl">
         <p className="text-slate-400 text-sm">Aguardando...</p>
@@ -69,46 +55,66 @@ export function FloatTimerPage(): React.JSX.Element {
 
   return (
     <div
-      className="w-full h-full flex items-center gap-3 px-4 bg-slate-900/95 backdrop-blur rounded-xl border border-slate-700 shadow-2xl select-none"
+      className="w-full h-full flex flex-col bg-slate-900/95 backdrop-blur rounded-xl border border-slate-700 shadow-2xl select-none overflow-hidden"
       style={{ WebkitAppRegion: 'drag', cursor: 'grab' } as React.CSSProperties}
     >
-      {/* Indicador de atividade */}
-      <div className="relative">
-        <Activity size={20} className="text-emerald-400" />
-        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+      {/* Lista de timers (scroll acima de 5) */}
+      <div className="flex-1 overflow-y-auto">
+        {timers.map((t) => (
+          <div
+            key={t.taskId}
+            className="flex items-center gap-2 px-3 h-11 border-b border-slate-800 last:border-b-0"
+          >
+            <div className="relative shrink-0">
+              <Activity size={16} className="text-emerald-400" />
+              <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+            </div>
+            <span className="text-slate-300 text-xs truncate flex-1 min-w-0">{t.taskName}</span>
+            <span className="text-white font-mono text-sm font-bold tabular-nums">
+              {formatTime(t.seconds)}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleStop(t.taskId)}
+              className="h-6 w-6 text-red-400 hover:text-red-300 hover:bg-red-500/20 shrink-0"
+              title="Parar"
+              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+            >
+              <Square size={12} fill="currentColor" />
+            </Button>
+          </div>
+        ))}
       </div>
 
-      {/* Info da tarefa */}
-      <div className="flex-1 min-w-0">
-        <p className="text-white font-mono text-lg font-bold tracking-wider">
-          {formatTime(timerData.seconds)}
-        </p>
-        <p className="text-slate-400 text-xs truncate">{timerData.taskName}</p>
-      </div>
-
-      {/* Botões */}
+      {/* Rodapé */}
       <div
-        className="flex items-center gap-1"
+        className="flex items-center justify-between gap-2 px-3 h-11 border-t border-slate-700 bg-slate-900"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleStop}
-          className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/20"
-          title="Parar"
-        >
-          <Square size={14} fill="currentColor" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleRestore}
-          className="h-8 w-8 text-slate-400 hover:text-white hover:bg-slate-700"
-          title="Restaurar"
-        >
-          <Maximize2 size={14} />
-        </Button>
+        <span className="text-slate-400 text-xs">
+          {timers.length} {timers.length === 1 ? 'ativo' : 'ativos'}
+        </span>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleStopAll}
+            className="h-7 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 gap-1"
+            title="Parar todos"
+          >
+            <StopCircle size={14} /> <span className="text-xs">Parar todos</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRestore}
+            className="h-7 w-7 text-slate-400 hover:text-white hover:bg-slate-700"
+            title="Abrir app"
+          >
+            <Maximize2 size={14} />
+          </Button>
+        </div>
       </div>
     </div>
   )
