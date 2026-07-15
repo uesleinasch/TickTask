@@ -20,6 +20,7 @@ import { TaskDialog } from '@renderer/components/TaskDialog'
 import { useTasks, useFilteredTasks } from '@renderer/hooks/useTasks'
 import { usePersistedState } from '@renderer/hooks/usePersistedState'
 import { TaskGroups, type TaskGroup } from '@renderer/components/TaskGroups'
+import { TaskKanban } from '@renderer/components/TaskKanban'
 import { eventEmitter } from '@renderer/App'
 import {
   STATUS_LABELS,
@@ -50,7 +51,8 @@ import {
   Loader2,
   Lock,
   CalendarDays,
-  Layers
+  Layers,
+  Columns3
 } from 'lucide-react'
 
 type FilterStatus = TaskStatus | 'all'
@@ -107,6 +109,10 @@ export function TaskListPage(): React.JSX.Element {
   const [groupBy, setGroupBy] = usePersistedState<'project' | 'context'>(
     'ticktask:taskListGroupBy',
     'project'
+  )
+  const [kanbanEnabled, setKanbanEnabled] = usePersistedState<boolean>(
+    'ticktask:executandoKanban',
+    false
   )
   const [showFilters, setShowFilters] = useState(false)
   const [blockedFilter, setBlockedFilter] = useState(false)
@@ -241,7 +247,7 @@ export function TaskListPage(): React.JSX.Element {
   const filteredTaskIds = useMemo(() => filteredTasks.map((task) => task.id), [filteredTasks])
 
   const taskGroups = useMemo<TaskGroup[]>(() => {
-    if (!groupingEnabled) return []
+    if (!groupingEnabled && !kanbanEnabled) return []
 
     if (groupBy === 'project') {
       const map = new Map<string, TaskGroup>()
@@ -292,7 +298,7 @@ export function TaskListPage(): React.JSX.Element {
       groups.push({ key: 'c:none', label: 'Sem contexto', tasks: noContext })
     }
     return groups
-  }, [groupingEnabled, groupBy, filteredTasks])
+  }, [groupingEnabled, kanbanEnabled, groupBy, filteredTasks])
   const selectedTaskIdSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds])
   const selectedCount = selectedTaskIds.length
 
@@ -567,10 +573,14 @@ export function TaskListPage(): React.JSX.Element {
               </button>
             </div>
 
-            {/* Agrupar */}
+            {/* Agrupar / Kanban */}
             <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1">
               <button
-                onClick={() => setGroupingEnabled(!groupingEnabled)}
+                onClick={() => {
+                  const next = !groupingEnabled
+                  setGroupingEnabled(next)
+                  if (next) setKanbanEnabled(false)
+                }}
                 className={`
                   flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-all
                   ${groupingEnabled
@@ -582,7 +592,26 @@ export function TaskListPage(): React.JSX.Element {
               >
                 <Layers size={16} /> Agrupar
               </button>
-              {groupingEnabled && (
+              {statusFilter === 'executando' && (
+                <button
+                  onClick={() => {
+                    const next = !kanbanEnabled
+                    setKanbanEnabled(next)
+                    if (next) setGroupingEnabled(false)
+                  }}
+                  className={`
+                    flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-all
+                    ${kanbanEnabled
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                    }
+                  `}
+                  title="Modo Kanban"
+                >
+                  <Columns3 size={16} /> Kanban
+                </button>
+              )}
+              {(groupingEnabled || (statusFilter === 'executando' && kanbanEnabled)) && (
                 <div className="flex items-center gap-1 pl-1 ml-1 border-l border-slate-200">
                   <button
                     onClick={() => setGroupBy('project')}
@@ -872,6 +901,14 @@ export function TaskListPage(): React.JSX.Element {
                   : `Nenhuma tarefa com status "${statusFilter}"`}
               </p>
             </div>
+          ) : statusFilter === 'executando' && kanbanEnabled ? (
+            <TaskKanban
+              columns={taskGroups}
+              onTaskClick={handleTaskClick}
+              selectedTaskIds={selectedTaskIdSet}
+              onToggleTaskSelection={toggleTaskSelection}
+              onScheduleForToday={handleScheduleForToday}
+            />
           ) : groupingEnabled ? (
             <TaskGroups
               groups={taskGroups}
