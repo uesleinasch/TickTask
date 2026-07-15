@@ -13,6 +13,8 @@ import {
   DialogTitle
 } from '@renderer/components/ui/dialog'
 import { useProjects } from '@renderer/hooks/useProjects'
+import { ColorPicker } from '@renderer/components/ColorPicker'
+import { DEFAULT_COLORS } from '@renderer/lib/colors'
 import type { ProjectStatus, CreateProjectInput } from '@shared/types'
 import { PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS } from '@shared/types'
 import {
@@ -46,6 +48,7 @@ export function ProjectsPage(): React.JSX.Element {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [outcome, setOutcome] = useState('')
+  const [color, setColor] = useState(DEFAULT_COLORS[9]) // #6366f1
 
   const filteredProjects =
     statusFilter === 'all'
@@ -60,17 +63,19 @@ export function ProjectsPage(): React.JSX.Element {
       const data: CreateProjectInput = {
         name: name.trim(),
         description: description.trim() || undefined,
-        outcome: outcome.trim() || undefined
+        outcome: outcome.trim() || undefined,
+        color
       }
 
       const project = await createProject(data)
       setName('')
       setDescription('')
       setOutcome('')
+      setColor(DEFAULT_COLORS[9])
       setDialogOpen(false)
       navigate(`/project/${project.id}`)
     },
-    [name, description, outcome, createProject, navigate]
+    [name, description, outcome, color, createProject, navigate]
   )
 
   return (
@@ -92,7 +97,7 @@ export function ProjectsPage(): React.JSX.Element {
         <Button
           size="sm"
           onClick={() => setDialogOpen(true)}
-          className="bg-slate-900 text-white hover:bg-slate-800 shadow-sm"
+          className="bg-slate-900 text-white hover:bg-slate-800"
         >
           <Plus className="mr-2 h-4 w-4" />
           Novo Projeto
@@ -161,7 +166,8 @@ export function ProjectsPage(): React.JSX.Element {
                   <div
                     key={project.id}
                     onClick={() => navigate(`/project/${project.id}`)}
-                    className="group cursor-pointer bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
+                    className="group cursor-pointer bg-white border border-slate-200 rounded-sm p-5 hover:shadow-md transition-all hover:-translate-y-0.5"
+                    style={{ borderLeftColor: project.color, borderLeftWidth: '4px' }}
                   >
                     {/* Status Badge */}
                     <div className="flex items-center justify-between mb-3">
@@ -243,7 +249,7 @@ export function ProjectsPage(): React.JSX.Element {
 
       {/* Create Project Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-white rounded-xl shadow-2xl border-slate-200">
+        <DialogContent className="bg-white rounded-sm shadow-2xl border-slate-200">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-slate-900">Novo Projeto</DialogTitle>
             <DialogDescription className="text-slate-500">
@@ -290,6 +296,7 @@ export function ProjectsPage(): React.JSX.Element {
                 className="border-slate-300 focus:ring-slate-900 resize-none"
               />
             </div>
+            <ColorPicker value={color} onChange={setColor} />
             <DialogFooter className="pt-2">
               <Button
                 type="button"

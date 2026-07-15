@@ -12,6 +12,7 @@ import {
   updateTaskNotes,
   deleteTask,
   deleteTasks,
+  getChildTaskIds,
   archiveTask,
   unarchiveTask,
   updateTaskStatus,
@@ -118,7 +119,20 @@ import type {
 let mainWindow: BrowserWindow | null = null
 let floatWindow: BrowserWindow | null = null
 let quickCaptureWindow: BrowserWindow | null = null
-let currentTimerData: { taskId: number; taskName: string; seconds: number } | null = null
+type FloatTimerData = { taskId: number; taskName: string; seconds: number }
+let currentTimers: FloatTimerData[] = []
+
+// Dimensões da janela flutuante (lista com altura dinâmica)
+const FLOAT_WIDTH = 300
+const FLOAT_ROW_HEIGHT = 44
+const FLOAT_FOOTER_HEIGHT = 44
+const FLOAT_VPADDING = 16
+const FLOAT_MAX_ROWS = 5
+
+function floatHeightFor(count: number): number {
+  const rows = Math.min(Math.max(count, 1), FLOAT_MAX_ROWS)
+  return rows * FLOAT_ROW_HEIGHT + FLOAT_FOOTER_HEIGHT + FLOAT_VPADDING
+}
 
 // Atalho global padrão para captura rápida
 const quickCaptureShortcut = 'CommandOrControl+Shift+Space'
@@ -165,9 +179,9 @@ function createFloatWindow(): void {
   const { width } = display.workAreaSize
 
   floatWindow = new BrowserWindow({
-    width: 280,
-    height: 70,
-    x: width - 300,
+    width: FLOAT_WIDTH,
+    height: floatHeightFor(currentTimers.length),
+    x: width - FLOAT_WIDTH - 20,
     y: 20,
     frame: false,
     transparent: true,
@@ -198,25 +212,26 @@ function showFloatWindow(): void {
   if (!floatWindow) {
     createFloatWindow()
   }
+  if (!floatWindow || floatWindow.isVisible()) return
 
-  if (floatWindow && !floatWindow.isVisible()) {
+  const pushState = (): void => {
+    if (!floatWindow || floatWindow.isDestroyed()) return
+    floatWindow.setSize(FLOAT_WIDTH, floatHeightFor(currentTimers.length))
+    if (currentTimers.length > 0) {
+      floatWindow.webContents.send('float:update', currentTimers)
+    } else {
+      floatWindow.webContents.send('float:clear')
+    }
+  }
+
+  if (floatWindow.webContents.isLoading()) {
     floatWindow.once('ready-to-show', () => {
       floatWindow?.show()
-      if (currentTimerData) {
-        floatWindow?.webContents.send('float:update', currentTimerData)
-      } else {
-        floatWindow?.webContents.send('float:clear')
-      }
+      pushState()
     })
-
-    if (floatWindow.webContents.isLoading() === false) {
-      floatWindow.show()
-      if (currentTimerData) {
-        floatWindow.webContents.send('float:update', currentTimerData)
-      } else {
-        floatWindow.webContents.send('float:clear')
-      }
-    }
+  } else {
+    floatWindow.show()
+    pushState()
   }
 }
 
@@ -227,17 +242,18 @@ function hideFloatWindow(): void {
 }
 
 function clearFloatWindowState(): void {
-  currentTimerData = null
+  currentTimers = []
   if (floatWindow && !floatWindow.isDestroyed()) {
     floatWindow.destroy()
     floatWindow = null
   }
 }
 
-function updateFloatWindow(data: { taskId: number; taskName: string; seconds: number }): void {
-  currentTimerData = data
+function updateFloatWindow(timers: FloatTimerData[]): void {
+  currentTimers = timers
   if (floatWindow && !floatWindow.isDestroyed() && floatWindow.isVisible()) {
-    floatWindow.webContents.send('float:update', data)
+    floatWindow.setSize(FLOAT_WIDTH, floatHeightFor(timers.length))
+    floatWindow.webContents.send('float:update', timers)
   }
 }
 
@@ -324,7 +340,7 @@ function createWindow(): void {
   })
 
   mainWindow.on('minimize', () => {
-    if (currentTimerData) {
+    if (currentTimers.length > 0) {
       showFloatWindow()
     }
   })
@@ -381,6 +397,12 @@ function setupIpcHandlers(): void {
   ipcMain.handle('task:delete', (_, id: number) => {
     const config = getNotionConfig()
     if (config?.autoSync && config.databaseId) {
+      // Excluir também as subtarefas do Notion
+      for (const childId of getChildTaskIds(id)) {
+        deleteTaskFromNotion(childId).catch((error) => {
+          console.error('Erro ao deletar subtarefa do Notion:', error)
+        })
+      }
       deleteTaskFromNotion(id).catch((error) => {
         console.error('Erro ao deletar do Notion:', error)
       })
@@ -393,8 +415,10 @@ function setupIpcHandlers(): void {
 
     const config = getNotionConfig()
     if (config?.autoSync && config.databaseId) {
+      // Incluir as subtarefas de cada tarefa para excluí-las também do Notion
+      const idsToDelete = [...taskIds, ...taskIds.flatMap((id) => getChildTaskIds(id))]
       await Promise.all(
-        taskIds.map(async (id) => {
+        idsToDelete.map(async (id) => {
           try {
             await deleteTaskFromNotion(id)
           } catch (error) {
@@ -522,12 +546,9 @@ function setupIpcHandlers(): void {
   })
 
   // Float window controls
-  ipcMain.handle(
-    'float:updateTimer',
-    (_, data: { taskId: number; taskName: string; seconds: number }) => {
-      updateFloatWindow(data)
-    }
-  )
+  ipcMain.handle('float:updateTimer', (_, timers: FloatTimerData[]) => {
+    updateFloatWindow(timers)
+  })
   ipcMain.handle('float:clearTimer', () => {
     clearFloatWindowState()
     hideFloatWindow()
@@ -541,10 +562,17 @@ function setupIpcHandlers(): void {
   })
   ipcMain.handle('float:stopTimer', async (_, taskId: number) => {
     const result = await stopTask(taskId)
-    clearFloatWindowState()
-    hideFloatWindow()
+    autoSyncToNotion(taskId)
     mainWindow?.webContents.send('timer:stopped', taskId)
     return result
+  })
+  ipcMain.handle('float:stopAll', async () => {
+    const ids = currentTimers.map((t) => t.taskId)
+    for (const id of ids) {
+      await stopTask(id)
+      autoSyncToNotion(id)
+      mainWindow?.webContents.send('timer:stopped', id)
+    }
   })
 
   // Statistics
@@ -675,8 +703,12 @@ function setupIpcHandlers(): void {
 
   // ===================== FASE 2: Subtarefas =====================
   ipcMain.handle('subtask:list', (_, parentId: number) => getSubtasks(parentId))
-  ipcMain.handle('subtask:create', (_, data: { name: string; parent_task_id: number }) => {
+  ipcMain.handle('subtask:create', async (_, data: { name: string; parent_task_id: number }) => {
     const task = createTask({ name: data.name, parent_task_id: data.parent_task_id })
+    // Sincroniza a pai primeiro (garante a página no Notion) e depois a subtarefa,
+    // para que a relação "Tarefa Pai" encontre a página da pai.
+    await autoSyncToNotion(data.parent_task_id)
+    autoSyncToNotion(task.id)
     return task
   })
 

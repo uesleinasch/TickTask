@@ -104,8 +104,8 @@ function AppContent(): React.JSX.Element {
 
   // Listener para timer parado via float window
   useEffect(() => {
-    const unsubscribe = window.api.onTimerStopped(() => {
-      useTimerStore.getState().clearActiveTimer()
+    const unsubscribe = window.api.onTimerStopped((taskId) => {
+      useTimerStore.getState().removeTimer(taskId)
     })
     return unsubscribe
   }, [])

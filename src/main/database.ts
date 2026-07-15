@@ -89,6 +89,12 @@ export function initDatabase(): void {
     )
   `)
 
+  // Índice para acelerar a busca de sessões em andamento (múltiplos timers)
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_time_entries_task_active
+    ON time_entries(task_id, end_time)
+  `)
+
   // Criar tabela tags
   db.exec(`
     CREATE TABLE IF NOT EXISTS tags (
@@ -120,6 +126,7 @@ export function initDatabase(): void {
       description TEXT,
       outcome TEXT,
       status TEXT DEFAULT 'active' CHECK(status IN ('active', 'someday', 'done', 'archived')),
+      color TEXT DEFAULT '#6366f1',
       due_date DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -215,6 +222,9 @@ export function initDatabase(): void {
 
   // Migração: adicionar area_id à tabela projects
   try { db.exec('ALTER TABLE projects ADD COLUMN area_id INTEGER REFERENCES areas(id) ON DELETE SET NULL') } catch { /* já existe */ }
+
+  // Migração: adicionar color à tabela projects
+  try { db.exec("ALTER TABLE projects ADD COLUMN color TEXT DEFAULT '#6366f1'") } catch { /* já existe */ }
 
   // ===================== FASE 4.2: Energy Tracking =====================
   try { db.exec("ALTER TABLE tasks ADD COLUMN energy_level TEXT CHECK(energy_level IN ('alto', 'medio', 'baixo'))") } catch { /* já existe */ }
@@ -475,14 +485,15 @@ export function getTaskContexts(taskId: number): ContextRow[] {
 
 export function createProject(data: CreateProjectInput): Project {
   const stmt = db.prepare(`
-    INSERT INTO projects (name, description, outcome, status, due_date, area_id)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO projects (name, description, outcome, status, color, due_date, area_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `)
   const result = stmt.run(
     data.name,
     data.description || null,
     data.outcome || null,
     data.status || 'active',
+    data.color || '#6366f1',
     data.due_date || null,
     data.area_id || null
   )
@@ -557,6 +568,10 @@ export function updateProject(id: number, data: UpdateProjectInput): void {
   if (data.status !== undefined) {
     updates.push('status = ?')
     values.push(data.status)
+  }
+  if (data.color !== undefined) {
+    updates.push('color = ?')
+    values.push(data.color)
   }
   if (data.due_date !== undefined) {
     updates.push('due_date = ?')
@@ -676,7 +691,7 @@ function enrichTask(row: Task & { project_name?: string }): Task {
 
 export function listTasks(archived: boolean = false): Task[] {
   const stmt = db.prepare(`
-    SELECT t.*, p.name as project_name
+    SELECT t.*, p.name as project_name, p.color as project_color
     FROM tasks t
     LEFT JOIN projects p ON t.project_id = p.id
     WHERE t.is_archived = ? AND t.parent_task_id IS NULL
@@ -688,7 +703,7 @@ export function listTasks(archived: boolean = false): Task[] {
 
 export function getTask(id: number): Task | undefined {
   const stmt = db.prepare(`
-    SELECT t.*, p.name as project_name
+    SELECT t.*, p.name as project_name, p.color as project_color
     FROM tasks t
     LEFT JOIN projects p ON t.project_id = p.id
     WHERE t.id = ?
@@ -786,18 +801,30 @@ export function updateTaskNotes(id: number, notes: string | null): void {
   stmt.run(notes, id)
 }
 
+// Ids das subtarefas (filhas) de uma tarefa — todas, inclusive arquivadas
+export function getChildTaskIds(parentId: number): number[] {
+  const stmt = db.prepare('SELECT id FROM tasks WHERE parent_task_id = ?')
+  return (stmt.all(parentId) as { id: number }[]).map((r) => r.id)
+}
+
 export function deleteTask(id: number): void {
-  const stmt = db.prepare('DELETE FROM tasks WHERE id = ?')
-  stmt.run(id)
+  const transaction = db.transaction(() => {
+    // Excluir subtarefas junto com a tarefa pai
+    db.prepare('DELETE FROM tasks WHERE parent_task_id = ?').run(id)
+    db.prepare('DELETE FROM tasks WHERE id = ?').run(id)
+  })
+  transaction()
 }
 
 export function deleteTasks(ids: number[]): void {
   if (ids.length === 0) return
 
   const transaction = db.transaction((taskIds: number[]) => {
-    const stmt = db.prepare('DELETE FROM tasks WHERE id = ?')
+    const deleteChildren = db.prepare('DELETE FROM tasks WHERE parent_task_id = ?')
+    const deleteTaskStmt = db.prepare('DELETE FROM tasks WHERE id = ?')
     for (const id of taskIds) {
-      stmt.run(id)
+      deleteChildren.run(id)
+      deleteTaskStmt.run(id)
     }
   })
 
@@ -1364,7 +1391,7 @@ export function getEnergyStats(): EnergyStats[] {
 
 export function getSubtasks(parentId: number): Task[] {
   const stmt = db.prepare(`
-    SELECT t.*, p.name as project_name
+    SELECT t.*, p.name as project_name, p.color as project_color
     FROM tasks t
     LEFT JOIN projects p ON t.project_id = p.id
     WHERE t.parent_task_id = ? AND t.is_archived = 0
@@ -1432,7 +1459,7 @@ export function removeTaskDependency(taskId: number, dependsOnId: number): void 
 
 export function getTasksForDate(date: string): Task[] {
   const stmt = db.prepare(`
-    SELECT t.*, p.name as project_name
+    SELECT t.*, p.name as project_name, p.color as project_color
     FROM tasks t
     LEFT JOIN projects p ON t.project_id = p.id
     WHERE t.scheduled_date = ? AND t.is_archived = 0 AND t.parent_task_id IS NULL
@@ -1520,7 +1547,7 @@ export function deleteNextRecurrence(sourceTaskId: number): void {
 
 export function getTasksDueForNotification(): Task[] {
   const stmt = db.prepare(`
-    SELECT t.*, p.name as project_name
+    SELECT t.*, p.name as project_name, p.color as project_color
     FROM tasks t
     LEFT JOIN projects p ON t.project_id = p.id
     WHERE t.due_date IS NOT NULL
