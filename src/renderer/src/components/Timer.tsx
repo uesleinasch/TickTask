@@ -40,20 +40,13 @@ export function Timer({
   const notifiedRef = { current: false }
 
   // Usar a store global
-  const {
-    activeTask,
-    displaySeconds: storeSeconds,
-    isRunning: storeIsRunning,
-    startTimer,
-    pauseTimer,
-    resetTimer,
-    syncWithDatabase
-  } = useTimerStore()
+  const { timers, startTimer, stopTimer, resetTimer, syncWithDatabase } = useTimerStore()
 
   // Determinar se este timer é o ativo
-  const isThisTaskActive = activeTask?.id === taskId
-  const displaySeconds = isThisTaskActive ? storeSeconds : initialSeconds
-  const isRunning = isThisTaskActive ? storeIsRunning : false
+  const active = timers[taskId]
+  const isThisTaskActive = !!active
+  const displaySeconds = isThisTaskActive ? active.displaySeconds : initialSeconds
+  const isRunning = isThisTaskActive
 
   // Calcular progresso
   const progress = timeLimit ? Math.min((displaySeconds / timeLimit) * 100, 100) : 0
@@ -89,12 +82,12 @@ export function Timer({
 
   const handlePause = useCallback(async () => {
     try {
-      await pauseTimer(taskId)
+      await stopTimer(taskId)
       onStateChange?.()
     } catch (error) {
       console.error('[Timer] Erro ao pausar:', error)
     }
-  }, [taskId, pauseTimer, onStateChange])
+  }, [taskId, stopTimer, onStateChange])
 
   const handleReset = useCallback(async () => {
     try {

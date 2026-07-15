@@ -90,22 +90,15 @@ export function SingleTaskPage(): React.JSX.Element {
   } = useTaskDetail(taskId)
 
   // Timer store
-  const {
-    activeTask,
-    displaySeconds: storeSeconds,
-    isRunning: storeIsRunning,
-    startTimer,
-    pauseTimer,
-    resetTimer,
-    syncWithDatabase
-  } = useTimerStore()
+  const { timers, startTimer, stopTimer, resetTimer, syncWithDatabase } = useTimerStore()
 
   const { notify } = useNotification()
 
   // Timer is this task?
-  const isThisTaskActive = activeTask?.id === taskId
-  const displaySeconds = isThisTaskActive ? storeSeconds : (task?.total_seconds || 0)
-  const isRunning = isThisTaskActive ? storeIsRunning : false
+  const active = timers[taskId]
+  const isThisTaskActive = !!active
+  const displaySeconds = isThisTaskActive ? active.displaySeconds : (task?.total_seconds || 0)
+  const isRunning = isThisTaskActive
 
   // Time limit progress
   const timeLimit = task?.time_limit_seconds
@@ -325,8 +318,8 @@ export function SingleTaskPage(): React.JSX.Element {
   }, [taskId, startTimer])
 
   const handleTimerPause = useCallback(async (): Promise<void> => {
-    try { await pauseTimer(taskId); onStateChange() } catch (e) { console.error(e) }
-  }, [taskId, pauseTimer])
+    try { await stopTimer(taskId); onStateChange() } catch (e) { console.error(e) }
+  }, [taskId, stopTimer])
 
   const handleTimerReset = useCallback(async (): Promise<void> => {
     try {
