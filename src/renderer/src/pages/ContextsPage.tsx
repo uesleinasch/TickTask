@@ -112,7 +112,7 @@ export function ContextsPage(): React.JSX.Element {
 
       {/* Info */}
       <div className="px-6 pt-4">
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
+        <div className="bg-blue-50 border border-blue-200 rounded-sm p-4 text-sm text-blue-700">
           <strong>Contextos GTD</strong> definem <em>onde</em> ou <em>com o que</em> uma ação pode
           ser executada. Filtre suas tarefas por contexto para ver o que fazer agora, dado seu
           ambiente atual.
@@ -138,7 +138,7 @@ export function ContextsPage(): React.JSX.Element {
               {contexts.map((ctx) => (
                 <div
                   key={ctx.id}
-                  className="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all group"
+                  className="bg-white border border-slate-200 rounded-sm p-4 hover:shadow-md transition-all group"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
@@ -176,7 +176,7 @@ export function ContextsPage(): React.JSX.Element {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-white rounded-xl shadow-2xl border-slate-200">
+        <DialogContent className="bg-white rounded-sm shadow-2xl border-slate-200">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-slate-900">
               {editId ? 'Editar Contexto' : 'Novo Contexto'}

@@ -14,7 +14,7 @@ export function RunningNowPanel(): React.JSX.Element | null {
   }
 
   return (
-    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+    <div className="rounded-sm border border-emerald-200 bg-emerald-50/60 p-4">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-bold text-emerald-800 flex items-center gap-2">
           <span className="relative flex h-2.5 w-2.5">

@@ -166,7 +166,7 @@ export function ProjectsPage(): React.JSX.Element {
                   <div
                     key={project.id}
                     onClick={() => navigate(`/project/${project.id}`)}
-                    className="group cursor-pointer bg-white border border-slate-200 rounded-xl p-5 hover:shadow-md transition-all hover:-translate-y-0.5"
+                    className="group cursor-pointer bg-white border border-slate-200 rounded-sm p-5 hover:shadow-md transition-all hover:-translate-y-0.5"
                     style={{ borderLeftColor: project.color, borderLeftWidth: '4px' }}
                   >
                     {/* Status Badge */}
@@ -249,7 +249,7 @@ export function ProjectsPage(): React.JSX.Element {
 
       {/* Create Project Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-white rounded-xl shadow-2xl border-slate-200">
+        <DialogContent className="bg-white rounded-sm shadow-2xl border-slate-200">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-slate-900">Novo Projeto</DialogTitle>
             <DialogDescription className="text-slate-500">

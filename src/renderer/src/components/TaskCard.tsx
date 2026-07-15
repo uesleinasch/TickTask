@@ -80,7 +80,7 @@ export function TaskCard({
     <div onClick={onClick} className="group cursor-pointer h-full">
       <div
         className={cn(
-          'relative h-full flex flex-col gap-2.5 overflow-hidden rounded-xl border border-slate-200 p-4',
+          'relative h-full flex flex-col gap-2.5 overflow-hidden rounded-sm border border-slate-200 p-4',
           'transition-all duration-200 hover:border-slate-300 hover:-translate-y-0.5',
           timeLeakVisual.cardBg,
           selected && 'ring-2 ring-sky-300 border-sky-200'

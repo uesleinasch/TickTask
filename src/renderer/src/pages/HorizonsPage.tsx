@@ -731,7 +731,7 @@ function HorizonSection({
   const Icon = cfg.icon
 
   return (
-    <section className={cn('rounded-xl border-2 overflow-hidden', cfg.lightColor)}>
+    <section className={cn('rounded-sm border-2 overflow-hidden', cfg.lightColor)}>
       {/* Section header */}
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2.5">

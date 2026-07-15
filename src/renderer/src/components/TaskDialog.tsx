@@ -113,7 +113,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-white rounded-xl shadow-2xl border-slate-200 max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-white rounded-sm shadow-2xl border-slate-200 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-slate-900">Nova Tarefa</DialogTitle>
           <DialogDescription className="text-slate-500">

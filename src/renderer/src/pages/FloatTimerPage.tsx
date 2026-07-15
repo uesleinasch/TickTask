@@ -47,7 +47,7 @@ export function FloatTimerPage(): React.JSX.Element {
 
   if (timers.length === 0) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-slate-900/95 rounded-xl">
+      <div className="w-full h-full flex items-center justify-center bg-slate-900/95 rounded-sm">
         <p className="text-slate-400 text-sm">Aguardando...</p>
       </div>
     )
@@ -55,7 +55,7 @@ export function FloatTimerPage(): React.JSX.Element {
 
   return (
     <div
-      className="w-full h-full flex flex-col bg-slate-900/95 backdrop-blur rounded-xl border border-slate-700 shadow-2xl select-none overflow-hidden"
+      className="w-full h-full flex flex-col bg-slate-900/95 backdrop-blur rounded-sm border border-slate-700 shadow-2xl select-none overflow-hidden"
       style={{ WebkitAppRegion: 'drag', cursor: 'grab' } as React.CSSProperties}
     >
       {/* Lista de timers (scroll acima de 5) */}

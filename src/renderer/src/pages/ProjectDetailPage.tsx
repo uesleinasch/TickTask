@@ -185,7 +185,7 @@ export function ProjectDetailPage(): React.JSX.Element {
 
           {/* Outcome & Date */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white border border-slate-200 rounded-xl p-4">
+            <div className="bg-white border border-slate-200 rounded-sm p-4">
               <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center">
                 <Target size={16} className="mr-2 text-emerald-600" /> Resultado Desejado
               </h4>
@@ -197,7 +197,7 @@ export function ProjectDetailPage(): React.JSX.Element {
                 placeholder="Como será quando estiver concluído?"
               />
             </div>
-            <div className="bg-white border border-slate-200 rounded-xl p-4">
+            <div className="bg-white border border-slate-200 rounded-sm p-4">
               <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center">
                 <Clock size={16} className="mr-2 text-blue-600" /> Data Limite
               </h4>

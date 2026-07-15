@@ -52,7 +52,7 @@ export function TaskGroups({
         return (
           <div
             key={group.key}
-            className="bg-white border border-slate-200 rounded-xl overflow-hidden"
+            className="bg-white border border-slate-200 rounded-sm overflow-hidden"
           >
             <button
               onClick={() => toggle(group.key)}

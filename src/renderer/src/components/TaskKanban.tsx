@@ -23,11 +23,11 @@ export function TaskKanban({
         return (
           <div
             key={col.key}
-            className="flex flex-col w-[300px] shrink-0 bg-slate-50 border border-slate-200 rounded-xl"
+            className="flex flex-col w-[300px] shrink-0 bg-slate-50 border border-slate-200 rounded-sm"
           >
             {/* Cabeçalho colorido */}
             <div
-              className="flex items-center gap-2 px-3 py-2.5 rounded-t-xl border-b"
+              className="flex items-center gap-2 px-3 py-2.5 rounded-t-sm border-b"
               style={{ backgroundColor: `${accent}18`, borderBottomColor: `${accent}40` }}
             >
               {col.icon ? (

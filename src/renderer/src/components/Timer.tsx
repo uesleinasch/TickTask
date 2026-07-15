@@ -101,7 +101,7 @@ export function Timer({
   }, [taskId, resetTimer, onStateChange])
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-lg relative overflow-hidden">
+    <div className="bg-white border border-slate-200 rounded-sm p-8 shadow-lg relative overflow-hidden">
       {/* Barra de progresso no topo quando rodando */}
       {isRunning && (
         <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500 animate-pulse-slow" />

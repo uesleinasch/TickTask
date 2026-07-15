@@ -602,7 +602,7 @@ export function SingleTaskPage(): React.JSX.Element {
 
           {/* Blocked warning */}
           {task.is_blocked && (
-            <div className="w-full flex items-center gap-2 px-4 py-2.5 mb-8 bg-orange-50 border border-orange-200 rounded-xl text-orange-600 text-sm">
+            <div className="w-full flex items-center gap-2 px-4 py-2.5 mb-8 bg-orange-50 border border-orange-200 rounded-sm text-orange-600 text-sm">
               <Lock size={14} />
               Bloqueada por dependências
             </div>
@@ -655,7 +655,7 @@ export function SingleTaskPage(): React.JSX.Element {
                 onClick={handleTimerStart}
                 disabled={task.is_blocked}
                 className={cn(
-                  'flex-1 h-13 rounded-xl flex items-center justify-center gap-2.5',
+                  'flex-1 h-13 rounded-sm flex items-center justify-center gap-2.5',
                   'text-base font-semibold text-white transition-all duration-150 shadow-md',
                   'disabled:opacity-40 disabled:cursor-not-allowed',
                   'active:scale-[0.98] hover:brightness-110'
@@ -671,7 +671,7 @@ export function SingleTaskPage(): React.JSX.Element {
             ) : (
               <button
                 onClick={handleTimerPause}
-                className="flex-1 h-13 rounded-xl flex items-center justify-center gap-2.5 text-base font-semibold text-slate-700 border-2 border-slate-200 hover:border-slate-300 hover:text-slate-900 bg-white transition-all active:scale-[0.98]"
+                className="flex-1 h-13 rounded-sm flex items-center justify-center gap-2.5 text-base font-semibold text-slate-700 border-2 border-slate-200 hover:border-slate-300 hover:text-slate-900 bg-white transition-all active:scale-[0.98]"
               >
                 <Pause size={18} className="fill-current" />
                 Pausar
@@ -680,7 +680,7 @@ export function SingleTaskPage(): React.JSX.Element {
 
             <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
               <AlertDialogTrigger asChild>
-                <button className="h-13 w-13 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 border-2 border-slate-200 hover:border-red-200 transition-all bg-white">
+                <button className="h-13 w-13 rounded-sm flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 border-2 border-slate-200 hover:border-red-200 transition-all bg-white">
                   <RotateCcw size={18} />
                 </button>
               </AlertDialogTrigger>
@@ -703,11 +703,11 @@ export function SingleTaskPage(): React.JSX.Element {
 
           {/* Stats */}
           <div className="w-full grid grid-cols-2 gap-3 mb-8">
-            <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 text-center">
+            <div className="bg-white rounded-sm border border-slate-200 px-4 py-3 text-center">
               <p className="text-xs text-slate-400 mb-1">Tempo total</p>
               <p className="text-lg font-mono font-bold text-slate-700">{formatTime(task.total_seconds)}</p>
             </div>
-            <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 text-center">
+            <div className="bg-white rounded-sm border border-slate-200 px-4 py-3 text-center">
               <p className="text-xs text-slate-400 mb-1">Sessões</p>
               <p className="text-lg font-mono font-bold text-slate-700">{sessionCount}</p>
             </div>

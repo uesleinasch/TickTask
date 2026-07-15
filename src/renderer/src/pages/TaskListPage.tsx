@@ -646,7 +646,7 @@ export function TaskListPage(): React.JSX.Element {
       {/* Filter Area - Collapsible */}
       {showFilters && (
         <div className="px-6 pb-4 animate-in slide-in-from-top-2 fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <div className="bg-white border border-slate-200 rounded-sm p-4">
             <div className="flex flex-wrap items-end gap-4">
               {/* Search */}
               <div className="flex-1 min-w-[200px]">
@@ -802,7 +802,7 @@ export function TaskListPage(): React.JSX.Element {
       <ScrollArea className="flex-1 h-0">
         <div className="p-6 pt-2 pb-24">
           {!loading && filteredTasks.length > 0 && (
-            <div className="mb-4 bg-white border border-slate-200 rounded-xl p-4">
+            <div className="mb-4 bg-white border border-slate-200 rounded-sm p-4">
               <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="font-semibold text-slate-800">

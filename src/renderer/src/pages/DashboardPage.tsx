@@ -391,7 +391,7 @@ export function DashboardPage(): React.JSX.Element {
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {/* Taxa de conclusão do Inbox */}
-                <div className="bg-white border border-slate-200 rounded-xl p-4">
+                <div className="bg-white border border-slate-200 rounded-sm p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="p-1.5 bg-indigo-100 rounded-lg">
                       <InboxIcon size={16} className="text-indigo-600" />
@@ -409,7 +409,7 @@ export function DashboardPage(): React.JSX.Element {
                 </div>
 
                 {/* Tempo médio de processamento */}
-                <div className="bg-white border border-slate-200 rounded-xl p-4">
+                <div className="bg-white border border-slate-200 rounded-sm p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="p-1.5 bg-teal-100 rounded-lg">
                       <Timer size={16} className="text-teal-600" />
@@ -424,7 +424,7 @@ export function DashboardPage(): React.JSX.Element {
 
                 {/* Projetos parados */}
                 <div className={cn(
-                  'border rounded-xl p-4',
+                  'border rounded-sm p-4',
                   gtdMetrics.staleProjects.length > 0
                     ? 'bg-orange-50 border-orange-200'
                     : 'bg-white border-slate-200'
@@ -443,7 +443,7 @@ export function DashboardPage(): React.JSX.Element {
 
                 {/* Tarefas aguardando paradas */}
                 <div className={cn(
-                  'border rounded-xl p-4',
+                  'border rounded-sm p-4',
                   gtdMetrics.staleWaitingTasks.length > 0
                     ? 'bg-red-50 border-red-200'
                     : 'bg-white border-slate-200'
@@ -465,7 +465,7 @@ export function DashboardPage(): React.JSX.Element {
               {(gtdMetrics.staleProjects.length > 0 || gtdMetrics.staleWaitingTasks.length > 0) && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {gtdMetrics.staleProjects.length > 0 && (
-                    <div className="bg-white border border-orange-200 rounded-xl p-4">
+                    <div className="bg-white border border-orange-200 rounded-sm p-4">
                       <h3 className="text-sm font-semibold text-orange-700 mb-3 flex items-center gap-2">
                         <AlertTriangle size={16} />
                         Projetos sem atividade
@@ -483,7 +483,7 @@ export function DashboardPage(): React.JSX.Element {
                     </div>
                   )}
                   {gtdMetrics.staleWaitingTasks.length > 0 && (
-                    <div className="bg-white border border-red-200 rounded-xl p-4">
+                    <div className="bg-white border border-red-200 rounded-sm p-4">
                       <h3 className="text-sm font-semibold text-red-700 mb-3 flex items-center gap-2">
                         <Hourglass size={16} />
                         Aguardando sem resposta
@@ -507,7 +507,7 @@ export function DashboardPage(): React.JSX.Element {
 
           {/* ==================== FLUXO DE TAREFAS ==================== */}
           {taskFlowData.length > 0 && (
-            <div className="bg-white border border-slate-200 rounded-xl p-6">
+            <div className="bg-white border border-slate-200 rounded-sm p-6">
               <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
                 <TrendingUp size={20} className="text-blue-600" />
                 Fluxo de Tarefas (Funil GTD)
@@ -538,7 +538,7 @@ export function DashboardPage(): React.JSX.Element {
           )}
 
           {/* ==================== ENERGY TRACKING ==================== */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6">
+          <div className="bg-white border border-slate-200 rounded-sm p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
               <Zap size={20} className="text-amber-500" />
               Análise de Energia
@@ -589,7 +589,7 @@ export function DashboardPage(): React.JSX.Element {
           {/* ==================== CHARTS ROW ==================== */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Bar Chart - Tempo por dia da semana */}
-            <div className="bg-white border border-slate-200 rounded-xl p-6">
+            <div className="bg-white border border-slate-200 rounded-sm p-6">
               <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
                 <Calendar size={20} className="text-blue-600" />
                 Tempo Focado por Dia da Semana
@@ -609,7 +609,7 @@ export function DashboardPage(): React.JSX.Element {
             </div>
 
             {/* Pie Chart - Por Status */}
-            <div className="bg-white border border-slate-200 rounded-xl p-6">
+            <div className="bg-white border border-slate-200 rounded-sm p-6">
               <h3 className="text-lg font-semibold text-slate-900 mb-4">Tempo por Status</h3>
               {statusPieData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={250}>
@@ -644,7 +644,7 @@ export function DashboardPage(): React.JSX.Element {
 
           {/* ==================== CATEGORIA ==================== */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white border border-slate-200 rounded-xl p-6">
+            <div className="bg-white border border-slate-200 rounded-sm p-6">
               <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
                 <AlertTriangle size={20} className="text-red-500" />
                 Tempo por Categoria
@@ -679,7 +679,7 @@ export function DashboardPage(): React.JSX.Element {
               )}
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-xl p-6">
+            <div className="bg-white border border-slate-200 rounded-sm p-6">
               <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
                 <Flag size={20} className="text-amber-500" />
                 Detalhes por Categoria
@@ -734,7 +734,7 @@ export function DashboardPage(): React.JSX.Element {
           </div>
 
           {/* ==================== TOP TAREFAS ==================== */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6">
+          <div className="bg-white border border-slate-200 rounded-sm p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">
               Top Tarefas (Tempo Investido)
             </h3>
@@ -788,7 +788,7 @@ export function DashboardPage(): React.JSX.Element {
           </div>
 
           {/* ==================== HEATMAP ==================== */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6">
+          <div className="bg-white border border-slate-200 rounded-sm p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
               <Calendar size={20} className="text-emerald-600" />
               Contribuições no Último Ano
@@ -839,7 +839,7 @@ interface StatCardProps {
 
 function StatCard({ icon, iconBg, value, label }: StatCardProps): React.JSX.Element {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4">
+    <div className="bg-white border border-slate-200 rounded-sm p-4">
       <div className="flex items-center gap-3">
         <div className={`p-2 rounded-lg ${iconBg}`}>{icon}</div>
         <div>
