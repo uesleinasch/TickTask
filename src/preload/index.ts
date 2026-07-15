@@ -80,21 +80,23 @@ const api = {
   },
 
   // Float window controls
-  updateFloatTimer: (data: { taskId: number; taskName: string; seconds: number }): Promise<void> =>
-    ipcRenderer.invoke('float:updateTimer', data),
+  updateFloatTimer: (
+    timers: { taskId: number; taskName: string; seconds: number }[]
+  ): Promise<void> => ipcRenderer.invoke('float:updateTimer', timers),
   clearFloatTimer: (): Promise<void> => ipcRenderer.invoke('float:clearTimer'),
   restoreFromFloat: (): Promise<void> => ipcRenderer.invoke('float:restore'),
   stopFromFloat: (taskId: number): Promise<void> => ipcRenderer.invoke('float:stopTimer', taskId),
+  stopAllFromFloat: (): Promise<void> => ipcRenderer.invoke('float:stopAll'),
 
   // Float window events
   onFloatUpdate: (
-    callback: (data: { taskId: number; taskName: string; seconds: number }) => void
+    callback: (timers: { taskId: number; taskName: string; seconds: number }[]) => void
   ): (() => void) => {
     const handler = (
       _: Electron.IpcRendererEvent,
-      data: { taskId: number; taskName: string; seconds: number }
+      timers: { taskId: number; taskName: string; seconds: number }[]
     ): void => {
-      callback(data)
+      callback(timers)
     }
     ipcRenderer.on('float:update', handler)
     return () => ipcRenderer.removeListener('float:update', handler)
