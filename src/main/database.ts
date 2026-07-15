@@ -89,6 +89,12 @@ export function initDatabase(): void {
     )
   `)
 
+  // Índice para acelerar a busca de sessões em andamento (múltiplos timers)
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_time_entries_task_active
+    ON time_entries(task_id, end_time)
+  `)
+
   // Criar tabela tags
   db.exec(`
     CREATE TABLE IF NOT EXISTS tags (
