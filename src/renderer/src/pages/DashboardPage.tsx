@@ -41,6 +41,7 @@ import type { GtdMetrics, EnergyStats } from '@shared/types'
 import { ENERGY_LABELS, ENERGY_COLORS, ENERGY_ICONS } from '@shared/types'
 import { toast } from '@renderer/components/ui/sonner'
 import { cn } from '@renderer/lib/utils'
+import { RunningNowPanel } from '@renderer/components/RunningNowPanel'
 
 interface DailyStats {
   date: string
@@ -346,6 +347,9 @@ export function DashboardPage(): React.JSX.Element {
 
       <ScrollArea className="flex-1 h-0">
         <div className="max-w-6xl mx-auto p-6 pb-16 space-y-6">
+
+          {/* Timers em execução (só aparece se houver algum) */}
+          <RunningNowPanel />
 
           {/* ==================== STATS CARDS ==================== */}
           {generalStats && (
