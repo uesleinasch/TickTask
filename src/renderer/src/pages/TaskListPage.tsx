@@ -19,9 +19,11 @@ import { TaskTable } from '@renderer/components/TaskTable'
 import { TaskDialog } from '@renderer/components/TaskDialog'
 import { useTasks, useFilteredTasks } from '@renderer/hooks/useTasks'
 import { usePersistedState } from '@renderer/hooks/usePersistedState'
+import { TaskGroups, type TaskGroup } from '@renderer/components/TaskGroups'
 import { eventEmitter } from '@renderer/App'
 import {
   STATUS_LABELS,
+  type Task,
   type TaskStatus,
   type TaskCategory,
   type CreateTaskInput,
@@ -47,7 +49,8 @@ import {
   CheckCheck,
   Loader2,
   Lock,
-  CalendarDays
+  CalendarDays,
+  Layers
 } from 'lucide-react'
 
 type FilterStatus = TaskStatus | 'all'
@@ -97,6 +100,14 @@ export function TaskListPage(): React.JSX.Element {
   const [availableContexts, setAvailableContexts] = useState<Context[]>([])
   const [availableProjects, setAvailableProjects] = useState<Project[]>([])
   const [viewMode, setViewMode] = usePersistedState<ViewMode>('ticktask:taskListViewMode', 'table')
+  const [groupingEnabled, setGroupingEnabled] = usePersistedState<boolean>(
+    'ticktask:taskListGrouping',
+    false
+  )
+  const [groupBy, setGroupBy] = usePersistedState<'project' | 'context'>(
+    'ticktask:taskListGroupBy',
+    'project'
+  )
   const [showFilters, setShowFilters] = useState(false)
   const [blockedFilter, setBlockedFilter] = useState(false)
   const [sortMode, setSortMode] = useState<SortMode>('updated')
@@ -228,6 +239,60 @@ export function TaskListPage(): React.JSX.Element {
   }, [statusFilteredTasks, categoryFilter, searchQuery, tagFilter, contextFilter, projectFilter, blockedFilter, sortMode])
 
   const filteredTaskIds = useMemo(() => filteredTasks.map((task) => task.id), [filteredTasks])
+
+  const taskGroups = useMemo<TaskGroup[]>(() => {
+    if (!groupingEnabled) return []
+
+    if (groupBy === 'project') {
+      const map = new Map<string, TaskGroup>()
+      const noProject: Task[] = []
+      for (const task of filteredTasks) {
+        if (task.project_id && task.project_name) {
+          const key = `p:${task.project_id}`
+          let group = map.get(key)
+          if (!group) {
+            group = { key, label: task.project_name, color: task.project_color, tasks: [] }
+            map.set(key, group)
+          }
+          group.tasks.push(task)
+        } else {
+          noProject.push(task)
+        }
+      }
+      const groups = Array.from(map.values()).sort((a, b) =>
+        a.label.localeCompare(b.label, 'pt-BR')
+      )
+      if (noProject.length > 0) {
+        groups.push({ key: 'p:none', label: 'Sem projeto', tasks: noProject })
+      }
+      return groups
+    }
+
+    // groupBy === 'context' — task com múltiplos contextos aparece em todos os grupos
+    const map = new Map<string, TaskGroup>()
+    const noContext: Task[] = []
+    for (const task of filteredTasks) {
+      const contexts = task.contexts ?? []
+      if (contexts.length === 0) {
+        noContext.push(task)
+      } else {
+        for (const ctx of contexts) {
+          const key = `c:${ctx.id}`
+          let group = map.get(key)
+          if (!group) {
+            group = { key, label: ctx.name, color: ctx.color, icon: ctx.icon, tasks: [] }
+            map.set(key, group)
+          }
+          group.tasks.push(task)
+        }
+      }
+    }
+    const groups = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'))
+    if (noContext.length > 0) {
+      groups.push({ key: 'c:none', label: 'Sem contexto', tasks: noContext })
+    }
+    return groups
+  }, [groupingEnabled, groupBy, filteredTasks])
   const selectedTaskIdSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds])
   const selectedCount = selectedTaskIds.length
 
@@ -501,6 +566,47 @@ export function TaskListPage(): React.JSX.Element {
                 <List size={18} />
               </button>
             </div>
+
+            {/* Agrupar */}
+            <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
+              <button
+                onClick={() => setGroupingEnabled(!groupingEnabled)}
+                className={`
+                  flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-all
+                  ${groupingEnabled
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                  }
+                `}
+                title="Agrupar tarefas"
+              >
+                <Layers size={16} /> Agrupar
+              </button>
+              {groupingEnabled && (
+                <div className="flex items-center gap-1 pl-1 ml-1 border-l border-slate-200">
+                  <button
+                    onClick={() => setGroupBy('project')}
+                    className={`px-2 py-1 rounded-md text-xs font-medium transition-all ${
+                      groupBy === 'project'
+                        ? 'bg-slate-200 text-slate-900'
+                        : 'text-slate-500 hover:bg-slate-100'
+                    }`}
+                  >
+                    Projeto
+                  </button>
+                  <button
+                    onClick={() => setGroupBy('context')}
+                    className={`px-2 py-1 rounded-md text-xs font-medium transition-all ${
+                      groupBy === 'context'
+                        ? 'bg-slate-200 text-slate-900'
+                        : 'text-slate-500 hover:bg-slate-100'
+                    }`}
+                  >
+                    Contexto
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -766,6 +872,16 @@ export function TaskListPage(): React.JSX.Element {
                   : `Nenhuma tarefa com status "${statusFilter}"`}
               </p>
             </div>
+          ) : groupingEnabled ? (
+            <TaskGroups
+              groups={taskGroups}
+              viewMode={viewMode}
+              onTaskClick={handleTaskClick}
+              selectedTaskIds={selectedTaskIdSet}
+              onToggleTaskSelection={toggleTaskSelection}
+              onToggleSelectAll={toggleSelectAllVisible}
+              onScheduleForToday={handleScheduleForToday}
+            />
           ) : viewMode === 'cards' ? (
             <TaskList
               tasks={filteredTasks}
