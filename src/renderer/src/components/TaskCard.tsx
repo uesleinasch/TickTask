@@ -24,28 +24,17 @@ interface TaskCardProps {
   onScheduleForToday?: (taskId: number) => void
 }
 
-function getTimeLeakStyles(task: Task): {
-  cardBg: string
-  borderColor: string
-} {
+function getTimeLeakVisual(task: Task): { cardBg: string; accentColor: string | null } {
   if (task.category !== 'time_leak') {
-    return {
-      cardBg: 'bg-white',
-      borderColor: 'border-l-transparent group-hover:border-l-slate-300'
-    }
+    return { cardBg: 'bg-white', accentColor: null }
   }
 
   const minutes = task.total_seconds / 60
 
-  if (minutes >= 60) {
-    return { cardBg: 'bg-red-50', borderColor: 'border-l-red-500' }
-  } else if (minutes >= 30) {
-    return { cardBg: 'bg-orange-50', borderColor: 'border-l-orange-500' }
-  } else if (minutes > 0) {
-    return { cardBg: 'bg-yellow-50', borderColor: 'border-l-yellow-500' }
-  }
-
-  return { cardBg: 'bg-white', borderColor: 'border-l-yellow-300' }
+  if (minutes >= 60) return { cardBg: 'bg-red-50', accentColor: '#ef4444' }
+  if (minutes >= 30) return { cardBg: 'bg-orange-50', accentColor: '#f97316' }
+  if (minutes > 0) return { cardBg: 'bg-yellow-50', accentColor: '#eab308' }
+  return { cardBg: 'bg-white', accentColor: '#fde047' }
 }
 
 const todayStr = (): string => new Date().toISOString().split('T')[0]
@@ -57,7 +46,7 @@ export function TaskCard({
   onClick,
   onScheduleForToday
 }: TaskCardProps): React.JSX.Element {
-  const timeLeakStyles = getTimeLeakStyles(task)
+  const timeLeakVisual = getTimeLeakVisual(task)
   const isTimeLeak = task.category === 'time_leak'
   const isOverOneHour = isTimeLeak && task.total_seconds >= 3600
   const isScheduledToday = task.scheduled_date === todayStr()
@@ -83,22 +72,30 @@ export function TaskCard({
     [expanded, subtasks.length, task.id]
   )
 
-  // Acento da borda esquerda por estado (destaca o que está em execução)
-  const accentBorder = task.is_running
-    ? 'border-l-emerald-500'
-    : timeLeakStyles.borderColor
+  // Acento lateral: sempre visível quando executando ou time leak; senão só no hover
+  const accentColor = task.is_running ? '#10b981' : (timeLeakVisual.accentColor ?? '#cbd5e1')
+  const accentAlways = task.is_running || timeLeakVisual.accentColor !== null
 
   return (
     <div onClick={onClick} className="group cursor-pointer h-full">
       <div
         className={cn(
-          'relative h-full flex flex-col gap-2.5 rounded-xl border border-slate-200 border-l-4 p-4',
+          'relative h-full flex flex-col gap-2.5 overflow-hidden rounded-xl border border-slate-200 p-4',
           'transition-all duration-200 hover:border-slate-300 hover:-translate-y-0.5',
-          timeLeakStyles.cardBg,
-          accentBorder,
+          timeLeakVisual.cardBg,
           selected && 'ring-2 ring-sky-300 border-sky-200'
         )}
       >
+        {/* Acento lateral (barra sobreposta — não altera a borda padrão) */}
+        <span
+          aria-hidden
+          className={cn(
+            'pointer-events-none absolute left-0 top-0 bottom-0 w-1 transition-opacity duration-200',
+            accentAlways ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          )}
+          style={{ backgroundColor: accentColor }}
+        />
+
         {/* Topo: título (herói) + seleção */}
         <div className="flex items-start gap-2">
           <div className="flex items-start gap-1.5 flex-1 min-w-0">
