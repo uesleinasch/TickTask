@@ -18,6 +18,7 @@ import { TaskList } from '@renderer/components/TaskList'
 import { TaskTable } from '@renderer/components/TaskTable'
 import { TaskDialog } from '@renderer/components/TaskDialog'
 import { useTasks, useFilteredTasks } from '@renderer/hooks/useTasks'
+import { usePersistedState } from '@renderer/hooks/usePersistedState'
 import { eventEmitter } from '@renderer/App'
 import {
   STATUS_LABELS,
@@ -95,7 +96,7 @@ export function TaskListPage(): React.JSX.Element {
   const [availableTags, setAvailableTags] = useState<Tag[]>([])
   const [availableContexts, setAvailableContexts] = useState<Context[]>([])
   const [availableProjects, setAvailableProjects] = useState<Project[]>([])
-  const [viewMode, setViewMode] = useState<ViewMode>('table')
+  const [viewMode, setViewMode] = usePersistedState<ViewMode>('ticktask:taskListViewMode', 'table')
   const [showFilters, setShowFilters] = useState(false)
   const [blockedFilter, setBlockedFilter] = useState(false)
   const [sortMode, setSortMode] = useState<SortMode>('updated')
