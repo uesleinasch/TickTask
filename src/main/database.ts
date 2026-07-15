@@ -801,18 +801,30 @@ export function updateTaskNotes(id: number, notes: string | null): void {
   stmt.run(notes, id)
 }
 
+// Ids das subtarefas (filhas) de uma tarefa — todas, inclusive arquivadas
+export function getChildTaskIds(parentId: number): number[] {
+  const stmt = db.prepare('SELECT id FROM tasks WHERE parent_task_id = ?')
+  return (stmt.all(parentId) as { id: number }[]).map((r) => r.id)
+}
+
 export function deleteTask(id: number): void {
-  const stmt = db.prepare('DELETE FROM tasks WHERE id = ?')
-  stmt.run(id)
+  const transaction = db.transaction(() => {
+    // Excluir subtarefas junto com a tarefa pai
+    db.prepare('DELETE FROM tasks WHERE parent_task_id = ?').run(id)
+    db.prepare('DELETE FROM tasks WHERE id = ?').run(id)
+  })
+  transaction()
 }
 
 export function deleteTasks(ids: number[]): void {
   if (ids.length === 0) return
 
   const transaction = db.transaction((taskIds: number[]) => {
-    const stmt = db.prepare('DELETE FROM tasks WHERE id = ?')
+    const deleteChildren = db.prepare('DELETE FROM tasks WHERE parent_task_id = ?')
+    const deleteTaskStmt = db.prepare('DELETE FROM tasks WHERE id = ?')
     for (const id of taskIds) {
-      stmt.run(id)
+      deleteChildren.run(id)
+      deleteTaskStmt.run(id)
     }
   })
 

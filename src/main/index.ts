@@ -12,6 +12,7 @@ import {
   updateTaskNotes,
   deleteTask,
   deleteTasks,
+  getChildTaskIds,
   archiveTask,
   unarchiveTask,
   updateTaskStatus,
@@ -396,6 +397,12 @@ function setupIpcHandlers(): void {
   ipcMain.handle('task:delete', (_, id: number) => {
     const config = getNotionConfig()
     if (config?.autoSync && config.databaseId) {
+      // Excluir também as subtarefas do Notion
+      for (const childId of getChildTaskIds(id)) {
+        deleteTaskFromNotion(childId).catch((error) => {
+          console.error('Erro ao deletar subtarefa do Notion:', error)
+        })
+      }
       deleteTaskFromNotion(id).catch((error) => {
         console.error('Erro ao deletar do Notion:', error)
       })
@@ -408,8 +415,10 @@ function setupIpcHandlers(): void {
 
     const config = getNotionConfig()
     if (config?.autoSync && config.databaseId) {
+      // Incluir as subtarefas de cada tarefa para excluí-las também do Notion
+      const idsToDelete = [...taskIds, ...taskIds.flatMap((id) => getChildTaskIds(id))]
       await Promise.all(
-        taskIds.map(async (id) => {
+        idsToDelete.map(async (id) => {
           try {
             await deleteTaskFromNotion(id)
           } catch (error) {
