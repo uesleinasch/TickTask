@@ -357,7 +357,9 @@ export function SingleTaskPage(): React.JSX.Element {
   const accent = CATEGORY_ACCENT[task.category] || CATEGORY_ACCENT.normal
   const projectOptions = [
     { value: 'none', label: 'Nenhum projeto' },
-    ...projects.map((p) => ({ value: String(p.id), label: p.name }))
+    ...projects
+      .filter((p) => p.status === 'active' || p.status === 'someday' || p.id === task.project_id)
+      .map((p) => ({ value: String(p.id), label: p.name }))
   ]
   const sessionCount = timeEntries.length
 
@@ -375,7 +377,7 @@ export function SingleTaskPage(): React.JSX.Element {
         {/* Header */}
         <div className="px-5 pt-4 pb-3 flex items-center justify-between shrink-0">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate(-1)}
             className="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 transition-colors text-sm"
           >
             <ArrowLeft size={16} />

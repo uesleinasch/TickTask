@@ -42,7 +42,10 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
 
   useEffect(() => {
     if (open) {
-      window.api.listProjects('active').then(setProjects).catch(console.error)
+      window.api
+        .listProjects()
+        .then((all) => setProjects(all.filter((p) => p.status === 'active' || p.status === 'someday')))
+        .catch(console.error)
       window.api.listContexts().then(setContexts).catch(console.error)
     }
   }, [open])
