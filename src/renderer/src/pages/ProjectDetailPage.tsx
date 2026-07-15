@@ -14,6 +14,7 @@ import { DeleteConfirmDialog } from '@renderer/components/DeleteConfirmDialog'
 import { StatusBadge } from '@renderer/components/StatusBadge'
 import { CategoryBadge } from '@renderer/components/CategoryBadge'
 import { useProjectDetail } from '@renderer/hooks/useProjects'
+import { ColorPicker, DEFAULT_COLORS } from '@renderer/components/ColorPicker'
 import { formatTime } from '@renderer/lib/utils'
 import type { ProjectStatus } from '@shared/types'
 import { PROJECT_STATUS_LABELS } from '@shared/types'
@@ -42,6 +43,7 @@ export function ProjectDetailPage(): React.JSX.Element {
   const [description, setDescription] = useState('')
   const [outcome, setOutcome] = useState('')
   const [dueDate, setDueDate] = useState('')
+  const [color, setColor] = useState(DEFAULT_COLORS[9])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   useEffect(() => {
@@ -50,6 +52,7 @@ export function ProjectDetailPage(): React.JSX.Element {
       setDescription(project.description || '')
       setOutcome(project.outcome || '')
       setDueDate(project.due_date ? project.due_date.split('T')[0] : '')
+      setColor(project.color || DEFAULT_COLORS[9])
     }
   }, [project])
 
@@ -67,6 +70,14 @@ export function ProjectDetailPage(): React.JSX.Element {
     async (status: ProjectStatus): Promise<void> => {
       await updateProject({ status })
       toast.success(`Status alterado para ${PROJECT_STATUS_LABELS[status]}`)
+    },
+    [updateProject]
+  )
+
+  const handleColorChange = useCallback(
+    async (newColor: string): Promise<void> => {
+      setColor(newColor)
+      await updateProject({ color: newColor })
     },
     [updateProject]
   )
@@ -147,14 +158,20 @@ export function ProjectDetailPage(): React.JSX.Element {
         <div className="max-w-3xl mx-auto p-6 space-y-6">
           {/* Title & Description */}
           <div className="space-y-4">
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onBlur={handleBlurSave}
-              className="w-full text-3xl font-bold bg-transparent border-b border-transparent hover:border-slate-300 focus:border-slate-900 focus:outline-none transition-colors text-slate-900 placeholder:text-slate-300"
-              placeholder="Nome do Projeto"
-            />
+            <div className="flex items-center gap-3">
+              <span
+                className="h-5 w-5 rounded-full shrink-0 border border-black/10"
+                style={{ backgroundColor: color }}
+              />
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onBlur={handleBlurSave}
+                className="w-full text-3xl font-bold bg-transparent border-b border-transparent hover:border-slate-300 focus:border-slate-900 focus:outline-none transition-colors text-slate-900 placeholder:text-slate-300"
+                placeholder="Nome do Projeto"
+              />
+            </div>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -162,6 +179,7 @@ export function ProjectDetailPage(): React.JSX.Element {
               className="w-full bg-transparent resize-none text-slate-600 focus:outline-none hover:bg-white/50 rounded-md p-2 -ml-2 transition-colors min-h-[60px]"
               placeholder="Adicione uma descrição..."
             />
+            <ColorPicker value={color} onChange={handleColorChange} />
           </div>
 
           {/* Outcome & Date */}

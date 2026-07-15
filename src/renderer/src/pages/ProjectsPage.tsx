@@ -13,6 +13,7 @@ import {
   DialogTitle
 } from '@renderer/components/ui/dialog'
 import { useProjects } from '@renderer/hooks/useProjects'
+import { ColorPicker, DEFAULT_COLORS } from '@renderer/components/ColorPicker'
 import type { ProjectStatus, CreateProjectInput } from '@shared/types'
 import { PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS } from '@shared/types'
 import {
@@ -46,6 +47,7 @@ export function ProjectsPage(): React.JSX.Element {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [outcome, setOutcome] = useState('')
+  const [color, setColor] = useState(DEFAULT_COLORS[9]) // #6366f1
 
   const filteredProjects =
     statusFilter === 'all'
@@ -60,17 +62,19 @@ export function ProjectsPage(): React.JSX.Element {
       const data: CreateProjectInput = {
         name: name.trim(),
         description: description.trim() || undefined,
-        outcome: outcome.trim() || undefined
+        outcome: outcome.trim() || undefined,
+        color
       }
 
       const project = await createProject(data)
       setName('')
       setDescription('')
       setOutcome('')
+      setColor(DEFAULT_COLORS[9])
       setDialogOpen(false)
       navigate(`/project/${project.id}`)
     },
-    [name, description, outcome, createProject, navigate]
+    [name, description, outcome, color, createProject, navigate]
   )
 
   return (
@@ -162,6 +166,7 @@ export function ProjectsPage(): React.JSX.Element {
                     key={project.id}
                     onClick={() => navigate(`/project/${project.id}`)}
                     className="group cursor-pointer bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
+                    style={{ borderLeftColor: project.color, borderLeftWidth: '4px' }}
                   >
                     {/* Status Badge */}
                     <div className="flex items-center justify-between mb-3">
@@ -290,6 +295,7 @@ export function ProjectsPage(): React.JSX.Element {
                 className="border-slate-300 focus:ring-slate-900 resize-none"
               />
             </div>
+            <ColorPicker value={color} onChange={setColor} />
             <DialogFooter className="pt-2">
               <Button
                 type="button"
