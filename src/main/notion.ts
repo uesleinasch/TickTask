@@ -313,6 +313,16 @@ export async function createGTDDatabase(): Promise<string> {
             options: []
           }
         },
+        Contextos: {
+          multi_select: {
+            options: []
+          }
+        },
+        Projeto: {
+          select: {
+            options: []
+          }
+        },
         'Tempo Total (min)': {
           number: {
             format: 'number'
@@ -399,11 +409,44 @@ function formatSecondsToMinutes(seconds: number): number {
   return Math.round(seconds / 60)
 }
 
-function getNotionColorForTag(_tag: Tag): NotionColor {
-  // Retornar cor baseada no hash do nome da tag
+function getNotionColorForName(name: string): NotionColor {
   const colors: NotionColor[] = ['blue', 'green', 'orange', 'pink', 'purple', 'red', 'yellow']
-  const hash = _tag.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
   return colors[hash % colors.length]
+}
+
+function getNotionColorForTag(_tag: Tag): NotionColor {
+  return getNotionColorForName(_tag.name)
+}
+
+// Garante que o database tenha as propriedades Contextos, Projeto e Tarefa Pai.
+// Idempotente e com cache em memória; adiciona as que faltam (inclui databases já provisionados).
+let schemaEnsuredFor: string | null = null
+
+async function ensureNotionSchema(client: Client, databaseId: string): Promise<void> {
+  if (schemaEnsuredFor === databaseId) return
+  try {
+    const db = await client.databases.retrieve({ database_id: databaseId })
+    const props = (db as { properties?: Record<string, unknown> }).properties || {}
+    const toAdd: Record<string, unknown> = {}
+    if (!('Contextos' in props)) toAdd['Contextos'] = { multi_select: { options: [] } }
+    if (!('Projeto' in props)) toAdd['Projeto'] = { select: { options: [] } }
+    if (!('Tarefa Pai' in props)) {
+      toAdd['Tarefa Pai'] = {
+        relation: { database_id: databaseId, type: 'single_property', single_property: {} }
+      }
+    }
+    if (Object.keys(toAdd).length > 0) {
+      await client.databases.update({
+        database_id: databaseId,
+        properties: toAdd as Parameters<typeof client.databases.update>[0]['properties']
+      })
+      console.log('Schema do Notion atualizado (Contextos/Projeto/Tarefa Pai)')
+    }
+    schemaEnsuredFor = databaseId
+  } catch (error) {
+    console.error('Erro ao garantir schema do Notion:', error)
+  }
 }
 
 export async function syncTaskToNotion(task: Task): Promise<string> {
@@ -412,9 +455,19 @@ export async function syncTaskToNotion(task: Task): Promise<string> {
 
   try {
     const databaseId = await findOrCreateDatabase()
+    await ensureNotionSchema(client, databaseId)
 
     // Verificar se a tarefa já existe no Notion (pelo ID local)
     const existingPage = await findTaskInNotion(task.id)
+
+    // Relação com a tarefa pai (subtarefas). Requer a pai já sincronizada.
+    let parentRelation: Array<{ id: string }> = []
+    if (task.parent_task_id) {
+      const parentPageId = await findTaskInNotion(task.parent_task_id)
+      if (parentPageId) {
+        parentRelation = [{ id: parentPageId }]
+      }
+    }
 
     const properties = {
       Nome: {
@@ -455,6 +508,17 @@ export async function syncTaskToNotion(task: Task): Promise<string> {
             name: tag.name,
             color: getNotionColorForTag(tag)
           })) || []
+      },
+      Contextos: {
+        multi_select:
+          task.contexts?.map((ctx) => ({
+            name: ctx.name,
+            color: getNotionColorForName(ctx.name)
+          })) || []
+      },
+      Projeto: task.project_name ? { select: { name: task.project_name } } : { select: null },
+      'Tarefa Pai': {
+        relation: parentRelation
       },
       'Tempo Total (min)': {
         number: formatSecondsToMinutes(task.total_seconds)

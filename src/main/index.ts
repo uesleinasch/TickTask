@@ -694,8 +694,12 @@ function setupIpcHandlers(): void {
 
   // ===================== FASE 2: Subtarefas =====================
   ipcMain.handle('subtask:list', (_, parentId: number) => getSubtasks(parentId))
-  ipcMain.handle('subtask:create', (_, data: { name: string; parent_task_id: number }) => {
+  ipcMain.handle('subtask:create', async (_, data: { name: string; parent_task_id: number }) => {
     const task = createTask({ name: data.name, parent_task_id: data.parent_task_id })
+    // Sincroniza a pai primeiro (garante a página no Notion) e depois a subtarefa,
+    // para que a relação "Tarefa Pai" encontre a página da pai.
+    await autoSyncToNotion(data.parent_task_id)
+    autoSyncToNotion(task.id)
     return task
   })
 
