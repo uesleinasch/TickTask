@@ -58,7 +58,7 @@ function SortableTaskRow({ task, onTaskClick }: SortableTaskRowProps): React.JSX
       ref={setNodeRef}
       style={style}
       className={cn(
-        'flex items-center gap-3 px-4 py-3 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer group',
+        'flex items-center gap-3 px-4 py-3 bg-white border border-slate-200 rounded-xl hover:shadow-md transition-all cursor-pointer group',
         isDragging && 'shadow-lg border-slate-300',
         task.is_blocked && 'border-l-4 border-l-orange-300'
       )}
@@ -286,7 +286,7 @@ export function TodayPage(): React.JSX.Element {
 
         {/* Load indicator */}
         {tab === 'today' && totalLimitSeconds > 0 && (
-            <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm">
+            <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-4 py-3">
               <Clock size={16} className={isOverloaded ? 'text-red-500' : 'text-green-500'} />
               <div>
                 <div className="flex items-center gap-2">

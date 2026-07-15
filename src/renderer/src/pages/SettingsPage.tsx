@@ -207,7 +207,7 @@ export function SettingsPage(): React.JSX.Element {
       <ScrollArea className="flex-1 h-0">
         <div className="max-w-2xl mx-auto p-6 space-y-6">
           {/* Notion Integration Section */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-6">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-slate-900 rounded-lg">
                 <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">

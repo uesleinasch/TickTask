@@ -228,7 +228,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
                         inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border
                         ${
                           isSelected
-                            ? 'text-white shadow-sm'
+                            ? 'text-white'
                             : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
                         }
                       `}

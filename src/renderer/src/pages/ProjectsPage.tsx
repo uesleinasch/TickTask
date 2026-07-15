@@ -97,7 +97,7 @@ export function ProjectsPage(): React.JSX.Element {
         <Button
           size="sm"
           onClick={() => setDialogOpen(true)}
-          className="bg-slate-900 text-white hover:bg-slate-800 shadow-sm"
+          className="bg-slate-900 text-white hover:bg-slate-800"
         >
           <Plus className="mr-2 h-4 w-4" />
           Novo Projeto
@@ -166,7 +166,7 @@ export function ProjectsPage(): React.JSX.Element {
                   <div
                     key={project.id}
                     onClick={() => navigate(`/project/${project.id}`)}
-                    className="group cursor-pointer bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
+                    className="group cursor-pointer bg-white border border-slate-200 rounded-xl p-5 hover:shadow-md transition-all hover:-translate-y-0.5"
                     style={{ borderLeftColor: project.color, borderLeftWidth: '4px' }}
                   >
                     {/* Status Badge */}

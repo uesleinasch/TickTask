@@ -162,7 +162,7 @@ export function WeeklyReviewPage(): React.JSX.Element {
           <Button
             size="sm"
             onClick={handleStartReview}
-            className="bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
+            className="bg-emerald-600 text-white hover:bg-emerald-700"
           >
             <Play className="mr-2 h-4 w-4" />
             Iniciar Revisão
@@ -257,7 +257,7 @@ export function WeeklyReviewPage(): React.JSX.Element {
                         'w-full flex items-start gap-4 bg-white border rounded-xl p-4 text-left transition-all',
                         checked
                           ? 'border-emerald-200 bg-emerald-50/50'
-                          : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
+                          : 'border-slate-200 hover:border-slate-300'
                       )}
                     >
                       <div className="mt-0.5">
@@ -290,7 +290,7 @@ export function WeeklyReviewPage(): React.JSX.Element {
               </div>
 
               {/* Notes & Complete */}
-              <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
+              <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
                 <h4 className="text-sm font-semibold text-slate-900">Notas da Revisão</h4>
                 <Textarea
                   value={notes}

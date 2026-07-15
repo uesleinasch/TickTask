@@ -80,7 +80,7 @@ export function SearchableSelect({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'flex h-9 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors',
+          'flex h-9 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm transition-colors',
           'hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1',
           isOpen && 'ring-2 ring-slate-400 ring-offset-1',
           triggerClassName

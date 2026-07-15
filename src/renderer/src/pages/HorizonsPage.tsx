@@ -473,7 +473,7 @@ export function HorizonsPage(): React.JSX.Element {
                     <div
                       key={project.id}
                       onClick={() => navigate(`/project/${project.id}`)}
-                      className="p-4 bg-white border border-slate-200 rounded-lg hover:border-emerald-300 hover:shadow-sm cursor-pointer transition-all group"
+                      className="p-4 bg-white border border-slate-200 rounded-lg hover:border-emerald-300 cursor-pointer transition-all group"
                     >
                       <div className="flex items-start justify-between mb-2">
                         <span className="font-medium text-sm text-slate-800 group-hover:text-emerald-700">

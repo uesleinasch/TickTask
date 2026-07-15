@@ -518,7 +518,7 @@ export function TaskListPage(): React.JSX.Element {
               className={`
                 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all
                 ${showFilters || hasActiveFilters
-                  ? 'bg-slate-900 text-white shadow-sm'
+                  ? 'bg-slate-900 text-white'
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                 }
               `}
@@ -538,13 +538,13 @@ export function TaskListPage(): React.JSX.Element {
               )}
             </button>
 
-            <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
+            <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1">
               <button
                 onClick={() => setViewMode('cards')}
                 className={`
                   p-2 rounded-md transition-all
                   ${viewMode === 'cards'
-                    ? 'bg-slate-900 text-white shadow-sm'
+                    ? 'bg-slate-900 text-white'
                     : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
                   }
                 `}
@@ -557,7 +557,7 @@ export function TaskListPage(): React.JSX.Element {
                 className={`
                   p-2 rounded-md transition-all
                   ${viewMode === 'table'
-                    ? 'bg-slate-900 text-white shadow-sm'
+                    ? 'bg-slate-900 text-white'
                     : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
                   }
                 `}
@@ -568,13 +568,13 @@ export function TaskListPage(): React.JSX.Element {
             </div>
 
             {/* Agrupar */}
-            <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
+            <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1">
               <button
                 onClick={() => setGroupingEnabled(!groupingEnabled)}
                 className={`
                   flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-all
                   ${groupingEnabled
-                    ? 'bg-slate-900 text-white shadow-sm'
+                    ? 'bg-slate-900 text-white'
                     : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                   }
                 `}
@@ -614,7 +614,7 @@ export function TaskListPage(): React.JSX.Element {
       {/* Filter Area - Collapsible */}
       {showFilters && (
         <div className="px-6 pb-4 animate-in slide-in-from-top-2 fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+          <div className="bg-white border border-slate-200 rounded-xl p-4">
             <div className="flex flex-wrap items-end gap-4">
               {/* Search */}
               <div className="flex-1 min-w-[200px]">
@@ -770,7 +770,7 @@ export function TaskListPage(): React.JSX.Element {
       <ScrollArea className="flex-1 h-0">
         <div className="p-6 pt-2 pb-24">
           {!loading && filteredTasks.length > 0 && (
-            <div className="mb-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <div className="mb-4 bg-white border border-slate-200 rounded-xl p-4">
               <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="font-semibold text-slate-800">

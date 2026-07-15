@@ -93,7 +93,7 @@ export function TaskCard({
     >
       <div
         className={cn(
-          'border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md h-full flex flex-col justify-between border-l-4 transition-all',
+          'border border-slate-200 rounded-xl p-5 hover:shadow-md h-full flex flex-col justify-between border-l-4 transition-all',
           timeLeakStyles.cardBg,
           timeLeakStyles.borderColor,
           selected && 'ring-2 ring-sky-300 border-sky-200'

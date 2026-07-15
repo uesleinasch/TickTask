@@ -95,7 +95,7 @@ export function TaskTable({
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
       <table className="w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">

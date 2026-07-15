@@ -103,7 +103,7 @@ export function ContextsPage(): React.JSX.Element {
         <Button
           size="sm"
           onClick={openCreateDialog}
-          className="bg-slate-900 text-white hover:bg-slate-800 shadow-sm"
+          className="bg-slate-900 text-white hover:bg-slate-800"
         >
           <Plus className="mr-2 h-4 w-4" />
           Novo Contexto
@@ -138,7 +138,7 @@ export function ContextsPage(): React.JSX.Element {
               {contexts.map((ctx) => (
                 <div
                   key={ctx.id}
-                  className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all group"
+                  className="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all group"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">

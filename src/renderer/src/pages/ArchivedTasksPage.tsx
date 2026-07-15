@@ -63,7 +63,7 @@ export function ArchivedTasksPage(): React.JSX.Element {
             {tasks.map((task) => (
               <div
                 key={task.id}
-                className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center justify-between opacity-75 hover:opacity-100 transition-opacity"
+                className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between opacity-75 hover:opacity-100 transition-opacity"
               >
                 <div>
                   <div className="flex items-center gap-2 mb-1">
