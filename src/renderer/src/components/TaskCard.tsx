@@ -156,10 +156,11 @@ export function TaskCard({
             {hasSubtasks && (
               <button
                 onClick={toggleExpand}
-                className="inline-flex items-center gap-1 hover:text-slate-800 transition-colors"
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 text-slate-600 font-medium hover:bg-slate-200 hover:text-slate-800 transition-colors"
+                title={expanded ? 'Recolher subtarefas' : 'Expandir subtarefas'}
               >
-                {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                <ListChecks size={12} />
+                {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                <ListChecks size={13} />
                 {task.completed_subtask_count}/{task.subtask_count}
               </button>
             )}
