@@ -104,7 +104,13 @@ function SortableTaskRow({ task, onTaskClick }: SortableTaskRowProps): React.JSX
           {task.due_date && <DueDateBadge dueDate={task.due_date} />}
         </div>
         {task.project_name && (
-          <p className="text-xs text-slate-400 mt-0.5">{task.project_name}</p>
+          <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
+            <span
+              className="h-2 w-2 rounded-full shrink-0"
+              style={{ backgroundColor: task.project_color || '#6366f1' }}
+            />
+            {task.project_name}
+          </p>
         )}
       </div>
 

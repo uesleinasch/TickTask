@@ -13,7 +13,8 @@ import {
   DialogTitle
 } from '@renderer/components/ui/dialog'
 import { useProjects } from '@renderer/hooks/useProjects'
-import { ColorPicker, DEFAULT_COLORS } from '@renderer/components/ColorPicker'
+import { ColorPicker } from '@renderer/components/ColorPicker'
+import { DEFAULT_COLORS } from '@renderer/lib/colors'
 import type { ProjectStatus, CreateProjectInput } from '@shared/types'
 import { PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS } from '@shared/types'
 import {

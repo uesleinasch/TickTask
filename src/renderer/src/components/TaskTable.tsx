@@ -8,7 +8,6 @@ import {
   Activity,
   Clock,
   AlertCircle,
-  FolderKanban,
   Lock,
   ListChecks,
   CalendarDays,
@@ -267,7 +266,10 @@ export function TaskTable({
                 <td className="px-4 py-3">
                   {task.project_name ? (
                     <span className="inline-flex items-center gap-1 text-xs text-slate-600">
-                      <FolderKanban size={12} className="text-slate-400" />
+                      <span
+                        className="h-2.5 w-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: task.project_color || '#6366f1' }}
+                      />
                       <span className="truncate max-w-[100px]">{task.project_name}</span>
                     </span>
                   ) : (

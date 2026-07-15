@@ -7,7 +7,6 @@ import type { Task } from '../../../shared/types'
 import {
   AlertCircle,
   Activity,
-  FolderKanban,
   Lock,
   ListChecks,
   CalendarDays,
@@ -145,7 +144,10 @@ export function TaskCard({
           {/* Project indicator */}
           {task.project_name && (
             <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1.5">
-              <FolderKanban size={12} />
+              <span
+                className="h-2.5 w-2.5 rounded-full shrink-0"
+                style={{ backgroundColor: task.project_color || '#6366f1' }}
+              />
               <span className="truncate">{task.project_name}</span>
             </div>
           )}

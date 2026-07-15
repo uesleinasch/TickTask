@@ -425,7 +425,13 @@ export function HorizonsPage(): React.JSX.Element {
                     <CheckCircle2 className="h-4 w-4 text-slate-300 group-hover:text-blue-400 shrink-0" />
                     <span className="flex-1 text-sm text-slate-700 font-medium">{task.name}</span>
                     {task.project_name && (
-                      <span className="text-xs text-slate-400 shrink-0">{task.project_name}</span>
+                      <span className="flex items-center gap-1.5 text-xs text-slate-400 shrink-0">
+                        <span
+                          className="h-2 w-2 rounded-full shrink-0"
+                          style={{ backgroundColor: task.project_color || '#6366f1' }}
+                        />
+                        {task.project_name}
+                      </span>
                     )}
                     {task.due_date && (
                       <span className="flex items-center gap-1 text-xs text-orange-500 shrink-0">
