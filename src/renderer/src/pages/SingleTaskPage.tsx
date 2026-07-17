@@ -51,7 +51,8 @@ import {
   RotateCcw,
   Activity,
   NotebookPen,
-  RefreshCw
+  RefreshCw,
+  Save
 } from 'lucide-react'
 import { toast } from '@renderer/components/ui/sonner'
 import {
@@ -134,6 +135,11 @@ export function SingleTaskPage(): React.JSX.Element {
   const notesEditorRef = useRef<TaskNotesEditorHandle>(null)
   const notesDirtyRef = useRef(false)
   const notesSyncingRef = useRef(false)
+  // Exportação local (Markdown) por task
+  const [localExportPath, setLocalExportPath] = useState<string | null>(null)
+  const [exportingLocal, setExportingLocal] = useState(false)
+  const localExportRef = useRef<string | null>(null)
+  localExportRef.current = localExportPath
 
   const initialNotes = parseNotes(task?.notes)
 
@@ -174,6 +180,7 @@ export function SingleTaskPage(): React.JSX.Element {
       setScheduledDate(task.scheduled_date || '')
       setRecurrenceRule(task.recurrence_rule || null)
       setEnergyLevel(task.energy_level)
+      setLocalExportPath(task.local_export_path ?? null)
     }
   }, [task])
 
@@ -313,6 +320,31 @@ export function SingleTaskPage(): React.JSX.Element {
       notesSyncingRef.current = false
       setSyncingNotes(false)
     }
+  }, [taskId])
+
+  // Escolhe o arquivo local (1ª vez) e grava; passa a exportar automaticamente depois.
+  const handleExportLocalChoose = useCallback(async (): Promise<void> => {
+    if (exportingLocal) return
+    setExportingLocal(true)
+    try {
+      await notesEditorRef.current?.flushSave()
+      const filePath = await window.api.exportNotesLocalChoose(taskId)
+      if (filePath) {
+        setLocalExportPath(filePath)
+        toast.success('Nota salva localmente')
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Erro ao salvar localmente'
+      toast.error(msg)
+    } finally {
+      setExportingLocal(false)
+    }
+  }, [taskId, exportingLocal])
+
+  // Reexporta o arquivo local a cada auto-save, quando já configurado.
+  const handleNotesSaved = useCallback((): void => {
+    if (!localExportRef.current) return
+    window.api.exportNotesLocal(taskId).catch((e) => console.error('Export local falhou:', e))
   }, [taskId])
 
   // Auto-sync com o Notion a cada 1 minuto enquanto o painel está aberto
@@ -865,14 +897,31 @@ export function SingleTaskPage(): React.JSX.Element {
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
               Notas
             </span>
-            <button
-              onClick={handleSaveAndSync}
-              disabled={syncingNotes}
-              className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-emerald-600 border border-emerald-200 hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <RefreshCw size={13} className={syncingNotes ? 'animate-spin' : ''} />
-              {syncingNotes ? 'Sincronizando...' : 'Salvar e sincronizar'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleExportLocalChoose}
+                disabled={exportingLocal}
+                title={localExportPath ?? 'Salvar em um arquivo local (Markdown)'}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <Save size={13} />
+                <span className="max-w-[140px] truncate">
+                  {exportingLocal
+                    ? 'Salvando...'
+                    : localExportPath
+                      ? localExportPath.split(/[\\/]/).pop() || 'Arquivo local'
+                      : 'Salvar local'}
+                </span>
+              </button>
+              <button
+                onClick={handleSaveAndSync}
+                disabled={syncingNotes}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-emerald-600 border border-emerald-200 hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <RefreshCw size={13} className={syncingNotes ? 'animate-spin' : ''} />
+                {syncingNotes ? 'Sincronizando...' : 'Salvar e sincronizar'}
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
             <TaskNotesEditor
@@ -880,6 +929,7 @@ export function SingleTaskPage(): React.JSX.Element {
               taskId={task.id}
               initialContent={initialNotes}
               onChange={handleNotesChange}
+              onSaved={handleNotesSaved}
             />
           </div>
         </aside>
