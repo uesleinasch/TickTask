@@ -187,11 +187,11 @@ export function editorJsToNotionBlocks(notesJson: string | null | undefined): No
               ? 'to_do'
               : 'bulleted_list_item'
         const items = (data.items ?? []) as Array<
-          string | { content?: string; text?: string; meta?: { checked?: boolean }; checked?: boolean }
+          | string
+          | { content?: string; text?: string; meta?: { checked?: boolean }; checked?: boolean }
         >
         for (const item of items) {
-          const text =
-            typeof item === 'string' ? item : String(item?.content ?? item?.text ?? '')
+          const text = typeof item === 'string' ? item : String(item?.content ?? item?.text ?? '')
           if (itemType === 'to_do') {
             const checked =
               typeof item === 'object' ? Boolean(item?.meta?.checked ?? item?.checked) : false
@@ -241,4 +241,216 @@ export function editorJsToNotionBlocks(notesJson: string | null | undefined): No
     }
   }
   return blocks
+}
+
+// ===================== ProseMirror (Tiptap) -> blocos do Notion =====================
+
+export type ImageResolver = (assetId: string) => string | null
+
+interface PMMark {
+  type: string
+  attrs?: Record<string, unknown>
+}
+interface PMNode {
+  type: string
+  attrs?: Record<string, unknown>
+  content?: PMNode[]
+  text?: string
+  marks?: PMMark[]
+}
+
+function pushSegments(
+  out: RichText[],
+  content: string,
+  annotations: RichText['annotations'],
+  link: string | null
+): void {
+  if (!content) return
+  for (let i = 0; i < content.length; i += NOTION_TEXT_LIMIT) {
+    out.push({
+      type: 'text',
+      text: { content: content.slice(i, i + NOTION_TEXT_LIMIT), link: link ? { url: link } : null },
+      annotations: { ...annotations }
+    })
+  }
+}
+
+export function inlineNodesToRichText(nodes: PMNode[] | undefined): RichText[] {
+  const out: RichText[] = []
+  for (const node of nodes ?? []) {
+    if (node.type === 'hardBreak') {
+      pushSegments(out, '\n', defaultAnnotations(), null)
+      continue
+    }
+    if (node.type === 'mention') {
+      pushSegments(out, '@' + String(node.attrs?.label ?? ''), defaultAnnotations(), null)
+      continue
+    }
+    if (node.type !== 'text') continue
+    const annotations = defaultAnnotations()
+    let link: string | null = null
+    for (const mark of node.marks ?? []) {
+      switch (mark.type) {
+        case 'bold':
+          annotations.bold = true
+          break
+        case 'italic':
+          annotations.italic = true
+          break
+        case 'underline':
+          annotations.underline = true
+          break
+        case 'strike':
+          annotations.strikethrough = true
+          break
+        case 'code':
+          annotations.code = true
+          break
+        case 'highlight':
+          annotations.color = 'yellow_background'
+          break
+        case 'link':
+          link = String(mark.attrs?.href ?? '') || null
+          break
+        default:
+          break
+      }
+    }
+    pushSegments(out, String(node.text ?? ''), annotations, link)
+  }
+  return out
+}
+
+function rtBlock(
+  type: string,
+  inline: PMNode[] | undefined,
+  extra: Record<string, unknown> = {}
+): NotionBlock {
+  return { object: 'block', type, [type]: { rich_text: inlineNodesToRichText(inline), ...extra } }
+}
+
+/** Conteúdo inline do primeiro parágrafo filho (usado por list items e blockquote). */
+function firstParagraphInline(node: PMNode): PMNode[] {
+  const para = (node.content ?? []).find((c) => c.type === 'paragraph')
+  return para?.content ?? []
+}
+
+function codeBlockFor(node: PMNode): NotionBlock {
+  const text = (node.content ?? []).map((c) => String(c.text ?? '')).join('')
+  return {
+    object: 'block',
+    type: 'code',
+    code: {
+      rich_text: [
+        {
+          type: 'text',
+          text: { content: text.slice(0, NOTION_TEXT_LIMIT), link: null },
+          annotations: defaultAnnotations()
+        }
+      ],
+      language: 'plain text'
+    }
+  }
+}
+
+export function prosemirrorToNotionBlocks(
+  json: string | null | undefined,
+  resolveImage?: ImageResolver
+): NotionBlock[] {
+  if (!json) return []
+  let doc: PMNode
+  try {
+    doc = JSON.parse(json) as PMNode
+  } catch {
+    return []
+  }
+  if (!doc || doc.type !== 'doc') return []
+
+  const blocks: NotionBlock[] = []
+  for (const node of doc.content ?? []) {
+    switch (node.type) {
+      case 'paragraph':
+        blocks.push(rtBlock('paragraph', node.content))
+        break
+      case 'heading': {
+        const level = Number(node.attrs?.level ?? 2)
+        const type = level <= 1 ? 'heading_1' : level === 2 ? 'heading_2' : 'heading_3'
+        blocks.push(rtBlock(type, node.content))
+        break
+      }
+      case 'bulletList':
+        for (const li of node.content ?? [])
+          blocks.push(rtBlock('bulleted_list_item', firstParagraphInline(li)))
+        break
+      case 'orderedList':
+        for (const li of node.content ?? [])
+          blocks.push(rtBlock('numbered_list_item', firstParagraphInline(li)))
+        break
+      case 'taskList':
+        for (const ti of node.content ?? [])
+          blocks.push(
+            rtBlock('to_do', firstParagraphInline(ti), { checked: Boolean(ti.attrs?.checked) })
+          )
+        break
+      case 'blockquote':
+        blocks.push(rtBlock('quote', firstParagraphInline(node)))
+        break
+      case 'codeBlock':
+        blocks.push(codeBlockFor(node))
+        break
+      case 'horizontalRule':
+        blocks.push({ object: 'block', type: 'divider', divider: {} })
+        break
+      case 'image': {
+        const id = resolveImage?.(String(node.attrs?.assetId ?? ''))
+        if (id)
+          blocks.push({
+            object: 'block',
+            type: 'image',
+            image: { type: 'file_upload', file_upload: { id } }
+          })
+        break
+      }
+      default:
+        break
+    }
+  }
+  return blocks
+}
+
+export function collectImageAssetIds(json: string | null | undefined): string[] {
+  if (!json) return []
+  let doc: PMNode
+  try {
+    doc = JSON.parse(json) as PMNode
+  } catch {
+    return []
+  }
+  if (!doc || doc.type !== 'doc') return []
+  const ids: string[] = []
+  for (const node of doc.content ?? []) {
+    if (node.type === 'image') {
+      const id = String(node.attrs?.assetId ?? '')
+      if (id) ids.push(id)
+    }
+  }
+  return ids
+}
+
+/** Detecta o dialeto salvo e converte para blocos do Notion. */
+export function notesToNotionBlocks(
+  json: string | null | undefined,
+  resolveImage?: ImageResolver
+): NotionBlock[] {
+  if (!json) return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    return []
+  }
+  if (parsed && typeof parsed === 'object' && (parsed as PMNode).type === 'doc') {
+    return prosemirrorToNotionBlocks(json, resolveImage)
+  }
+  return editorJsToNotionBlocks(json)
 }
