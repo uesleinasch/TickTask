@@ -5,6 +5,7 @@ import { DragHandle } from '@tiptap/extension-drag-handle-react'
 import { GripVertical } from 'lucide-react'
 import { buildExtensions } from './extensions'
 import { BubbleToolbar } from './BubbleToolbar'
+import { TableContextMenu } from './TableContextMenu'
 
 export interface TaskNotesEditorHandle {
   flushSave: () => Promise<void>
@@ -76,6 +77,7 @@ export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditor
     return (
       <div className="text-slate-800">
         <BubbleToolbar editor={editor} />
+        <TableContextMenu editor={editor} />
         {editor && (
           <DragHandle editor={editor}>
             <div className="flex cursor-grab items-center text-slate-400 hover:text-slate-600">
