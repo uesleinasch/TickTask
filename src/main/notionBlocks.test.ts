@@ -63,6 +63,55 @@ describe('prosemirrorToNotionBlocks', () => {
     expect((blocks[0].to_do as { checked: boolean }).checked).toBe(true)
   })
 
+  it('table vira table block do Notion com header', () => {
+    const blocks = prosemirrorToNotionBlocks(
+      doc([
+        {
+          type: 'table',
+          content: [
+            {
+              type: 'tableRow',
+              content: [
+                {
+                  type: 'tableHeader',
+                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'A' }] }]
+                },
+                {
+                  type: 'tableHeader',
+                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'B' }] }]
+                }
+              ]
+            },
+            {
+              type: 'tableRow',
+              content: [
+                {
+                  type: 'tableCell',
+                  content: [{ type: 'paragraph', content: [{ type: 'text', text: '1' }] }]
+                },
+                {
+                  type: 'tableCell',
+                  content: [{ type: 'paragraph', content: [{ type: 'text', text: '2' }] }]
+                }
+              ]
+            }
+          ]
+        }
+      ])
+    )
+    expect(blocks[0].type).toBe('table')
+    const t = blocks[0].table as {
+      table_width: number
+      has_column_header: boolean
+      children: Array<{ table_row: { cells: Array<Array<{ text: { content: string } }>> } }>
+    }
+    expect(t.table_width).toBe(2)
+    expect(t.has_column_header).toBe(true)
+    expect(t.children.length).toBe(2)
+    expect(t.children[0].table_row.cells[0][0].text.content).toBe('A')
+    expect(t.children[1].table_row.cells[1][0].text.content).toBe('2')
+  })
+
   it('imagem usa resolver; sem resolver é omitida', () => {
     const d = doc([{ type: 'image', attrs: { assetId: 'a1' } }])
     expect(prosemirrorToNotionBlocks(d)).toEqual([])

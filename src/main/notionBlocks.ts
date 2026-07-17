@@ -353,6 +353,30 @@ function codeBlockFor(node: PMNode): NotionBlock {
   }
 }
 
+function tableBlockFor(node: PMNode): NotionBlock {
+  const rows = (node.content ?? []).filter((r) => r.type === 'tableRow')
+  const width = rows.length ? (rows[0].content ?? []).length : 0
+  const hasColumnHeader =
+    rows.length > 0 && (rows[0].content ?? []).every((c) => c.type === 'tableHeader')
+  const children = rows.map((row) => ({
+    object: 'block',
+    type: 'table_row',
+    table_row: {
+      cells: (row.content ?? []).map((cell) => inlineNodesToRichText(firstParagraphInline(cell)))
+    }
+  }))
+  return {
+    object: 'block',
+    type: 'table',
+    table: {
+      table_width: width,
+      has_column_header: hasColumnHeader,
+      has_row_header: false,
+      children
+    }
+  }
+}
+
 export function prosemirrorToNotionBlocks(
   json: string | null | undefined,
   resolveImage?: ImageResolver
@@ -400,6 +424,9 @@ export function prosemirrorToNotionBlocks(
         break
       case 'horizontalRule':
         blocks.push({ object: 'block', type: 'divider', divider: {} })
+        break
+      case 'table':
+        blocks.push(tableBlockFor(node))
         break
       case 'image': {
         const id = resolveImage?.(String(node.attrs?.assetId ?? ''))
