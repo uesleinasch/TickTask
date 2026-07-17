@@ -1,4 +1,14 @@
-import { app, shell, BrowserWindow, ipcMain, Notification, screen, globalShortcut, dialog } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  ipcMain,
+  Notification,
+  screen,
+  globalShortcut,
+  dialog,
+  protocol
+} from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/512.png?asset'
@@ -10,6 +20,8 @@ import {
   getTask,
   updateTask,
   updateTaskNotes,
+  searchMentions,
+  setTaskLocalExportPath,
   deleteTask,
   deleteTasks,
   getChildTaskIds,
@@ -107,6 +119,8 @@ import {
   deleteTaskFromNotion,
   type NotionConfig
 } from './notion'
+import { saveNoteImage, registerAssetProtocol, ASSET_SCHEME } from './notesAssets'
+import { exportTaskToLocal } from './localExport'
 import type {
   CreateTaskInput,
   UpdateTaskInput,
@@ -115,6 +129,15 @@ import type {
   UpdateProjectInput,
   ProjectStatus
 } from '../shared/types'
+
+// Protocolo custom para servir imagens locais das notas ao renderer.
+// Precisa ser registrado como privilegiado ANTES do app 'ready'.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: ASSET_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true }
+  }
+])
 
 let mainWindow: BrowserWindow | null = null
 let floatWindow: BrowserWindow | null = null
@@ -289,7 +312,9 @@ function createQuickCaptureWindow(): void {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     quickCaptureWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/quick-capture`)
   } else {
-    quickCaptureWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/quick-capture' })
+    quickCaptureWindow.loadFile(join(__dirname, '../renderer/index.html'), {
+      hash: '/quick-capture'
+    })
   }
 
   quickCaptureWindow.once('ready-to-show', () => {
@@ -393,6 +418,34 @@ function setupIpcHandlers(): void {
   })
   ipcMain.handle('task:updateNotes', (_, id: number, notes: string | null) => {
     updateTaskNotes(id, notes)
+  })
+  ipcMain.handle('notes:searchMentions', (_, query: string) => searchMentions(query))
+  ipcMain.handle(
+    'notes:saveImage',
+    (_, taskId: number, bytes: Uint8Array, filename: string, mime: string) =>
+      saveNoteImage(taskId, bytes, filename, mime)
+  )
+  // Escolhe (via diálogo) o arquivo de exportação local, persiste o caminho e exporta.
+  ipcMain.handle('notes:exportLocalChoose', async (_, taskId: number) => {
+    const task = getTask(taskId)
+    if (!task) return null
+    const safeName = (task.name || 'task').replace(/[^\w\-. ]+/g, '_').trim() || 'task'
+    const result = await dialog.showSaveDialog({
+      title: 'Salvar nota localmente',
+      defaultPath: task.local_export_path || `${safeName}.md`,
+      filters: [{ name: 'Markdown', extensions: ['md'] }]
+    })
+    if (result.canceled || !result.filePath) return null
+    setTaskLocalExportPath(taskId, result.filePath)
+    await exportTaskToLocal({ ...task, local_export_path: result.filePath }, result.filePath)
+    return result.filePath
+  })
+  // Reexporta silenciosamente se a task já tem um caminho local configurado.
+  ipcMain.handle('notes:exportLocal', async (_, taskId: number) => {
+    const task = getTask(taskId)
+    if (!task || !task.local_export_path) return false
+    await exportTaskToLocal(task, task.local_export_path)
+    return true
   })
   ipcMain.handle('task:delete', (_, id: number) => {
     const config = getNotionConfig()
@@ -592,7 +645,10 @@ function setupIpcHandlers(): void {
       filters: [{ name: 'PDF', extensions: ['pdf'] }]
     })
     if (filePath) {
-      const data = await mainWindow.webContents.printToPDF({ printBackground: true, landscape: true })
+      const data = await mainWindow.webContents.printToPDF({
+        printBackground: true,
+        landscape: true
+      })
       const { writeFile } = await import('fs/promises')
       await writeFile(filePath, data)
       shell.openPath(filePath)
@@ -614,7 +670,9 @@ function setupIpcHandlers(): void {
   ipcMain.handle('project:create', (_, data: CreateProjectInput) => createProject(data))
   ipcMain.handle('project:get', (_, id: number) => getProject(id))
   ipcMain.handle('project:list', (_, status?: ProjectStatus) => listProjects(status))
-  ipcMain.handle('project:update', (_, id: number, data: UpdateProjectInput) => updateProject(id, data))
+  ipcMain.handle('project:update', (_, id: number, data: UpdateProjectInput) =>
+    updateProject(id, data)
+  )
   ipcMain.handle('project:delete', (_, id: number) => deleteProject(id))
   ipcMain.handle('project:getTasks', (_, projectId: number) => getProjectTasks(projectId))
 
@@ -623,8 +681,10 @@ function setupIpcHandlers(): void {
     createContext(name, icon, color)
   )
   ipcMain.handle('context:list', () => listContexts())
-  ipcMain.handle('context:update', (_, id: number, data: { name?: string; icon?: string; color?: string }) =>
-    updateContext(id, data)
+  ipcMain.handle(
+    'context:update',
+    (_, id: number, data: { name?: string; icon?: string; color?: string }) =>
+      updateContext(id, data)
   )
   ipcMain.handle('context:delete', (_, id: number) => deleteContext(id))
   ipcMain.handle('context:getTaskContexts', (_, taskId: number) => getTaskContexts(taskId))
@@ -642,7 +702,12 @@ function setupIpcHandlers(): void {
     (
       _,
       id: number,
-      data: { inbox_cleared?: boolean; notes?: string; checklist_state?: string; completed_at?: string }
+      data: {
+        inbox_cleared?: boolean
+        notes?: string
+        checklist_state?: string
+        completed_at?: string
+      }
     ) => updateWeeklyReview(id, data)
   )
   ipcMain.handle('review:healthIndicators', () => getReviewHealthIndicators())
@@ -735,7 +800,9 @@ function setupIpcHandlers(): void {
   ipcMain.handle('timeBlock:create', (_, data) => createTimeBlock(data))
   ipcMain.handle('timeBlock:getForDate', (_, date: string) => getTimeBlocksForDate(date))
   ipcMain.handle('timeBlock:getForWeek', (_, startDate: string) => getTimeBlocksForWeek(startDate))
-  ipcMain.handle('timeBlock:getForMonth', (_, yearMonth: string) => getTimeBlocksForMonth(yearMonth))
+  ipcMain.handle('timeBlock:getForMonth', (_, yearMonth: string) =>
+    getTimeBlocksForMonth(yearMonth)
+  )
   ipcMain.handle('timeBlock:update', (_, id: number, data) => updateTimeBlock(id, data))
   ipcMain.handle('timeBlock:delete', (_, id: number) => deleteTimeBlock(id))
 
@@ -809,6 +876,7 @@ function startNotificationScheduler(): void {
 
 app.whenReady().then(() => {
   initDatabase()
+  registerAssetProtocol()
   setupIpcHandlers()
   startNotificationScheduler()
 

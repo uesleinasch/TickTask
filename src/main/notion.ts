@@ -3,10 +3,16 @@ import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import type { Task, Tag } from '@shared/types'
-import { editorJsToNotionBlocks } from './notionBlocks'
+import { collectImageAssetIds, notesToNotionBlocks, type ImageResolver } from './notionBlocks'
+import { getNoteAsset, setNoteAssetUpload } from './database'
+import { uploadImageToNotion } from './notionFileUpload'
+import { getAssetFilePath } from './notesAssets'
 
 // Caminho do arquivo de configuração
 const configPath = path.join(app.getPath('userData'), 'notion-config.json')
+
+// O file_upload do Notion expira ~1h após a criação; renovamos com folga.
+const UPLOAD_TTL_MS = 55 * 60 * 1000
 
 // Interface de configuração do Notion
 export interface NotionConfig {
@@ -591,7 +597,8 @@ export async function syncTaskToNotion(task: Task): Promise<string> {
 }
 
 /**
- * Reescreve o corpo da página do Notion da task com as notas ricas (Editor.js).
+ * Reescreve o corpo da página do Notion da task com as notas ricas (Tiptap; aceita
+ * também o formato legado Editor.js via dispatcher). Imagens sobem via File Upload API.
  * O Notion não tem "replace all children": listamos, deletamos e recriamos.
  */
 export async function syncTaskNotesToNotion(task: Task): Promise<void> {
@@ -623,8 +630,35 @@ export async function syncTaskNotesToNotion(task: Task): Promise<void> {
     }
   }
 
-  // 2. Converter e adicionar os novos blocos (lotes de 100 — limite da API).
-  const blocks = editorJsToNotionBlocks(task.notes)
+  // 2a. Pré-passo: resolver imagens para file_upload ids (cache por asset, TTL ~1h).
+  const now = Date.now()
+  const assetIds = collectImageAssetIds(task.notes)
+  const imageMap = new Map<string, string>()
+  for (const assetId of assetIds) {
+    const asset = getNoteAsset(assetId)
+    if (!asset) continue
+    const cacheValid =
+      asset.notion_file_upload_id &&
+      asset.notion_uploaded_at &&
+      now - asset.notion_uploaded_at < UPLOAD_TTL_MS
+    if (cacheValid && asset.notion_file_upload_id) {
+      imageMap.set(assetId, asset.notion_file_upload_id)
+      continue
+    }
+    const filePath = getAssetFilePath(assetId)
+    if (!filePath) continue
+    try {
+      const fileUploadId = await uploadImageToNotion(client, filePath, asset.mime, asset.filename)
+      setNoteAssetUpload(assetId, fileUploadId, now)
+      imageMap.set(assetId, fileUploadId)
+    } catch (error) {
+      console.error('Falha ao subir imagem para o Notion:', error)
+    }
+  }
+  const resolveImage: ImageResolver = (id) => imageMap.get(id) ?? null
+
+  // 2b. Converter e adicionar os novos blocos (lotes de 100 — limite da API).
+  const blocks = notesToNotionBlocks(task.notes, resolveImage)
   for (let i = 0; i < blocks.length; i += 100) {
     const batch = blocks.slice(i, i + 100)
     await client.blocks.children.append({

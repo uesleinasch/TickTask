@@ -41,6 +41,21 @@ const api = {
     ipcRenderer.invoke('task:update', id, data),
   updateTaskNotes: (id: number, notes: string | null): Promise<void> =>
     ipcRenderer.invoke('task:updateNotes', id, notes),
+  searchMentions: (
+    query: string
+  ): Promise<Array<{ id: number; label: string; type: 'task' | 'project' | 'context' }>> =>
+    ipcRenderer.invoke('notes:searchMentions', query),
+  saveNoteImage: (
+    taskId: number,
+    bytes: Uint8Array,
+    filename: string,
+    mime: string
+  ): Promise<{ assetId: string; src: string }> =>
+    ipcRenderer.invoke('notes:saveImage', taskId, bytes, filename, mime),
+  exportNotesLocalChoose: (taskId: number): Promise<string | null> =>
+    ipcRenderer.invoke('notes:exportLocalChoose', taskId),
+  exportNotesLocal: (taskId: number): Promise<boolean> =>
+    ipcRenderer.invoke('notes:exportLocal', taskId),
   syncTaskNotes: (id: number): Promise<void> => ipcRenderer.invoke('notion:syncTaskNotes', id),
   deleteTask: (id: number): Promise<void> => ipcRenderer.invoke('task:delete', id),
   bulkDeleteTasks: (ids: number[]): Promise<void> => ipcRenderer.invoke('task:bulkDelete', ids),
@@ -152,8 +167,7 @@ const api = {
   // ===================== PROJECTS =====================
   createProject: (data: CreateProjectInput): Promise<Project> =>
     ipcRenderer.invoke('project:create', data),
-  getProject: (id: number): Promise<Project | undefined> =>
-    ipcRenderer.invoke('project:get', id),
+  getProject: (id: number): Promise<Project | undefined> => ipcRenderer.invoke('project:get', id),
   listProjects: (status?: ProjectStatus): Promise<Project[]> =>
     ipcRenderer.invoke('project:list', status),
   updateProject: (id: number, data: UpdateProjectInput): Promise<void> =>
@@ -256,8 +270,7 @@ const api = {
     ipcRenderer.invoke('timeBlock:getForMonth', yearMonth),
   updateTimeBlock: (id: number, data: UpdateTimeBlockInput): Promise<void> =>
     ipcRenderer.invoke('timeBlock:update', id, data),
-  deleteTimeBlock: (id: number): Promise<void> =>
-    ipcRenderer.invoke('timeBlock:delete', id),
+  deleteTimeBlock: (id: number): Promise<void> => ipcRenderer.invoke('timeBlock:delete', id),
 
   // ===================== FASE 4: Áreas de Foco =====================
   createArea: (data: CreateAreaInput): Promise<Area> => ipcRenderer.invoke('area:create', data),

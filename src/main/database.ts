@@ -68,7 +68,9 @@ export function initDatabase(): void {
 
   // Migração: adicionar coluna project_id se não existir
   try {
-    db.exec(`ALTER TABLE tasks ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`)
+    db.exec(
+      `ALTER TABLE tasks ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`
+    )
   } catch {
     // Coluna já existe
   }
@@ -168,9 +170,13 @@ export function initDatabase(): void {
   `)
 
   // Seed: inserir contextos padrão se a tabela estiver vazia
-  const contextCount = db.prepare('SELECT COUNT(*) as count FROM contexts').get() as { count: number }
+  const contextCount = db.prepare('SELECT COUNT(*) as count FROM contexts').get() as {
+    count: number
+  }
   if (contextCount.count === 0) {
-    const insertCtx = db.prepare('INSERT OR IGNORE INTO contexts (name, icon, color) VALUES (?, ?, ?)')
+    const insertCtx = db.prepare(
+      'INSERT OR IGNORE INTO contexts (name, icon, color) VALUES (?, ?, ?)'
+    )
     for (const ctx of DEFAULT_CONTEXTS) {
       insertCtx.run(ctx.name, ctx.icon, ctx.color)
     }
@@ -178,12 +184,36 @@ export function initDatabase(): void {
 
   // ===================== FASE 2: Migrações adicionais =====================
 
-  try { db.exec('ALTER TABLE tasks ADD COLUMN scheduled_date DATE') } catch { /* já existe */ }
-  try { db.exec('ALTER TABLE tasks ADD COLUMN due_date DATETIME') } catch { /* já existe */ }
-  try { db.exec('ALTER TABLE tasks ADD COLUMN recurrence_rule TEXT') } catch { /* já existe */ }
-  try { db.exec('ALTER TABLE tasks ADD COLUMN parent_task_id INTEGER') } catch { /* já existe */ }
-  try { db.exec('ALTER TABLE tasks ADD COLUMN recurrence_source_id INTEGER') } catch { /* já existe */ }
-  try { db.exec('ALTER TABLE tasks ADD COLUMN day_order INTEGER') } catch { /* já existe */ }
+  try {
+    db.exec('ALTER TABLE tasks ADD COLUMN scheduled_date DATE')
+  } catch {
+    /* já existe */
+  }
+  try {
+    db.exec('ALTER TABLE tasks ADD COLUMN due_date DATETIME')
+  } catch {
+    /* já existe */
+  }
+  try {
+    db.exec('ALTER TABLE tasks ADD COLUMN recurrence_rule TEXT')
+  } catch {
+    /* já existe */
+  }
+  try {
+    db.exec('ALTER TABLE tasks ADD COLUMN parent_task_id INTEGER')
+  } catch {
+    /* já existe */
+  }
+  try {
+    db.exec('ALTER TABLE tasks ADD COLUMN recurrence_source_id INTEGER')
+  } catch {
+    /* já existe */
+  }
+  try {
+    db.exec('ALTER TABLE tasks ADD COLUMN day_order INTEGER')
+  } catch {
+    /* já existe */
+  }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS task_dependencies (
@@ -221,16 +251,43 @@ export function initDatabase(): void {
   `)
 
   // Migração: adicionar area_id à tabela projects
-  try { db.exec('ALTER TABLE projects ADD COLUMN area_id INTEGER REFERENCES areas(id) ON DELETE SET NULL') } catch { /* já existe */ }
+  try {
+    db.exec(
+      'ALTER TABLE projects ADD COLUMN area_id INTEGER REFERENCES areas(id) ON DELETE SET NULL'
+    )
+  } catch {
+    /* já existe */
+  }
 
   // Migração: adicionar color à tabela projects
-  try { db.exec("ALTER TABLE projects ADD COLUMN color TEXT DEFAULT '#6366f1'") } catch { /* já existe */ }
+  try {
+    db.exec("ALTER TABLE projects ADD COLUMN color TEXT DEFAULT '#6366f1'")
+  } catch {
+    /* já existe */
+  }
 
   // ===================== FASE 4.2: Energy Tracking =====================
-  try { db.exec("ALTER TABLE tasks ADD COLUMN energy_level TEXT CHECK(energy_level IN ('alto', 'medio', 'baixo'))") } catch { /* já existe */ }
+  try {
+    db.exec(
+      "ALTER TABLE tasks ADD COLUMN energy_level TEXT CHECK(energy_level IN ('alto', 'medio', 'baixo'))"
+    )
+  } catch {
+    /* já existe */
+  }
 
   // ===================== FASE 5: Notas ricas (Editor.js) =====================
-  try { db.exec('ALTER TABLE tasks ADD COLUMN notes TEXT') } catch { /* já existe */ }
+  try {
+    db.exec('ALTER TABLE tasks ADD COLUMN notes TEXT')
+  } catch {
+    /* já existe */
+  }
+
+  // Tiptap: caminho do arquivo de exportação local (Markdown) por task
+  try {
+    db.exec('ALTER TABLE tasks ADD COLUMN local_export_path TEXT')
+  } catch {
+    /* já existe */
+  }
 
   // ===================== FASE 4.3: Blocos de Tempo =====================
 
@@ -242,6 +299,22 @@ export function initDatabase(): void {
       start_time TEXT NOT NULL,
       end_time TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    )
+  `)
+
+  // ===================== Tiptap: imagens das notas =====================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS note_assets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL,
+      asset_id TEXT NOT NULL UNIQUE,
+      filename TEXT,
+      mime TEXT,
+      content_hash TEXT,
+      notion_file_upload_id TEXT,
+      notion_uploaded_at INTEGER,
+      created_at INTEGER NOT NULL,
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
     )
   `)
@@ -301,12 +374,18 @@ function migrateTasksTableForSomedayStatus(): void {
     const hasCategory = columnNames.includes('category')
 
     const selectCols = [
-      'id', 'name', 'description', 'total_seconds', 'time_limit_seconds',
+      'id',
+      'name',
+      'description',
+      'total_seconds',
+      'time_limit_seconds',
       'status',
       hasCategory ? 'category' : "'normal' as category",
-      'is_running', 'is_archived',
+      'is_running',
+      'is_archived',
       hasProjectId ? 'project_id' : 'NULL as project_id',
-      'created_at', 'updated_at'
+      'created_at',
+      'updated_at'
     ].join(', ')
 
     db.exec(`
@@ -336,8 +415,16 @@ export interface TagRow {
 }
 
 const TAG_COLORS = [
-  '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316',
-  '#eab308', '#22c55e', '#14b8a6', '#0ea5e9', '#3b82f6'
+  '#6366f1',
+  '#8b5cf6',
+  '#ec4899',
+  '#f43f5e',
+  '#f97316',
+  '#eab308',
+  '#22c55e',
+  '#14b8a6',
+  '#0ea5e9',
+  '#3b82f6'
 ]
 
 function getRandomTagColor(): string {
@@ -427,7 +514,10 @@ export function listContexts(): ContextRow[] {
   return stmt.all() as ContextRow[]
 }
 
-export function updateContext(id: number, data: { name?: string; icon?: string; color?: string }): void {
+export function updateContext(
+  id: number,
+  data: { name?: string; icon?: string; color?: string }
+): void {
   const updates: string[] = []
   const values: unknown[] = []
 
@@ -663,18 +753,26 @@ export function createTask(data: CreateTaskInput): Task {
 }
 
 function enrichTask(row: Task & { project_name?: string }): Task {
-  const subtaskStats = db.prepare(`
+  const subtaskStats = db
+    .prepare(
+      `
     SELECT
       COUNT(*) as total,
       SUM(CASE WHEN status = 'finalizada' THEN 1 ELSE 0 END) as completed
     FROM tasks WHERE parent_task_id = ? AND is_archived = 0
-  `).get(row.id) as { total: number; completed: number }
+  `
+    )
+    .get(row.id) as { total: number; completed: number }
 
-  const blockedRow = db.prepare(`
+  const blockedRow = db
+    .prepare(
+      `
     SELECT COUNT(*) as cnt FROM task_dependencies d
     JOIN tasks dep ON dep.id = d.depends_on_task_id
     WHERE d.task_id = ? AND dep.status != 'finalizada'
-  `).get(row.id) as { cnt: number }
+  `
+    )
+    .get(row.id) as { cnt: number }
 
   return {
     ...row,
@@ -799,6 +897,84 @@ export function updateTask(id: number, data: UpdateTaskInput): void {
 export function updateTaskNotes(id: number, notes: string | null): void {
   const stmt = db.prepare('UPDATE tasks SET notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
   stmt.run(notes, id)
+}
+
+export function setTaskLocalExportPath(id: number, filePath: string | null): void {
+  db.prepare('UPDATE tasks SET local_export_path = ? WHERE id = ?').run(filePath, id)
+}
+
+export interface MentionResult {
+  id: number
+  label: string
+  type: 'task' | 'project' | 'context'
+}
+
+// Busca entidades mencionáveis (tasks, projetos, contextos) para o "@" das notas.
+export function searchMentions(query: string): MentionResult[] {
+  const like = `%${query}%`
+  const tasks = db
+    .prepare(
+      'SELECT id, name AS label FROM tasks WHERE is_archived = 0 AND name LIKE ? ORDER BY updated_at DESC LIMIT 5'
+    )
+    .all(like) as Array<{ id: number; label: string }>
+  const projects = db
+    .prepare('SELECT id, name AS label FROM projects WHERE name LIKE ? LIMIT 5')
+    .all(like) as Array<{ id: number; label: string }>
+  const contexts = db
+    .prepare('SELECT id, name AS label FROM contexts WHERE name LIKE ? LIMIT 5')
+    .all(like) as Array<{ id: number; label: string }>
+  return [
+    ...tasks.map((t) => ({ ...t, type: 'task' as const })),
+    ...projects.map((p) => ({ ...p, type: 'project' as const })),
+    ...contexts.map((c) => ({ ...c, type: 'context' as const }))
+  ]
+}
+
+export interface NoteAsset {
+  id: number
+  task_id: number
+  asset_id: string
+  filename: string
+  mime: string
+  content_hash: string
+  notion_file_upload_id: string | null
+  notion_uploaded_at: number | null
+}
+
+export function createNoteAsset(a: {
+  taskId: number
+  assetId: string
+  filename: string
+  mime: string
+  contentHash: string
+  createdAt: number
+}): void {
+  db.prepare(
+    `INSERT INTO note_assets (task_id, asset_id, filename, mime, content_hash, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(a.taskId, a.assetId, a.filename, a.mime, a.contentHash, a.createdAt)
+}
+
+export function getNoteAsset(assetId: string): NoteAsset | undefined {
+  return db.prepare('SELECT * FROM note_assets WHERE asset_id = ?').get(assetId) as
+    | NoteAsset
+    | undefined
+}
+
+export function setNoteAssetUpload(
+  assetId: string,
+  fileUploadId: string,
+  uploadedAt: number
+): void {
+  db.prepare(
+    'UPDATE note_assets SET notion_file_upload_id = ?, notion_uploaded_at = ? WHERE asset_id = ?'
+  ).run(fileUploadId, uploadedAt, assetId)
+}
+
+export function clearNoteAssetUpload(assetId: string): void {
+  db.prepare(
+    'UPDATE note_assets SET notion_file_upload_id = NULL, notion_uploaded_at = NULL WHERE asset_id = ?'
+  ).run(assetId)
 }
 
 // Ids das subtarefas (filhas) de uma tarefa — todas, inclusive arquivadas
@@ -1026,7 +1202,7 @@ export function setTaskTotalTime(taskId: number, totalSeconds: number): void {
 // ===================== WEEKLY REVIEWS =====================
 
 export function createWeeklyReview(): WeeklyReview {
-  const stmt = db.prepare('INSERT INTO weekly_reviews (started_at) VALUES (datetime(\'now\'))')
+  const stmt = db.prepare("INSERT INTO weekly_reviews (started_at) VALUES (datetime('now'))")
   const result = stmt.run()
   return getWeeklyReview(result.lastInsertRowid as number)!
 }
@@ -1096,42 +1272,60 @@ export function updateWeeklyReview(
 
 export function getReviewHealthIndicators(): ReviewHealthIndicators {
   const inboxCount = (
-    db.prepare("SELECT COUNT(*) as count FROM tasks WHERE status = 'inbox' AND is_archived = 0").get() as { count: number }
+    db
+      .prepare("SELECT COUNT(*) as count FROM tasks WHERE status = 'inbox' AND is_archived = 0")
+      .get() as { count: number }
   ).count
 
   const projectsWithoutNextAction = (
-    db.prepare(`
+    db
+      .prepare(
+        `
       SELECT COUNT(*) as count FROM projects p
       WHERE p.status = 'active'
       AND NOT EXISTS (
         SELECT 1 FROM tasks t WHERE t.project_id = p.id AND t.status = 'proximas'
       )
-    `).get() as { count: number }
+    `
+      )
+      .get() as { count: number }
   ).count
 
   const staleWaitingTasks = (
-    db.prepare(`
+    db
+      .prepare(
+        `
       SELECT COUNT(*) as count FROM tasks
       WHERE status = 'aguardando'
       AND is_archived = 0
       AND updated_at <= datetime('now', '-7 days')
-    `).get() as { count: number }
+    `
+      )
+      .get() as { count: number }
   ).count
 
   const staleNextTasks = (
-    db.prepare(`
+    db
+      .prepare(
+        `
       SELECT COUNT(*) as count FROM tasks
       WHERE status = 'proximas'
       AND is_archived = 0
       AND updated_at <= datetime('now', '-14 days')
-    `).get() as { count: number }
+    `
+      )
+      .get() as { count: number }
   ).count
 
   const somedayCount = (
-    db.prepare(`
+    db
+      .prepare(
+        `
       SELECT COUNT(*) as count FROM tasks
       WHERE status = 'someday' AND is_archived = 0
-    `).get() as { count: number }
+    `
+      )
+      .get() as { count: number }
   ).count
 
   return {
@@ -1285,7 +1479,9 @@ export function getGeneralStats(): GeneralStats {
 
 export function getGtdMetrics(): GtdMetrics {
   // Taxa de conclusão do inbox (tarefas criadas esta semana que saíram do inbox)
-  const inboxRow = db.prepare(`
+  const inboxRow = db
+    .prepare(
+      `
     SELECT
       COUNT(*) as total,
       SUM(CASE WHEN status != 'inbox' THEN 1 ELSE 0 END) as processed
@@ -1293,25 +1489,32 @@ export function getGtdMetrics(): GtdMetrics {
     WHERE created_at >= datetime('now', '-7 days')
     AND is_archived = 0
     AND parent_task_id IS NULL
-  `).get() as { total: number; processed: number }
+  `
+    )
+    .get() as { total: number; processed: number }
 
-  const inboxCompletionRate = inboxRow.total > 0
-    ? Math.round((inboxRow.processed / inboxRow.total) * 100)
-    : 100
+  const inboxCompletionRate =
+    inboxRow.total > 0 ? Math.round((inboxRow.processed / inboxRow.total) * 100) : 100
 
   // Tempo médio de processamento (criação até finalização)
-  const avgRow = db.prepare(`
+  const avgRow = db
+    .prepare(
+      `
     SELECT AVG((julianday(updated_at) - julianday(created_at)) * 86400) as avgSeconds
     FROM tasks
     WHERE status = 'finalizada'
     AND is_archived = 0
     AND updated_at >= datetime('now', '-30 days')
-  `).get() as { avgSeconds: number | null }
+  `
+    )
+    .get() as { avgSeconds: number | null }
 
   const avgProcessingTimeSeconds = Math.round(avgRow.avgSeconds || 0)
 
   // Projetos sem atividade há mais de 7 dias
-  const staleProjectRows = db.prepare(`
+  const staleProjectRows = db
+    .prepare(
+      `
     SELECT p.id, p.name,
       CAST(julianday('now') - julianday(
         COALESCE(MAX(t.updated_at), p.created_at)
@@ -1323,10 +1526,14 @@ export function getGtdMetrics(): GtdMetrics {
     HAVING daysSinceActivity > 7
     ORDER BY daysSinceActivity DESC
     LIMIT 5
-  `).all() as Array<{ id: number; name: string; daysSinceActivity: number }>
+  `
+    )
+    .all() as Array<{ id: number; name: string; daysSinceActivity: number }>
 
   // Tarefas em aguardando há mais de 14 dias
-  const staleWaitingRows = db.prepare(`
+  const staleWaitingRows = db
+    .prepare(
+      `
     SELECT id, name,
       CAST(julianday('now') - julianday(updated_at) AS INTEGER) as daysSinceUpdate
     FROM tasks
@@ -1335,15 +1542,21 @@ export function getGtdMetrics(): GtdMetrics {
     AND updated_at <= datetime('now', '-14 days')
     ORDER BY updated_at ASC
     LIMIT 5
-  `).all() as Array<{ id: number; name: string; daysSinceUpdate: number }>
+  `
+    )
+    .all() as Array<{ id: number; name: string; daysSinceUpdate: number }>
 
   // Fluxo de tarefas por status
-  const flowRows = db.prepare(`
+  const flowRows = db
+    .prepare(
+      `
     SELECT status, COUNT(*) as count
     FROM tasks
     WHERE is_archived = 0 AND parent_task_id IS NULL
     GROUP BY status
-  `).all() as Array<{ status: string; count: number }>
+  `
+    )
+    .all() as Array<{ status: string; count: number }>
 
   const taskFlowCounts: Record<string, number> = {}
   for (const row of flowRows) {
@@ -1360,7 +1573,9 @@ export function getGtdMetrics(): GtdMetrics {
 }
 
 export function getEnergyStats(): EnergyStats[] {
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(
+      `
     SELECT
       energy_level,
       SUM(total_seconds) as totalSeconds,
@@ -1372,7 +1587,9 @@ export function getEnergyStats(): EnergyStats[] {
     AND total_seconds > 0
     GROUP BY energy_level
     ORDER BY totalSeconds DESC
-  `).all() as Array<{
+  `
+    )
+    .all() as Array<{
     energy_level: EnergyLevel
     totalSeconds: number
     taskCount: number
@@ -1410,12 +1627,16 @@ export function getSubtasks(parentId: number): Task[] {
 }
 
 export function completeSubtasksCheck(parentId: number): void {
-  const stats = db.prepare(`
+  const stats = db
+    .prepare(
+      `
     SELECT
       COUNT(*) as total,
       SUM(CASE WHEN status = 'finalizada' THEN 1 ELSE 0 END) as completed
     FROM tasks WHERE parent_task_id = ? AND is_archived = 0
-  `).get(parentId) as { total: number; completed: number }
+  `
+    )
+    .get(parentId) as { total: number; completed: number }
 
   if (stats.total > 0 && stats.total === stats.completed) {
     db.prepare(
@@ -1450,9 +1671,10 @@ export function addTaskDependency(taskId: number, dependsOnId: number): void {
 }
 
 export function removeTaskDependency(taskId: number, dependsOnId: number): void {
-  db.prepare(
-    'DELETE FROM task_dependencies WHERE task_id = ? AND depends_on_task_id = ?'
-  ).run(taskId, dependsOnId)
+  db.prepare('DELETE FROM task_dependencies WHERE task_id = ? AND depends_on_task_id = ?').run(
+    taskId,
+    dependsOnId
+  )
 }
 
 // ===================== FASE 2: AGENDAMENTO =====================
@@ -1489,7 +1711,10 @@ export function updateDayOrder(taskId: number, order: number): void {
 
 // ===================== FASE 2: RECORRÊNCIA =====================
 
-function calculateNextDate(rule: { type: string; dayOfWeek?: number; dayOfMonth?: number }, fromDate?: string): string {
+function calculateNextDate(
+  rule: { type: string; dayOfWeek?: number; dayOfMonth?: number },
+  fromDate?: string
+): string {
   const base = fromDate ? new Date(fromDate + 'T12:00:00') : new Date()
   const next = new Date(base)
 
@@ -1538,9 +1763,9 @@ export function createNextRecurrence(sourceTaskId: number): Task | null {
 }
 
 export function deleteNextRecurrence(sourceTaskId: number): void {
-  db.prepare(
-    "DELETE FROM tasks WHERE recurrence_source_id = ? AND status != 'finalizada'"
-  ).run(sourceTaskId)
+  db.prepare("DELETE FROM tasks WHERE recurrence_source_id = ? AND status != 'finalizada'").run(
+    sourceTaskId
+  )
 }
 
 // ===================== FASE 2: PRAZO / NOTIFICAÇÕES =====================
@@ -1568,9 +1793,7 @@ export function closeDatabase(): void {
 // ===================== FASE 4: ÁREAS DE FOCO =====================
 
 export function createArea(data: CreateAreaInput): Area {
-  const stmt = db.prepare(
-    'INSERT INTO areas (name, description, icon) VALUES (?, ?, ?)'
-  )
+  const stmt = db.prepare('INSERT INTO areas (name, description, icon) VALUES (?, ?, ?)')
   const result = stmt.run(data.name.trim(), data.description || null, data.icon || '🎯')
   return getArea(result.lastInsertRowid as number)!
 }
@@ -1601,9 +1824,18 @@ export function updateArea(id: number, data: UpdateAreaInput): void {
   const updates: string[] = []
   const values: unknown[] = []
 
-  if (data.name !== undefined) { updates.push('name = ?'); values.push(data.name.trim()) }
-  if (data.description !== undefined) { updates.push('description = ?'); values.push(data.description || null) }
-  if (data.icon !== undefined) { updates.push('icon = ?'); values.push(data.icon) }
+  if (data.name !== undefined) {
+    updates.push('name = ?')
+    values.push(data.name.trim())
+  }
+  if (data.description !== undefined) {
+    updates.push('description = ?')
+    values.push(data.description || null)
+  }
+  if (data.icon !== undefined) {
+    updates.push('icon = ?')
+    values.push(data.icon)
+  }
 
   if (updates.length === 0) return
   values.push(id)
@@ -1663,10 +1895,22 @@ export function updateGoal(id: number, data: UpdateGoalInput): void {
   const updates: string[] = ['updated_at = CURRENT_TIMESTAMP']
   const values: unknown[] = []
 
-  if (data.name !== undefined) { updates.push('name = ?'); values.push(data.name.trim()) }
-  if (data.description !== undefined) { updates.push('description = ?'); values.push(data.description || null) }
-  if (data.horizon !== undefined) { updates.push('horizon = ?'); values.push(data.horizon) }
-  if (data.area_id !== undefined) { updates.push('area_id = ?'); values.push(data.area_id) }
+  if (data.name !== undefined) {
+    updates.push('name = ?')
+    values.push(data.name.trim())
+  }
+  if (data.description !== undefined) {
+    updates.push('description = ?')
+    values.push(data.description || null)
+  }
+  if (data.horizon !== undefined) {
+    updates.push('horizon = ?')
+    values.push(data.horizon)
+  }
+  if (data.area_id !== undefined) {
+    updates.push('area_id = ?')
+    values.push(data.area_id)
+  }
 
   values.push(id)
   db.prepare(`UPDATE goals SET ${updates.join(', ')} WHERE id = ?`).run(...values)
@@ -1739,10 +1983,22 @@ export function updateTimeBlock(id: number, data: UpdateTimeBlockInput): void {
   const updates: string[] = []
   const values: unknown[] = []
 
-  if (data.task_id !== undefined) { updates.push('task_id = ?'); values.push(data.task_id) }
-  if (data.date !== undefined) { updates.push('date = ?'); values.push(data.date) }
-  if (data.start_time !== undefined) { updates.push('start_time = ?'); values.push(data.start_time) }
-  if (data.end_time !== undefined) { updates.push('end_time = ?'); values.push(data.end_time) }
+  if (data.task_id !== undefined) {
+    updates.push('task_id = ?')
+    values.push(data.task_id)
+  }
+  if (data.date !== undefined) {
+    updates.push('date = ?')
+    values.push(data.date)
+  }
+  if (data.start_time !== undefined) {
+    updates.push('start_time = ?')
+    values.push(data.start_time)
+  }
+  if (data.end_time !== undefined) {
+    updates.push('end_time = ?')
+    values.push(data.end_time)
+  }
 
   if (updates.length === 0) return
   values.push(id)
