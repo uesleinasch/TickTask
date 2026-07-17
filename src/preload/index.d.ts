@@ -92,6 +92,12 @@ interface API {
   searchMentions: (
     query: string
   ) => Promise<Array<{ id: number; label: string; type: 'task' | 'project' | 'context' }>>
+  saveNoteImage: (
+    taskId: number,
+    bytes: Uint8Array,
+    filename: string,
+    mime: string
+  ) => Promise<{ assetId: string; src: string }>
   syncTaskNotes: (id: number) => Promise<void>
   deleteTask: (id: number) => Promise<void>
   bulkDeleteTasks: (ids: number[]) => Promise<void>

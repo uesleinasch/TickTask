@@ -295,6 +295,22 @@ export function initDatabase(): void {
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
     )
   `)
+
+  // ===================== Tiptap: imagens das notas =====================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS note_assets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL,
+      asset_id TEXT NOT NULL UNIQUE,
+      filename TEXT,
+      mime TEXT,
+      content_hash TEXT,
+      notion_file_upload_id TEXT,
+      notion_uploaded_at INTEGER,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    )
+  `)
 }
 
 // ===================== MIGRAÇÃO: someday status =====================
@@ -901,6 +917,53 @@ export function searchMentions(query: string): MentionResult[] {
     ...projects.map((p) => ({ ...p, type: 'project' as const })),
     ...contexts.map((c) => ({ ...c, type: 'context' as const }))
   ]
+}
+
+export interface NoteAsset {
+  id: number
+  task_id: number
+  asset_id: string
+  filename: string
+  mime: string
+  content_hash: string
+  notion_file_upload_id: string | null
+  notion_uploaded_at: number | null
+}
+
+export function createNoteAsset(a: {
+  taskId: number
+  assetId: string
+  filename: string
+  mime: string
+  contentHash: string
+  createdAt: number
+}): void {
+  db.prepare(
+    `INSERT INTO note_assets (task_id, asset_id, filename, mime, content_hash, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(a.taskId, a.assetId, a.filename, a.mime, a.contentHash, a.createdAt)
+}
+
+export function getNoteAsset(assetId: string): NoteAsset | undefined {
+  return db.prepare('SELECT * FROM note_assets WHERE asset_id = ?').get(assetId) as
+    | NoteAsset
+    | undefined
+}
+
+export function setNoteAssetUpload(
+  assetId: string,
+  fileUploadId: string,
+  uploadedAt: number
+): void {
+  db.prepare(
+    'UPDATE note_assets SET notion_file_upload_id = ?, notion_uploaded_at = ? WHERE asset_id = ?'
+  ).run(fileUploadId, uploadedAt, assetId)
+}
+
+export function clearNoteAssetUpload(assetId: string): void {
+  db.prepare(
+    'UPDATE note_assets SET notion_file_upload_id = NULL, notion_uploaded_at = NULL WHERE asset_id = ?'
+  ).run(assetId)
 }
 
 // Ids das subtarefas (filhas) de uma tarefa — todas, inclusive arquivadas

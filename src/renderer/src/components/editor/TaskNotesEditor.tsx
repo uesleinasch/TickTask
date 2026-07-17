@@ -27,7 +27,7 @@ export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditor
 
     const editor = useEditor(
       {
-        extensions: buildExtensions(),
+        extensions: buildExtensions(taskId),
         content: initialContent,
         editorProps: {
           attributes: { class: 'notes-editor-content p-5 min-h-[200px] focus:outline-none' }

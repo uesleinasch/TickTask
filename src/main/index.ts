@@ -6,7 +6,8 @@ import {
   Notification,
   screen,
   globalShortcut,
-  dialog
+  dialog,
+  protocol
 } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -117,6 +118,7 @@ import {
   deleteTaskFromNotion,
   type NotionConfig
 } from './notion'
+import { saveNoteImage, registerAssetProtocol, ASSET_SCHEME } from './notesAssets'
 import type {
   CreateTaskInput,
   UpdateTaskInput,
@@ -125,6 +127,15 @@ import type {
   UpdateProjectInput,
   ProjectStatus
 } from '../shared/types'
+
+// Protocolo custom para servir imagens locais das notas ao renderer.
+// Precisa ser registrado como privilegiado ANTES do app 'ready'.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: ASSET_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true }
+  }
+])
 
 let mainWindow: BrowserWindow | null = null
 let floatWindow: BrowserWindow | null = null
@@ -407,6 +418,11 @@ function setupIpcHandlers(): void {
     updateTaskNotes(id, notes)
   })
   ipcMain.handle('notes:searchMentions', (_, query: string) => searchMentions(query))
+  ipcMain.handle(
+    'notes:saveImage',
+    (_, taskId: number, bytes: Uint8Array, filename: string, mime: string) =>
+      saveNoteImage(taskId, bytes, filename, mime)
+  )
   ipcMain.handle('task:delete', (_, id: number) => {
     const config = getNotionConfig()
     if (config?.autoSync && config.databaseId) {
@@ -836,6 +852,7 @@ function startNotificationScheduler(): void {
 
 app.whenReady().then(() => {
   initDatabase()
+  registerAssetProtocol()
   setupIpcHandlers()
   startNotificationScheduler()
 

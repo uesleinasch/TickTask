@@ -45,6 +45,13 @@ const api = {
     query: string
   ): Promise<Array<{ id: number; label: string; type: 'task' | 'project' | 'context' }>> =>
     ipcRenderer.invoke('notes:searchMentions', query),
+  saveNoteImage: (
+    taskId: number,
+    bytes: Uint8Array,
+    filename: string,
+    mime: string
+  ): Promise<{ assetId: string; src: string }> =>
+    ipcRenderer.invoke('notes:saveImage', taskId, bytes, filename, mime),
   syncTaskNotes: (id: number): Promise<void> => ipcRenderer.invoke('notion:syncTaskNotes', id),
   deleteTask: (id: number): Promise<void> => ipcRenderer.invoke('task:delete', id),
   bulkDeleteTasks: (ids: number[]): Promise<void> => ipcRenderer.invoke('task:bulkDelete', ids),
