@@ -52,6 +52,10 @@ const api = {
     mime: string
   ): Promise<{ assetId: string; src: string }> =>
     ipcRenderer.invoke('notes:saveImage', taskId, bytes, filename, mime),
+  exportNotesLocalChoose: (taskId: number): Promise<string | null> =>
+    ipcRenderer.invoke('notes:exportLocalChoose', taskId),
+  exportNotesLocal: (taskId: number): Promise<boolean> =>
+    ipcRenderer.invoke('notes:exportLocal', taskId),
   syncTaskNotes: (id: number): Promise<void> => ipcRenderer.invoke('notion:syncTaskNotes', id),
   deleteTask: (id: number): Promise<void> => ipcRenderer.invoke('task:delete', id),
   bulkDeleteTasks: (ids: number[]): Promise<void> => ipcRenderer.invoke('task:bulkDelete', ids),

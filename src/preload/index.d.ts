@@ -98,6 +98,8 @@ interface API {
     filename: string,
     mime: string
   ) => Promise<{ assetId: string; src: string }>
+  exportNotesLocalChoose: (taskId: number) => Promise<string | null>
+  exportNotesLocal: (taskId: number) => Promise<boolean>
   syncTaskNotes: (id: number) => Promise<void>
   deleteTask: (id: number) => Promise<void>
   bulkDeleteTasks: (ids: number[]) => Promise<void>

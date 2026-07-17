@@ -282,6 +282,13 @@ export function initDatabase(): void {
     /* já existe */
   }
 
+  // Tiptap: caminho do arquivo de exportação local (Markdown) por task
+  try {
+    db.exec('ALTER TABLE tasks ADD COLUMN local_export_path TEXT')
+  } catch {
+    /* já existe */
+  }
+
   // ===================== FASE 4.3: Blocos de Tempo =====================
 
   db.exec(`
@@ -890,6 +897,10 @@ export function updateTask(id: number, data: UpdateTaskInput): void {
 export function updateTaskNotes(id: number, notes: string | null): void {
   const stmt = db.prepare('UPDATE tasks SET notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
   stmt.run(notes, id)
+}
+
+export function setTaskLocalExportPath(id: number, filePath: string | null): void {
+  db.prepare('UPDATE tasks SET local_export_path = ? WHERE id = ?').run(filePath, id)
 }
 
 export interface MentionResult {

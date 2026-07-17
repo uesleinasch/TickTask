@@ -21,6 +21,7 @@ import {
   updateTask,
   updateTaskNotes,
   searchMentions,
+  setTaskLocalExportPath,
   deleteTask,
   deleteTasks,
   getChildTaskIds,
@@ -119,6 +120,7 @@ import {
   type NotionConfig
 } from './notion'
 import { saveNoteImage, registerAssetProtocol, ASSET_SCHEME } from './notesAssets'
+import { exportTaskToLocal } from './localExport'
 import type {
   CreateTaskInput,
   UpdateTaskInput,
@@ -423,6 +425,28 @@ function setupIpcHandlers(): void {
     (_, taskId: number, bytes: Uint8Array, filename: string, mime: string) =>
       saveNoteImage(taskId, bytes, filename, mime)
   )
+  // Escolhe (via diálogo) o arquivo de exportação local, persiste o caminho e exporta.
+  ipcMain.handle('notes:exportLocalChoose', async (_, taskId: number) => {
+    const task = getTask(taskId)
+    if (!task) return null
+    const safeName = (task.name || 'task').replace(/[^\w\-. ]+/g, '_').trim() || 'task'
+    const result = await dialog.showSaveDialog({
+      title: 'Salvar nota localmente',
+      defaultPath: task.local_export_path || `${safeName}.md`,
+      filters: [{ name: 'Markdown', extensions: ['md'] }]
+    })
+    if (result.canceled || !result.filePath) return null
+    setTaskLocalExportPath(taskId, result.filePath)
+    await exportTaskToLocal({ ...task, local_export_path: result.filePath }, result.filePath)
+    return result.filePath
+  })
+  // Reexporta silenciosamente se a task já tem um caminho local configurado.
+  ipcMain.handle('notes:exportLocal', async (_, taskId: number) => {
+    const task = getTask(taskId)
+    if (!task || !task.local_export_path) return false
+    await exportTaskToLocal(task, task.local_export_path)
+    return true
+  })
   ipcMain.handle('task:delete', (_, id: number) => {
     const config = getNotionConfig()
     if (config?.autoSync && config.databaseId) {
