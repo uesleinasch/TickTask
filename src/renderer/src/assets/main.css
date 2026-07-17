@@ -281,3 +281,42 @@ body.float-window #root {
   border-radius: 0.25rem;
   padding: 0 0.25em;
 }
+/* tabelas */
+.notes-editor-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0;
+  table-layout: fixed;
+  overflow: hidden;
+}
+.notes-editor-content th,
+.notes-editor-content td {
+  border: 1px solid #e2e8f0;
+  padding: 0.4em 0.6em;
+  vertical-align: top;
+  text-align: left;
+  min-width: 3em;
+}
+.notes-editor-content th {
+  background: #f8fafc;
+  font-weight: 600;
+}
+.notes-editor-content .selectedCell::after {
+  background: rgba(99, 102, 241, 0.12);
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.notes-editor-content .column-resize-handle {
+  background: #6366f1;
+  bottom: -2px;
+  position: absolute;
+  right: -2px;
+  top: 0;
+  width: 3px;
+  pointer-events: none;
+}
+.notes-editor-content .tableWrapper {
+  overflow-x: auto;
+}

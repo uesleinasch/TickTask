@@ -5,6 +5,7 @@ import { TaskList, TaskItem } from '@tiptap/extension-list'
 import { Placeholder } from '@tiptap/extensions'
 import Image from '@tiptap/extension-image'
 import FileHandler from '@tiptap/extension-file-handler'
+import { TableKit } from '@tiptap/extension-table'
 import { SlashCommand } from './slash/SlashCommand'
 import { MentionExtension } from './mention/mentionConfig'
 
@@ -48,6 +49,7 @@ export function buildExtensions(taskId: number): Extensions {
     TaskList,
     TaskItem.configure({ nested: true }),
     Placeholder.configure({ placeholder: 'Escreva suas anotações... (digite / para comandos)' }),
+    TableKit.configure({ table: { resizable: true } }),
     SlashCommand,
     MentionExtension,
     ImageWithAsset,

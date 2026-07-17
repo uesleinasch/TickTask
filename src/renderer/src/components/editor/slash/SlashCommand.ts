@@ -47,6 +47,16 @@ const ITEMS: SlashItem[] = [
     title: 'Divisor',
     command: ({ editor, range }) =>
       editor.chain().focus().deleteRange(range).setHorizontalRule().run()
+  },
+  {
+    title: 'Tabela',
+    command: ({ editor, range }) =>
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+        .run()
   }
 ]
 
