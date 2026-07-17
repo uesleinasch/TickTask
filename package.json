@@ -37,7 +37,7 @@
     "@editorjs/quote": "^2.7.6",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
-    "@notionhq/client": "^5.23.2",
+    "@notionhq/client": "^4.0.2",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-progress": "^1.1.8",
