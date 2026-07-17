@@ -3,6 +3,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Highlight from '@tiptap/extension-highlight'
 import { TaskList, TaskItem } from '@tiptap/extension-list'
 import { Placeholder } from '@tiptap/extensions'
+import { SlashCommand } from './slash/SlashCommand'
 
 export function buildExtensions(): Extensions {
   return [
@@ -12,6 +13,7 @@ export function buildExtensions(): Extensions {
     Highlight,
     TaskList,
     TaskItem.configure({ nested: true }),
-    Placeholder.configure({ placeholder: 'Escreva suas anotações... (digite / para comandos)' })
+    Placeholder.configure({ placeholder: 'Escreva suas anotações... (digite / para comandos)' }),
+    SlashCommand
   ]
 }
