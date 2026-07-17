@@ -274,3 +274,10 @@ body.float-window #root {
   pointer-events: none;
   height: 0;
 }
+/* chip de menção @ */
+.notes-editor-content .mention {
+  background: #e0e7ff;
+  color: #4338ca;
+  border-radius: 0.25rem;
+  padding: 0 0.25em;
+}

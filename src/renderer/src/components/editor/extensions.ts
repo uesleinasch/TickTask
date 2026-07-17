@@ -4,6 +4,7 @@ import Highlight from '@tiptap/extension-highlight'
 import { TaskList, TaskItem } from '@tiptap/extension-list'
 import { Placeholder } from '@tiptap/extensions'
 import { SlashCommand } from './slash/SlashCommand'
+import { MentionExtension } from './mention/mentionConfig'
 
 export function buildExtensions(): Extensions {
   return [
@@ -14,6 +15,7 @@ export function buildExtensions(): Extensions {
     TaskList,
     TaskItem.configure({ nested: true }),
     Placeholder.configure({ placeholder: 'Escreva suas anotações... (digite / para comandos)' }),
-    SlashCommand
+    SlashCommand,
+    MentionExtension
   ]
 }
