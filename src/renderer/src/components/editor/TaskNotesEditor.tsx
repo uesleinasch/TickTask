@@ -1,6 +1,8 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import type { JSONContent } from '@tiptap/core'
+import { DragHandle } from '@tiptap/extension-drag-handle-react'
+import { GripVertical } from 'lucide-react'
 import { buildExtensions } from './extensions'
 import { BubbleToolbar } from './BubbleToolbar'
 
@@ -66,6 +68,13 @@ export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditor
     return (
       <div className="text-slate-800">
         <BubbleToolbar editor={editor} />
+        {editor && (
+          <DragHandle editor={editor}>
+            <div className="flex cursor-grab items-center text-slate-400 hover:text-slate-600">
+              <GripVertical size={16} />
+            </div>
+          </DragHandle>
+        )}
         <EditorContent editor={editor} />
       </div>
     )
