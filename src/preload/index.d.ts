@@ -89,6 +89,17 @@ interface API {
   getTask: (id: number) => Promise<Task | undefined>
   updateTask: (id: number, data: UpdateTaskInput) => Promise<void>
   updateTaskNotes: (id: number, notes: string | null) => Promise<void>
+  searchMentions: (
+    query: string
+  ) => Promise<Array<{ id: number; label: string; type: 'task' | 'project' | 'context' }>>
+  saveNoteImage: (
+    taskId: number,
+    bytes: Uint8Array,
+    filename: string,
+    mime: string
+  ) => Promise<{ assetId: string; src: string }>
+  exportNotesLocalChoose: (taskId: number) => Promise<string | null>
+  exportNotesLocal: (taskId: number) => Promise<boolean>
   syncTaskNotes: (id: number) => Promise<void>
   deleteTask: (id: number) => Promise<void>
   bulkDeleteTasks: (ids: number[]) => Promise<void>
@@ -151,7 +162,10 @@ interface API {
   // Contexts
   createContext: (name: string, icon?: string, color?: string) => Promise<Context>
   listContexts: () => Promise<Context[]>
-  updateContext: (id: number, data: { name?: string; icon?: string; color?: string }) => Promise<void>
+  updateContext: (
+    id: number,
+    data: { name?: string; icon?: string; color?: string }
+  ) => Promise<void>
   deleteContext: (id: number) => Promise<void>
   getTaskContexts: (taskId: number) => Promise<Context[]>
   setTaskContexts: (taskId: number, contextIds: number[]) => Promise<void>

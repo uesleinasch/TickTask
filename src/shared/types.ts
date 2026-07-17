@@ -1,6 +1,12 @@
 // ===================== STATUS & CATEGORY =====================
 
-export type TaskStatus = 'inbox' | 'aguardando' | 'proximas' | 'executando' | 'finalizada' | 'someday'
+export type TaskStatus =
+  | 'inbox'
+  | 'aguardando'
+  | 'proximas'
+  | 'executando'
+  | 'finalizada'
+  | 'someday'
 export type TaskCategory = 'urgente' | 'prioridade' | 'normal' | 'time_leak'
 export type ProjectStatus = 'active' | 'someday' | 'done' | 'archived'
 export type EnergyLevel = 'alto' | 'medio' | 'baixo'
@@ -119,8 +125,8 @@ export interface UpdateGoalInput {
 
 export interface RecurrenceRule {
   type: 'daily' | 'weekly' | 'monthly'
-  dayOfWeek?: number   // 0–6 for weekly (0 = Sunday)
-  dayOfMonth?: number  // 1–31 for monthly
+  dayOfWeek?: number // 0–6 for weekly (0 = Sunday)
+  dayOfMonth?: number // 1–31 for monthly
 }
 
 // ===================== TASK DEPENDENCY =====================
@@ -151,19 +157,21 @@ export interface Task {
   tags?: Tag[]
   contexts?: Context[]
   // FASE 2 fields
-  scheduled_date?: string        // DATE string 'YYYY-MM-DD'
-  due_date?: string              // DATETIME string
-  recurrence_rule?: string       // JSON string of RecurrenceRule
-  parent_task_id?: number        // subtask relationship
-  recurrence_source_id?: number  // id of the task that spawned this recurrence instance
-  day_order?: number             // ordering within TodayPage
-  subtask_count?: number         // computed
+  scheduled_date?: string // DATE string 'YYYY-MM-DD'
+  due_date?: string // DATETIME string
+  recurrence_rule?: string // JSON string of RecurrenceRule
+  parent_task_id?: number // subtask relationship
+  recurrence_source_id?: number // id of the task that spawned this recurrence instance
+  day_order?: number // ordering within TodayPage
+  subtask_count?: number // computed
   completed_subtask_count?: number // computed
-  is_blocked?: boolean           // computed from dependencies
+  is_blocked?: boolean // computed from dependencies
   // FASE 4.2: Energy Tracking
   energy_level?: EnergyLevel
-  // FASE 5: Notas ricas (JSON serializado do Editor.js)
+  // FASE 5: Notas ricas (JSON serializado — ProseMirror/Tiptap; legado Editor.js)
   notes?: string
+  // Tiptap: caminho do arquivo de exportação local (Markdown)
+  local_export_path?: string
 }
 
 export interface CreateTaskInput {
@@ -238,9 +246,9 @@ export interface TimeBlock {
   task_id: number
   task_name?: string
   task_category?: TaskCategory
-  date: string        // 'YYYY-MM-DD'
-  start_time: string  // 'HH:MM'
-  end_time: string    // 'HH:MM'
+  date: string // 'YYYY-MM-DD'
+  start_time: string // 'HH:MM'
+  end_time: string // 'HH:MM'
   created_at: string
 }
 
