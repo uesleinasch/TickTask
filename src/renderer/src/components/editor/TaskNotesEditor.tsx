@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import type { JSONContent } from '@tiptap/core'
 import { DragHandle } from '@tiptap/extension-drag-handle-react'
@@ -64,6 +64,14 @@ export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditor
       }),
       [persist]
     )
+
+    // Cancela um save pendente ao trocar de task/desmontar, evitando que o
+    // timeout dispare getJSON() sobre uma instância de editor já destruída.
+    useEffect(() => {
+      return () => {
+        if (debounceRef.current) clearTimeout(debounceRef.current)
+      }
+    }, [taskId])
 
     return (
       <div className="text-slate-800">

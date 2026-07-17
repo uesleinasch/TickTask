@@ -53,6 +53,9 @@ export function buildExtensions(taskId: number): Extensions {
     ImageWithAsset,
     FileHandler.configure({
       allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp'],
+      // Consome o evento de paste quando há arquivos, evitando que outras paste
+      // rules insiram conteúdo duplicado.
+      consumePasteEvent: true,
       onDrop: (editor, files, pos) => {
         files.forEach((file) => void uploadAndInsert(editor, taskId, file, pos))
       },
