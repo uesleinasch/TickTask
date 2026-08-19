@@ -35,6 +35,8 @@ export function createSuggestionRenderer<T>(Component: ComponentType<PopupCompon
     return {
       onStart: (props: SuggestionProps<T>) => {
         el = document.createElement('div')
+        // marcador lido por SingleTaskPage: com o popup aberto, Esc não sai do modo Zen/maximizado
+        el.dataset.suggestionPopup = 'true'
         el.style.position = 'fixed'
         el.style.zIndex = '9999'
         document.body.appendChild(el)
