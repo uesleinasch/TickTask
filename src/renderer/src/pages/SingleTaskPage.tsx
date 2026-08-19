@@ -991,7 +991,7 @@ export function SingleTaskPage(): React.JSX.Element {
             'relative flex flex-col min-h-0 bg-white',
             viewMode === 'normal' && 'shrink-0 border-l border-slate-200',
             viewMode !== 'normal' && 'flex-1 min-w-0',
-            viewMode === 'zen' && 'items-center py-6'
+            viewMode === 'zen' && 'items-center pt-6 pb-20'
           )}
           style={viewMode === 'normal' ? { width: dragWidth ?? notesWidth } : undefined}
         >
@@ -1032,7 +1032,7 @@ export function SingleTaskPage(): React.JSX.Element {
             <button
               onClick={handleRestoreNotes}
               title="Voltar ao normal (Esc)"
-              className="absolute bottom-6 right-6 z-20 h-11 w-11 rounded-full bg-slate-900 text-white flex items-center justify-center hover:bg-slate-800 transition-colors"
+              className="absolute bottom-20 right-8 z-20 h-11 w-11 rounded-full bg-slate-900 text-white flex items-center justify-center hover:bg-slate-800 transition-colors"
             >
               <Minimize2 size={18} />
             </button>
