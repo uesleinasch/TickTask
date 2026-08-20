@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Task, TimeEntry } from '@shared/types'
+import { shouldBootstrapTimerStore } from './timerWindow'
 
 // Controle de notificações Time Leak, por task
 const lastTimeLeakNotification: Record<number, number> = {}
@@ -180,9 +181,8 @@ export const useTimerStore = create<TimerState>((set, get) => ({
 }))
 
 // Inicializar a store quando o app carrega
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && shouldBootstrapTimerStore(window.location.hash)) {
   setTimeout(() => {
-    console.log(`[float-probe] timerStore inicializado na rota "${window.location.hash}"`)
     useTimerStore.getState().syncWithDatabase()
   }, 100)
 }
