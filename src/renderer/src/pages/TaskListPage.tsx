@@ -19,6 +19,7 @@ import { TaskTable } from '@renderer/components/TaskTable'
 import { TaskDialog } from '@renderer/components/TaskDialog'
 import { useTasks } from '@renderer/hooks/useTasks'
 import { usePersistedState } from '@renderer/hooks/usePersistedState'
+import { useIncrementalList } from '@renderer/hooks/useIncrementalList'
 import { TaskGroups, type TaskGroup } from '@renderer/components/TaskGroups'
 import { TaskKanban } from '@renderer/components/TaskKanban'
 import { eventEmitter } from '@renderer/App'
@@ -153,6 +154,12 @@ export function TaskListPage(): React.JSX.Element {
 
   const { tasks, loading, error, createTask, refreshTasks } = useTasks(filters)
   const [totalTasks, setTotalTasks] = useState(0)
+  const {
+    visible: renderedTasks,
+    hasMore,
+    remaining,
+    sentinelRef
+  } = useIncrementalList(tasks, JSON.stringify(filters))
 
   // Carregar dados de filtros
   useEffect(() => {
@@ -922,7 +929,7 @@ export function TaskListPage(): React.JSX.Element {
             />
           ) : viewMode === 'cards' ? (
             <TaskList
-              tasks={tasks}
+              tasks={renderedTasks}
               onTaskClick={handleTaskClick}
               selectedTaskIds={selectedTaskIdSet}
               onToggleTaskSelection={toggleTaskSelection}
@@ -930,13 +937,19 @@ export function TaskListPage(): React.JSX.Element {
             />
           ) : (
             <TaskTable
-              tasks={tasks}
+              tasks={renderedTasks}
               onTaskClick={handleTaskClick}
               selectedTaskIds={selectedTaskIdSet}
               onToggleTaskSelection={toggleTaskSelection}
               onToggleSelectAll={toggleSelectAllVisible}
               onScheduleForToday={handleScheduleForToday}
             />
+          )}
+
+          {hasMore && !groupingEnabled && !(statusFilter === 'executando' && kanbanEnabled) && (
+            <div ref={sentinelRef} className="py-6 text-center text-xs text-slate-400">
+              Carregando mais {remaining} {remaining === 1 ? 'tarefa' : 'tarefas'}...
+            </div>
           )}
         </div>
       </ScrollArea>
