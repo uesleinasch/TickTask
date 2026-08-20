@@ -53,6 +53,10 @@ import {
   // Tags
   createTag,
   listTags,
+  listTagsWithUsage,
+  listTaskIdsWithTag,
+  updateTag,
+  mergeTags,
   getOrCreateTag,
   deleteTag,
   getTaskTags,
@@ -130,6 +134,7 @@ import type {
   UpdateTaskInput,
   TaskStatus,
   TaskListFilters,
+  UpdateTagInput,
   CreateProjectInput,
   UpdateProjectInput,
   ProjectStatus
@@ -192,6 +197,30 @@ async function autoSyncToNotion(taskId: number): Promise<void> {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
       mainWindow?.webContents.send('notion:syncError', errorMessage)
     }
+  }
+}
+
+// Renomear, mesclar ou excluir uma tag muda o multi_select das tarefas no Notion, que só é
+// reescrito quando a tarefa inteira é sincronizada de novo.
+async function syncTasksAfterTagChange(taskIds: number[]): Promise<void> {
+  if (taskIds.length === 0) return
+  const config = getNotionConfig()
+  if (!config?.autoSync || !config.databaseId) return
+
+  const label = `${taskIds.length} ${taskIds.length === 1 ? 'tarefa' : 'tarefas'}`
+  mainWindow?.webContents.send('notion:syncStart', label)
+  try {
+    for (const id of taskIds) {
+      const task = getTask(id)
+      if (task) {
+        await syncTaskToNotion(task)
+      }
+    }
+    mainWindow?.webContents.send('notion:syncSuccess', label)
+  } catch (error) {
+    console.error('Erro ao ressincronizar tarefas após mudança de tag:', error)
+    const message = error instanceof Error ? error.message : 'Erro desconhecido'
+    mainWindow?.webContents.send('notion:syncError', message)
   }
 }
 
@@ -672,7 +701,21 @@ function setupIpcHandlers(): void {
   ipcMain.handle('tag:create', (_, name: string, color?: string) => createTag(name, color))
   ipcMain.handle('tag:list', () => listTags())
   ipcMain.handle('tag:getOrCreate', (_, name: string) => getOrCreateTag(name))
-  ipcMain.handle('tag:delete', (_, id: number) => deleteTag(id))
+  ipcMain.handle('tag:listWithUsage', () => listTagsWithUsage())
+  ipcMain.handle('tag:update', (_, id: number, data: UpdateTagInput) => {
+    updateTag(id, data)
+    syncTasksAfterTagChange(listTaskIdsWithTag(id))
+  })
+  ipcMain.handle('tag:merge', (_, sourceId: number, targetId: number) => {
+    const affected = mergeTags(sourceId, targetId)
+    syncTasksAfterTagChange(affected)
+    return affected.length
+  })
+  ipcMain.handle('tag:delete', (_, id: number) => {
+    const affected = listTaskIdsWithTag(id)
+    deleteTag(id)
+    syncTasksAfterTagChange(affected)
+  })
   ipcMain.handle('tag:getTaskTags', (_, taskId: number) => getTaskTags(taskId))
   ipcMain.handle('tag:setTaskTags', (_, taskId: number, tagIds: number[]) => {
     setTaskTags(taskId, tagIds)

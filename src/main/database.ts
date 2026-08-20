@@ -26,10 +26,19 @@ import type {
   GtdMetrics,
   EnergyStats,
   EnergyLevel,
-  TaskListFilters
+  TaskListFilters,
+  UpdateTagInput
 } from '@shared/types'
 import { DEFAULT_CONTEXTS } from '@shared/types'
 import { buildTaskCountQuery, buildTaskListQuery } from './taskQuery'
+import {
+  listTagsWithUsage as listTagsWithUsageQuery,
+  listTaskIdsWithTag as listTaskIdsWithTagQuery,
+  mergeTags as mergeTagsQuery,
+  updateTag as updateTagQuery,
+  type SqliteLike,
+  type TagUsageRow
+} from './tagQueries'
 
 const dbPath = path.join(app.getPath('userData'), 'ticktask.db')
 
@@ -452,6 +461,28 @@ export function getTagByName(name: string): TagRow | undefined {
 export function listTags(): TagRow[] {
   const stmt = db.prepare('SELECT * FROM tags ORDER BY name ASC')
   return stmt.all() as TagRow[]
+}
+
+// tagQueries declara só a fatia da API que usa, para poder rodar sob node:sqlite nos testes.
+// Os tipos genéricos por statement do better-sqlite3 não casam estruturalmente com ela.
+function tagDb(): SqliteLike {
+  return db as unknown as SqliteLike
+}
+
+export function updateTag(id: number, data: UpdateTagInput): void {
+  updateTagQuery(tagDb(), id, data)
+}
+
+export function listTagsWithUsage(): TagUsageRow[] {
+  return listTagsWithUsageQuery(tagDb())
+}
+
+export function listTaskIdsWithTag(tagId: number): number[] {
+  return listTaskIdsWithTagQuery(tagDb(), tagId)
+}
+
+export function mergeTags(sourceId: number, targetId: number): number[] {
+  return mergeTagsQuery(tagDb(), sourceId, targetId)
 }
 
 export function deleteTag(id: number): void {

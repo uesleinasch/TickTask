@@ -20,6 +20,15 @@ export interface Tag {
   created_at: string
 }
 
+export interface TagWithUsage extends Tag {
+  task_count: number
+}
+
+export interface UpdateTagInput {
+  name?: string
+  color?: string
+}
+
 // ===================== CONTEXT =====================
 
 export interface Context {

@@ -26,7 +26,9 @@ import type {
   GtdMetrics,
   EnergyStats,
   TaskListFilters,
-  TaskListItem
+  TaskListItem,
+  TagWithUsage,
+  UpdateTagInput
 } from '../shared/types'
 
 interface FloatTimerData {
@@ -151,6 +153,9 @@ interface API {
   // Tags
   createTag: (name: string, color?: string) => Promise<Tag>
   listTags: () => Promise<Tag[]>
+  listTagsWithUsage: () => Promise<TagWithUsage[]>
+  updateTag: (id: number, data: UpdateTagInput) => Promise<void>
+  mergeTags: (sourceId: number, targetId: number) => Promise<number>
   getOrCreateTag: (name: string) => Promise<Tag>
   deleteTag: (id: number) => Promise<void>
   getTaskTags: (taskId: number) => Promise<Tag[]>

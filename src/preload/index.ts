@@ -25,7 +25,9 @@ import type {
   CreateTimeBlockInput,
   UpdateTimeBlockInput,
   TaskListFilters,
-  TaskListItem
+  TaskListItem,
+  TagWithUsage,
+  UpdateTagInput
 } from '../shared/types'
 
 // Custom APIs for renderer
@@ -165,6 +167,11 @@ const api = {
   createTag: (name: string, color?: string): Promise<Tag> =>
     ipcRenderer.invoke('tag:create', name, color),
   listTags: (): Promise<Tag[]> => ipcRenderer.invoke('tag:list'),
+  listTagsWithUsage: (): Promise<TagWithUsage[]> => ipcRenderer.invoke('tag:listWithUsage'),
+  updateTag: (id: number, data: UpdateTagInput): Promise<void> =>
+    ipcRenderer.invoke('tag:update', id, data),
+  mergeTags: (sourceId: number, targetId: number): Promise<number> =>
+    ipcRenderer.invoke('tag:merge', sourceId, targetId),
   getOrCreateTag: (name: string): Promise<Tag> => ipcRenderer.invoke('tag:getOrCreate', name),
   deleteTag: (id: number): Promise<void> => ipcRenderer.invoke('tag:delete', id),
   getTaskTags: (taskId: number): Promise<Tag[]> => ipcRenderer.invoke('tag:getTaskTags', taskId),
