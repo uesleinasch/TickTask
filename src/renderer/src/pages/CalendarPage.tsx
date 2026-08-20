@@ -21,9 +21,8 @@ import {
 } from '@renderer/components/ui/dialog'
 import { SearchableSelect } from '@renderer/components/ui/searchable-select'
 import { useCalendarWeek, useCalendarMonth } from '@renderer/hooks/useCalendar'
-import { useTasks } from '@renderer/hooks/useTasks'
 import { useTimerStore } from '@renderer/stores/timerStore'
-import type { Task, TimeBlock, CreateTimeBlockInput } from '@shared/types'
+import type { Task, TaskListItem, TimeBlock, CreateTimeBlockInput } from '@shared/types'
 import {
   ArrowLeft,
   ChevronLeft,
@@ -107,7 +106,7 @@ interface TimeBlockDialogProps {
   onClose: () => void
   onSave: (data: CreateTimeBlockInput) => Promise<void>
   onDelete?: () => Promise<void>
-  tasks: Task[]
+  tasks: TaskListItem[]
   initial?: Partial<TimeBlockDialogState>
   title: string
 }
@@ -135,8 +134,6 @@ function TimeBlockDialog({
       setEndTime(initial?.endTime || '10:00')
     }
   }, [open, initial?.taskId, initial?.date, initial?.startTime, initial?.endTime])
-
-  const activeTasks = tasks.filter((t) => !t.is_archived && t.status !== 'finalizada')
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -168,7 +165,7 @@ function TimeBlockDialog({
             <SearchableSelect
               value={taskId}
               onChange={setTaskId}
-              options={activeTasks.map((t) => ({ value: String(t.id), label: t.name }))}
+              options={tasks.map((t) => ({ value: String(t.id), label: t.name }))}
               placeholder="Selecione uma tarefa..."
               searchPlaceholder="Buscar tarefa..."
               className="w-full min-w-0"
@@ -604,7 +601,7 @@ type CalendarView = 'month' | 'week'
 
 export function CalendarPage(): React.JSX.Element {
   const navigate = useNavigate()
-  const { tasks } = useTasks()
+  const [selectableTasks, setSelectableTasks] = useState<TaskListItem[]>([])
   const { startTimer } = useTimerStore()
 
   const [view, setView] = useState<CalendarView>('week')
@@ -634,6 +631,11 @@ export function CalendarPage(): React.JSX.Element {
     block?: TimeBlock
     initial?: Partial<{ taskId: string; date: string; startTime: string; endTime: string }>
   }>({ open: false })
+
+  useEffect(() => {
+    if (!blockDialog.open) return
+    window.api.listActiveTasksLight().then(setSelectableTasks).catch(console.error)
+  }, [blockDialog.open])
 
   // Navigation
   function prevPeriod(): void {
@@ -878,7 +880,7 @@ export function CalendarPage(): React.JSX.Element {
         onClose={() => setBlockDialog({ open: false })}
         onSave={handleSaveBlock}
         onDelete={blockDialog.block ? handleDeleteBlock : undefined}
-        tasks={tasks}
+        tasks={selectableTasks}
         initial={blockDialog.initial}
         title={blockDialog.block ? 'Editar Bloco de Tempo' : 'Novo Bloco de Tempo'}
       />
