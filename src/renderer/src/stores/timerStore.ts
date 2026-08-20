@@ -156,9 +156,8 @@ export const useTimerStore = create<TimerState>((set, get) => ({
 
   syncWithDatabase: () => {
     window.api
-      .listTasks(false)
-      .then(async (tasks) => {
-        const running = tasks.filter((t) => t.is_running)
+      .listRunningTasks()
+      .then(async (running) => {
         const next: Record<number, ActiveTimer> = {}
         for (const task of running) {
           const entry = await window.api.getActiveTimeEntry(task.id)

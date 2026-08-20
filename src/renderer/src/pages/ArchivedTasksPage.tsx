@@ -11,7 +11,7 @@ import { toast } from '@renderer/components/ui/sonner'
 
 export function ArchivedTasksPage(): React.JSX.Element {
   const navigate = useNavigate()
-  const { tasks, loading, refreshTasks } = useTasks(true) // archived = true
+  const { tasks, loading, refreshTasks } = useTasks({ archived: true })
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [taskToDelete, setTaskToDelete] = useState<number | null>(null)
 

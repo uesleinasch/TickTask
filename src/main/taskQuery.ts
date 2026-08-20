@@ -1,20 +1,4 @@
-import type { TaskCategory, TaskStatus } from '@shared/types'
-
-export type TaskSort = 'updated' | 'due_date'
-
-export interface TaskListFilters {
-  archived?: boolean
-  status?: TaskStatus | 'all'
-  category?: TaskCategory | 'all'
-  projectId?: number | 'none' | null
-  tagId?: number | null
-  contextId?: number | null
-  search?: string
-  blockedOnly?: boolean
-  sort?: TaskSort
-  limit?: number
-  offset?: number
-}
+import type { TaskListFilters, TaskSort } from '@shared/types'
 
 const ORDER_BY: Record<TaskSort, string> = {
   updated: 't.updated_at DESC',

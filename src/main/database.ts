@@ -25,9 +25,11 @@ import type {
   UpdateTimeBlockInput,
   GtdMetrics,
   EnergyStats,
-  EnergyLevel
+  EnergyLevel,
+  TaskListFilters
 } from '@shared/types'
 import { DEFAULT_CONTEXTS } from '@shared/types'
+import { buildTaskCountQuery, buildTaskListQuery } from './taskQuery'
 
 const dbPath = path.join(app.getPath('userData'), 'ticktask.db')
 
@@ -686,16 +688,15 @@ export function deleteProject(id: number): void {
 }
 
 export function getProjectTasks(projectId: number): Task[] {
-  const stmt = db.prepare('SELECT * FROM tasks WHERE project_id = ? ORDER BY updated_at DESC')
-  const rows = stmt.all(projectId) as Task[]
-  return rows.map((row) => ({
-    ...row,
-    category: row.category || 'normal',
-    is_running: Boolean(row.is_running),
-    is_archived: Boolean(row.is_archived),
-    tags: getTaskTags(row.id),
-    contexts: getTaskContexts(row.id)
-  }))
+  const stmt = db.prepare(`
+    SELECT ${TASK_LIST_COLUMNS}
+    FROM tasks t
+    LEFT JOIN projects p ON t.project_id = p.id
+    WHERE t.project_id = ?
+    ORDER BY t.updated_at DESC
+  `)
+  const rows = stmt.all(projectId) as (Task & { project_name?: string })[]
+  return enrichTasks(rows)
 }
 
 // ===================== TASKS =====================
@@ -752,51 +753,160 @@ export function createTask(data: CreateTaskInput): Task {
   return getTask(taskId)!
 }
 
-function enrichTask(row: Task & { project_name?: string }): Task {
-  const subtaskStats = db
+// Projeção das listagens: sem `notes` (JSON do Tiptap) e com `description` truncada — a lista
+// exibe no máximo duas linhas dela. Quem precisa do conteúdo integral usa getTask.
+const TASK_LIST_COLUMNS = `
+  t.id, t.name, SUBSTR(t.description, 1, 240) AS description, t.total_seconds,
+  t.time_limit_seconds, t.status, t.category, t.is_running, t.is_archived,
+  t.project_id, t.created_at, t.updated_at, t.scheduled_date, t.due_date,
+  t.recurrence_rule, t.parent_task_id, t.recurrence_source_id, t.day_order,
+  t.energy_level, p.name as project_name, p.color as project_color
+`
+
+function enrichTasks(rows: (Task & { project_name?: string })[]): Task[] {
+  if (rows.length === 0) return []
+
+  const ids = rows.map((row) => row.id)
+  const placeholders = ids.map(() => '?').join(', ')
+
+  const tagsByTask = new Map<number, TagRow[]>()
+  const tagRows = db
+    .prepare(
+      `
+    SELECT tt.task_id as owner_task_id, tg.*
+    FROM tags tg
+    INNER JOIN task_tags tt ON tg.id = tt.tag_id
+    WHERE tt.task_id IN (${placeholders})
+    ORDER BY tg.name ASC
+  `
+    )
+    .all(...ids) as (TagRow & { owner_task_id: number })[]
+  for (const { owner_task_id, ...tag } of tagRows) {
+    const list = tagsByTask.get(owner_task_id)
+    if (list) list.push(tag)
+    else tagsByTask.set(owner_task_id, [tag])
+  }
+
+  const contextsByTask = new Map<number, ContextRow[]>()
+  const contextRows = db
+    .prepare(
+      `
+    SELECT tc.task_id as owner_task_id, c.*
+    FROM contexts c
+    INNER JOIN task_contexts tc ON c.id = tc.context_id
+    WHERE tc.task_id IN (${placeholders})
+    ORDER BY c.name ASC
+  `
+    )
+    .all(...ids) as (ContextRow & { owner_task_id: number })[]
+  for (const { owner_task_id, ...context } of contextRows) {
+    const list = contextsByTask.get(owner_task_id)
+    if (list) list.push(context)
+    else contextsByTask.set(owner_task_id, [context])
+  }
+
+  const subtaskStats = new Map<number, { total: number; completed: number }>()
+  const statRows = db
     .prepare(
       `
     SELECT
+      parent_task_id as owner_task_id,
       COUNT(*) as total,
       SUM(CASE WHEN status = 'finalizada' THEN 1 ELSE 0 END) as completed
-    FROM tasks WHERE parent_task_id = ? AND is_archived = 0
+    FROM tasks
+    WHERE parent_task_id IN (${placeholders}) AND is_archived = 0
+    GROUP BY parent_task_id
   `
     )
-    .get(row.id) as { total: number; completed: number }
-
-  const blockedRow = db
-    .prepare(
-      `
-    SELECT COUNT(*) as cnt FROM task_dependencies d
-    JOIN tasks dep ON dep.id = d.depends_on_task_id
-    WHERE d.task_id = ? AND dep.status != 'finalizada'
-  `
-    )
-    .get(row.id) as { cnt: number }
-
-  return {
-    ...row,
-    category: row.category || 'normal',
-    is_running: Boolean(row.is_running),
-    is_archived: Boolean(row.is_archived),
-    tags: getTaskTags(row.id),
-    contexts: getTaskContexts(row.id),
-    subtask_count: subtaskStats.total,
-    completed_subtask_count: subtaskStats.completed,
-    is_blocked: blockedRow.cnt > 0
+    .all(...ids) as { owner_task_id: number; total: number; completed: number }[]
+  for (const stat of statRows) {
+    subtaskStats.set(stat.owner_task_id, { total: stat.total, completed: stat.completed })
   }
+
+  const blockedIds = new Set(
+    (
+      db
+        .prepare(
+          `
+    SELECT DISTINCT d.task_id as owner_task_id
+    FROM task_dependencies d
+    JOIN tasks dep ON dep.id = d.depends_on_task_id
+    WHERE d.task_id IN (${placeholders}) AND dep.status != 'finalizada'
+  `
+        )
+        .all(...ids) as { owner_task_id: number }[]
+    ).map((row) => row.owner_task_id)
+  )
+
+  return rows.map((row) => {
+    const stats = subtaskStats.get(row.id)
+    return {
+      ...row,
+      category: row.category || 'normal',
+      is_running: Boolean(row.is_running),
+      is_archived: Boolean(row.is_archived),
+      tags: tagsByTask.get(row.id) ?? [],
+      contexts: contextsByTask.get(row.id) ?? [],
+      subtask_count: stats?.total ?? 0,
+      completed_subtask_count: stats?.completed ?? 0,
+      is_blocked: blockedIds.has(row.id)
+    }
+  })
 }
 
-export function listTasks(archived: boolean = false): Task[] {
+function enrichTask(row: Task & { project_name?: string }): Task {
+  return enrichTasks([row])[0]
+}
+
+export function listTasks(filters: TaskListFilters = {}): Task[] {
+  const { sql, params } = buildTaskListQuery(TASK_LIST_COLUMNS, filters)
+  const rows = db.prepare(sql).all(...params) as (Task & { project_name?: string })[]
+  return enrichTasks(rows)
+}
+
+// O sync do Notion serializa description e notes integrais (notion.ts:490, 635) — por isso não
+// pode usar a projeção enxuta de TASK_LIST_COLUMNS.
+export function listTasksForSync(): Task[] {
   const stmt = db.prepare(`
     SELECT t.*, p.name as project_name, p.color as project_color
     FROM tasks t
     LEFT JOIN projects p ON t.project_id = p.id
-    WHERE t.is_archived = ? AND t.parent_task_id IS NULL
+    WHERE t.is_archived = 0 AND t.parent_task_id IS NULL
     ORDER BY t.updated_at DESC
   `)
-  const rows = stmt.all(archived ? 1 : 0) as (Task & { project_name?: string })[]
-  return rows.map(enrichTask)
+  const rows = stmt.all() as (Task & { project_name?: string })[]
+  return enrichTasks(rows)
+}
+
+export function countTasks(filters: TaskListFilters = {}): number {
+  const { sql, params } = buildTaskCountQuery(filters)
+  const row = db.prepare(sql).get(...params) as { total: number }
+  return row.total
+}
+
+export function listRunningTasks(): Task[] {
+  const stmt = db.prepare(`
+    SELECT ${TASK_LIST_COLUMNS}
+    FROM tasks t
+    LEFT JOIN projects p ON t.project_id = p.id
+    WHERE t.is_running = 1
+    ORDER BY t.updated_at DESC
+  `)
+  const rows = stmt.all() as (Task & { project_name?: string })[]
+  return enrichTasks(rows)
+}
+
+export function listActiveTasksLight(): Pick<
+  Task,
+  'id' | 'name' | 'status' | 'category' | 'project_id'
+>[] {
+  const stmt = db.prepare(`
+    SELECT t.id, t.name, t.status, t.category, t.project_id
+    FROM tasks t
+    WHERE t.is_archived = 0 AND t.status != 'finalizada'
+    ORDER BY t.updated_at DESC
+  `)
+  return stmt.all() as Pick<Task, 'id' | 'name' | 'status' | 'category' | 'project_id'>[]
 }
 
 export function getTask(id: number): Task | undefined {
@@ -1681,14 +1791,14 @@ export function removeTaskDependency(taskId: number, dependsOnId: number): void 
 
 export function getTasksForDate(date: string): Task[] {
   const stmt = db.prepare(`
-    SELECT t.*, p.name as project_name, p.color as project_color
+    SELECT ${TASK_LIST_COLUMNS}
     FROM tasks t
     LEFT JOIN projects p ON t.project_id = p.id
     WHERE t.scheduled_date = ? AND t.is_archived = 0 AND t.parent_task_id IS NULL
     ORDER BY COALESCE(t.day_order, 999999), t.created_at ASC
   `)
   const rows = stmt.all(date) as (Task & { project_name?: string })[]
-  return rows.map(enrichTask)
+  return enrichTasks(rows)
 }
 
 export function getWeeklySchedule(startDate: string): { date: string; tasks: Task[] }[] {
@@ -1772,7 +1882,7 @@ export function deleteNextRecurrence(sourceTaskId: number): void {
 
 export function getTasksDueForNotification(): Task[] {
   const stmt = db.prepare(`
-    SELECT t.*, p.name as project_name, p.color as project_color
+    SELECT ${TASK_LIST_COLUMNS}
     FROM tasks t
     LEFT JOIN projects p ON t.project_id = p.id
     WHERE t.due_date IS NOT NULL
@@ -1781,7 +1891,7 @@ export function getTasksDueForNotification(): Task[] {
       AND t.parent_task_id IS NULL
   `)
   const rows = stmt.all() as (Task & { project_name?: string })[]
-  return rows.map(enrichTask)
+  return enrichTasks(rows)
 }
 
 export function closeDatabase(): void {

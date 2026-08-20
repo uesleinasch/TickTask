@@ -17,6 +17,10 @@ import {
   closeDatabase,
   createTask,
   listTasks,
+  countTasks,
+  listActiveTasksLight,
+  listRunningTasks,
+  listTasksForSync,
   getTask,
   updateTask,
   updateTaskNotes,
@@ -125,6 +129,7 @@ import type {
   CreateTaskInput,
   UpdateTaskInput,
   TaskStatus,
+  TaskListFilters,
   CreateProjectInput,
   UpdateProjectInput,
   ProjectStatus
@@ -410,7 +415,10 @@ function setupIpcHandlers(): void {
     autoSyncToNotion(task.id)
     return task
   })
-  ipcMain.handle('task:list', (_, archived?: boolean) => listTasks(archived))
+  ipcMain.handle('task:list', (_, filters?: TaskListFilters) => listTasks(filters))
+  ipcMain.handle('task:count', (_, filters?: TaskListFilters) => countTasks(filters))
+  ipcMain.handle('task:listActiveLight', () => listActiveTasksLight())
+  ipcMain.handle('task:listRunning', () => listRunningTasks())
   ipcMain.handle('task:get', (_, id: number) => getTask(id))
   ipcMain.handle('task:update', (_, id: number, data: UpdateTaskInput) => {
     updateTask(id, data)
@@ -761,7 +769,7 @@ function setupIpcHandlers(): void {
     }
   })
   ipcMain.handle('notion:syncAllTasks', async () => {
-    const tasks = listTasks(false)
+    const tasks = listTasksForSync()
     return syncAllTasks(tasks)
   })
   ipcMain.handle('notion:createDatabase', () => findOrCreateDatabase())

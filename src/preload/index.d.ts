@@ -24,7 +24,9 @@ import type {
   CreateTimeBlockInput,
   UpdateTimeBlockInput,
   GtdMetrics,
-  EnergyStats
+  EnergyStats,
+  TaskListFilters,
+  TaskListItem
 } from '../shared/types'
 
 interface FloatTimerData {
@@ -85,7 +87,10 @@ interface API {
 
   // Task CRUD
   createTask: (data: CreateTaskInput) => Promise<Task>
-  listTasks: (archived?: boolean) => Promise<Task[]>
+  listTasks: (filters?: TaskListFilters) => Promise<Task[]>
+  countTasks: (filters?: TaskListFilters) => Promise<number>
+  listActiveTasksLight: () => Promise<TaskListItem[]>
+  listRunningTasks: () => Promise<Task[]>
   getTask: (id: number) => Promise<Task | undefined>
   updateTask: (id: number, data: UpdateTaskInput) => Promise<void>
   updateTaskNotes: (id: number, notes: string | null) => Promise<void>

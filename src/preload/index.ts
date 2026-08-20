@@ -23,7 +23,9 @@ import type {
   UpdateGoalInput,
   TimeBlock,
   CreateTimeBlockInput,
-  UpdateTimeBlockInput
+  UpdateTimeBlockInput,
+  TaskListFilters,
+  TaskListItem
 } from '../shared/types'
 
 // Custom APIs for renderer
@@ -35,7 +37,12 @@ const api = {
 
   // Task CRUD
   createTask: (data: CreateTaskInput): Promise<Task> => ipcRenderer.invoke('task:create', data),
-  listTasks: (archived?: boolean): Promise<Task[]> => ipcRenderer.invoke('task:list', archived),
+  listTasks: (filters?: TaskListFilters): Promise<Task[]> =>
+    ipcRenderer.invoke('task:list', filters),
+  countTasks: (filters?: TaskListFilters): Promise<number> =>
+    ipcRenderer.invoke('task:count', filters),
+  listActiveTasksLight: (): Promise<TaskListItem[]> => ipcRenderer.invoke('task:listActiveLight'),
+  listRunningTasks: (): Promise<Task[]> => ipcRenderer.invoke('task:listRunning'),
   getTask: (id: number): Promise<Task | undefined> => ipcRenderer.invoke('task:get', id),
   updateTask: (id: number, data: UpdateTaskInput): Promise<void> =>
     ipcRenderer.invoke('task:update', id, data),
