@@ -17,8 +17,9 @@ import { toast } from '@renderer/components/ui/sonner'
 import { TaskList } from '@renderer/components/TaskList'
 import { TaskTable } from '@renderer/components/TaskTable'
 import { TaskDialog } from '@renderer/components/TaskDialog'
-import { useTasks, useFilteredTasks } from '@renderer/hooks/useTasks'
+import { useTasks } from '@renderer/hooks/useTasks'
 import { usePersistedState } from '@renderer/hooks/usePersistedState'
+import { useIncrementalList } from '@renderer/hooks/useIncrementalList'
 import { TaskGroups, type TaskGroup } from '@renderer/components/TaskGroups'
 import { TaskKanban } from '@renderer/components/TaskKanban'
 import { eventEmitter } from '@renderer/App'
@@ -30,7 +31,8 @@ import {
   type CreateTaskInput,
   type Tag,
   type Context,
-  type Project
+  type Project,
+  type TaskListFilters
 } from '../../../shared/types'
 import {
   ListTodo,
@@ -90,7 +92,6 @@ const CATEGORY_COLOR_MAP: Record<TaskCategory | 'all', string> = {
 
 export function TaskListPage(): React.JSX.Element {
   const navigate = useNavigate()
-  const { tasks, loading, createTask, refreshTasks } = useTasks(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [statusFilter, setStatusFilter] = usePersistedState<FilterStatus>(
     'ticktask:taskListStatusFilter',
@@ -127,12 +128,54 @@ export function TaskListPage(): React.JSX.Element {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
 
+  const filters = useMemo<TaskListFilters>(
+    () => ({
+      archived: false,
+      status: statusFilter,
+      category: categoryFilter,
+      projectId: projectFilter === -1 ? 'none' : projectFilter,
+      tagId: tagFilter,
+      contextId: contextFilter,
+      search: searchQuery,
+      blockedOnly: blockedFilter,
+      sort: sortMode
+    }),
+    [
+      statusFilter,
+      categoryFilter,
+      projectFilter,
+      tagFilter,
+      contextFilter,
+      searchQuery,
+      blockedFilter,
+      sortMode
+    ]
+  )
+
+  const { tasks, loading, error, createTask, refreshTasks } = useTasks(filters)
+  const [totalTasks, setTotalTasks] = useState(0)
+  const {
+    visible: renderedTasks,
+    hasMore,
+    remaining,
+    sentinelRef
+  } = useIncrementalList(tasks, JSON.stringify(filters))
+
   // Carregar dados de filtros
   useEffect(() => {
     window.api.listTags().then(setAvailableTags).catch(console.error)
     window.api.listContexts().then(setAvailableContexts).catch(console.error)
     window.api.listProjects().then(setAvailableProjects).catch(console.error)
   }, [])
+
+  // Total sem filtros, para o rodapé "mostrando N de M"
+  useEffect(() => {
+    window.api.countTasks({ archived: false }).then(setTotalTasks).catch(console.error)
+  }, [tasks])
+
+  useEffect(() => {
+    if (error) toast.error(error)
+  }, [error])
 
   // Listener para refresh vindo do quick capture
   useEffect(() => {
@@ -141,9 +184,6 @@ export function TaskListPage(): React.JSX.Element {
     })
     return unsubscribe
   }, [refreshTasks])
-
-  // Filtrar por status
-  const statusFilteredTasks = useFilteredTasks(tasks, statusFilter)
 
   // Opções de filtros
   const categoryOptions = useMemo(
@@ -193,61 +233,7 @@ export function TaskListPage(): React.JSX.Element {
     [availableProjects]
   )
 
-  // Aplicar filtros adicionais
-  const filteredTasks = useMemo(() => {
-    let result = statusFilteredTasks
-
-    if (categoryFilter !== 'all') {
-      result = result.filter((task) => task.category === categoryFilter)
-    }
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim()
-      result = result.filter(
-        (task) =>
-          task.name.toLowerCase().includes(query) ||
-          (task.description && task.description.toLowerCase().includes(query))
-      )
-    }
-
-    if (tagFilter !== null) {
-      result = result.filter(
-        (task) => task.tags && task.tags.some((t) => t.id === tagFilter)
-      )
-    }
-
-    if (contextFilter !== null) {
-      result = result.filter(
-        (task) => task.contexts && task.contexts.some((c) => c.id === contextFilter)
-      )
-    }
-
-    if (projectFilter !== null) {
-      if (projectFilter === -1) {
-        // "Sem projeto"
-        result = result.filter((task) => !task.project_id)
-      } else {
-        result = result.filter((task) => task.project_id === projectFilter)
-      }
-    }
-
-    if (blockedFilter) {
-      result = result.filter((task) => task.is_blocked)
-    }
-
-    if (sortMode === 'due_date') {
-      result = [...result].sort((a, b) => {
-        if (!a.due_date && !b.due_date) return 0
-        if (!a.due_date) return 1
-        if (!b.due_date) return -1
-        return a.due_date.localeCompare(b.due_date)
-      })
-    }
-
-    return result
-  }, [statusFilteredTasks, categoryFilter, searchQuery, tagFilter, contextFilter, projectFilter, blockedFilter, sortMode])
-
-  const filteredTaskIds = useMemo(() => filteredTasks.map((task) => task.id), [filteredTasks])
+  const filteredTaskIds = useMemo(() => tasks.map((task) => task.id), [tasks])
 
   const taskGroups = useMemo<TaskGroup[]>(() => {
     if (!groupingEnabled && !kanbanEnabled) return []
@@ -255,7 +241,7 @@ export function TaskListPage(): React.JSX.Element {
     if (groupBy === 'project') {
       const map = new Map<string, TaskGroup>()
       const noProject: Task[] = []
-      for (const task of filteredTasks) {
+      for (const task of tasks) {
         if (task.project_id && task.project_name) {
           const key = `p:${task.project_id}`
           let group = map.get(key)
@@ -280,7 +266,7 @@ export function TaskListPage(): React.JSX.Element {
     // groupBy === 'context' — task com múltiplos contextos aparece em todos os grupos
     const map = new Map<string, TaskGroup>()
     const noContext: Task[] = []
-    for (const task of filteredTasks) {
+    for (const task of tasks) {
       const contexts = task.contexts ?? []
       if (contexts.length === 0) {
         noContext.push(task)
@@ -301,7 +287,7 @@ export function TaskListPage(): React.JSX.Element {
       groups.push({ key: 'c:none', label: 'Sem contexto', tasks: noContext })
     }
     return groups
-  }, [groupingEnabled, kanbanEnabled, groupBy, filteredTasks])
+  }, [groupingEnabled, kanbanEnabled, groupBy, tasks])
   const selectedTaskIdSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds])
   const selectedCount = selectedTaskIds.length
 
@@ -332,19 +318,22 @@ export function TaskListPage(): React.JSX.Element {
     setSortMode('updated')
   }
 
-  const handleScheduleForToday = useCallback(async (taskId: number): Promise<void> => {
-    const today = new Date().toISOString().split('T')[0]
-    const task = tasks.find((t) => t.id === taskId)
-    const isAlreadyToday = task?.scheduled_date === today
-    try {
-      await window.api.scheduleTaskForDate(taskId, isAlreadyToday ? null : today)
-      await refreshTasks()
-      toast.success(isAlreadyToday ? 'Removido do plano de hoje' : 'Adicionado ao plano de hoje')
-    } catch (err) {
-      console.error('Erro ao programar tarefa:', err)
-      toast.error('Erro ao atualizar agendamento')
-    }
-  }, [refreshTasks, tasks])
+  const handleScheduleForToday = useCallback(
+    async (taskId: number): Promise<void> => {
+      const today = new Date().toISOString().split('T')[0]
+      const task = tasks.find((t) => t.id === taskId)
+      const isAlreadyToday = task?.scheduled_date === today
+      try {
+        await window.api.scheduleTaskForDate(taskId, isAlreadyToday ? null : today)
+        await refreshTasks()
+        toast.success(isAlreadyToday ? 'Removido do plano de hoje' : 'Adicionado ao plano de hoje')
+      } catch (err) {
+        console.error('Erro ao programar tarefa:', err)
+        toast.error('Erro ao atualizar agendamento')
+      }
+    },
+    [refreshTasks, tasks]
+  )
 
   // Ouvir evento de nova tarefa do TitleBar
   useEffect(() => {
@@ -407,7 +396,9 @@ export function TaskListPage(): React.JSX.Element {
 
       if (bulkAction.type === 'status') {
         await window.api.bulkUpdateStatus(selectedTaskIds, bulkAction.status)
-        toast.success(`${selectedCount} tarefa(s) marcadas como ${STATUS_LABELS[bulkAction.status]}`)
+        toast.success(
+          `${selectedCount} tarefa(s) marcadas como ${STATUS_LABELS[bulkAction.status]}`
+        )
       }
 
       if (bulkAction.type === 'project') {
@@ -415,10 +406,9 @@ export function TaskListPage(): React.JSX.Element {
         const targetProjectName =
           bulkAction.projectId === null
             ? 'sem projeto'
-            : availableProjects.find((project) => project.id === bulkAction.projectId)?.name || 'projeto selecionado'
-        toast.success(
-          `${selectedCount} tarefa(s) movidas para ${targetProjectName}`
-        )
+            : availableProjects.find((project) => project.id === bulkAction.projectId)?.name ||
+              'projeto selecionado'
+        toast.success(`${selectedCount} tarefa(s) movidas para ${targetProjectName}`)
       }
 
       setSelectedTaskIds([])
@@ -526,9 +516,10 @@ export function TaskListPage(): React.JSX.Element {
               onClick={() => setShowFilters(!showFilters)}
               className={`
                 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all
-                ${showFilters || hasActiveFilters
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                ${
+                  showFilters || hasActiveFilters
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                 }
               `}
             >
@@ -552,9 +543,10 @@ export function TaskListPage(): React.JSX.Element {
                 onClick={() => setViewMode('cards')}
                 className={`
                   p-2 rounded-md transition-all
-                  ${viewMode === 'cards'
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                  ${
+                    viewMode === 'cards'
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
                   }
                 `}
                 title="Visualização em Cards"
@@ -565,9 +557,10 @@ export function TaskListPage(): React.JSX.Element {
                 onClick={() => setViewMode('table')}
                 className={`
                   p-2 rounded-md transition-all
-                  ${viewMode === 'table'
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                  ${
+                    viewMode === 'table'
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
                   }
                 `}
                 title="Visualização em Tabela"
@@ -586,9 +579,10 @@ export function TaskListPage(): React.JSX.Element {
                 }}
                 className={`
                   flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-all
-                  ${groupingEnabled
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                  ${
+                    groupingEnabled
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                   }
                 `}
                 title="Agrupar tarefas"
@@ -604,9 +598,10 @@ export function TaskListPage(): React.JSX.Element {
                   }}
                   className={`
                     flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-all
-                    ${kanbanEnabled
-                      ? 'bg-slate-900 text-white'
-                      : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                    ${
+                      kanbanEnabled
+                        ? 'bg-slate-900 text-white'
+                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                     }
                   `}
                   title="Modo Kanban"
@@ -654,7 +649,10 @@ export function TaskListPage(): React.JSX.Element {
                   Buscar
                 </label>
                 <div className="relative">
-                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search
+                    size={16}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
                   <Input
                     type="text"
                     placeholder="Buscar por nome ou descrição..."
@@ -710,7 +708,13 @@ export function TaskListPage(): React.JSX.Element {
                     Projeto
                   </label>
                   <SearchableSelect
-                    value={projectFilter !== null ? (projectFilter === -1 ? 'none' : String(projectFilter)) : 'all'}
+                    value={
+                      projectFilter !== null
+                        ? projectFilter === -1
+                          ? 'none'
+                          : String(projectFilter)
+                        : 'all'
+                    }
                     onChange={(value) => {
                       if (value === 'all') setProjectFilter(null)
                       else if (value === 'none') setProjectFilter(-1)
@@ -790,7 +794,7 @@ export function TaskListPage(): React.JSX.Element {
             {hasActiveFilters && (
               <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-500">
                 <span>
-                  Mostrando {filteredTasks.length} de {tasks.length} tarefas
+                  Mostrando {tasks.length} de {totalTasks} tarefas
                 </span>
               </div>
             )}
@@ -801,7 +805,7 @@ export function TaskListPage(): React.JSX.Element {
       {/* Content */}
       <ScrollArea className="flex-1 h-0">
         <div className="p-6 pt-2 pb-24">
-          {!loading && filteredTasks.length > 0 && (
+          {!loading && tasks.length > 0 && (
             <div className="mb-4 bg-white border border-slate-200 rounded-sm p-4">
               <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -810,10 +814,10 @@ export function TaskListPage(): React.JSX.Element {
                   </span>
                   <button
                     onClick={() => toggleSelectAllVisible(true)}
-                    disabled={filteredTasks.length === selectedCount}
+                    disabled={tasks.length === selectedCount}
                     className="text-slate-600 hover:text-slate-900 disabled:text-slate-300"
                   >
-                    Selecionar todas visíveis ({filteredTasks.length})
+                    Selecionar todas visíveis ({tasks.length})
                   </button>
                   <button
                     onClick={() => setSelectedTaskIds([])}
@@ -866,7 +870,8 @@ export function TaskListPage(): React.JSX.Element {
                       }
                       openConfirm({
                         type: 'project',
-                        projectId: bulkProjectValue === 'no-project' ? null : Number(bulkProjectValue)
+                        projectId:
+                          bulkProjectValue === 'no-project' ? null : Number(bulkProjectValue)
                       })
                     }}
                     disabled={selectedCount === 0 || bulkLoading}
@@ -893,7 +898,7 @@ export function TaskListPage(): React.JSX.Element {
             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
               <p>Carregando...</p>
             </div>
-          ) : filteredTasks.length === 0 ? (
+          ) : tasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-slate-400">
               <div className="bg-slate-100 p-4 rounded-full mb-4">
                 <ListTodo size={32} />
@@ -924,7 +929,7 @@ export function TaskListPage(): React.JSX.Element {
             />
           ) : viewMode === 'cards' ? (
             <TaskList
-              tasks={filteredTasks}
+              tasks={renderedTasks}
               onTaskClick={handleTaskClick}
               selectedTaskIds={selectedTaskIdSet}
               onToggleTaskSelection={toggleTaskSelection}
@@ -932,13 +937,19 @@ export function TaskListPage(): React.JSX.Element {
             />
           ) : (
             <TaskTable
-              tasks={filteredTasks}
+              tasks={renderedTasks}
               onTaskClick={handleTaskClick}
               selectedTaskIds={selectedTaskIdSet}
               onToggleTaskSelection={toggleTaskSelection}
               onToggleSelectAll={toggleSelectAllVisible}
               onScheduleForToday={handleScheduleForToday}
             />
+          )}
+
+          {hasMore && !groupingEnabled && !(statusFilter === 'executando' && kanbanEnabled) && (
+            <div ref={sentinelRef} className="py-6 text-center text-xs text-slate-400">
+              Carregando mais {remaining} {remaining === 1 ? 'tarefa' : 'tarefas'}...
+            </div>
           )}
         </div>
       </ScrollArea>
@@ -968,7 +979,9 @@ export function TaskListPage(): React.JSX.Element {
                 void handleBulkActionConfirm()
               }}
               disabled={bulkLoading}
-              className={bulkAction?.type === 'delete' ? 'bg-destructive hover:bg-destructive/90' : ''}
+              className={
+                bulkAction?.type === 'delete' ? 'bg-destructive hover:bg-destructive/90' : ''
+              }
             >
               {bulkLoading ? (
                 <span className="inline-flex items-center gap-2">

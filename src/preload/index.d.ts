@@ -24,7 +24,11 @@ import type {
   CreateTimeBlockInput,
   UpdateTimeBlockInput,
   GtdMetrics,
-  EnergyStats
+  EnergyStats,
+  TaskListFilters,
+  TaskListItem,
+  TagWithUsage,
+  UpdateTagInput
 } from '../shared/types'
 
 interface FloatTimerData {
@@ -85,7 +89,10 @@ interface API {
 
   // Task CRUD
   createTask: (data: CreateTaskInput) => Promise<Task>
-  listTasks: (archived?: boolean) => Promise<Task[]>
+  listTasks: (filters?: TaskListFilters) => Promise<Task[]>
+  countTasks: (filters?: TaskListFilters) => Promise<number>
+  listActiveTasksLight: () => Promise<TaskListItem[]>
+  listRunningTasks: () => Promise<Task[]>
   getTask: (id: number) => Promise<Task | undefined>
   updateTask: (id: number, data: UpdateTaskInput) => Promise<void>
   updateTaskNotes: (id: number, notes: string | null) => Promise<void>
@@ -146,6 +153,9 @@ interface API {
   // Tags
   createTag: (name: string, color?: string) => Promise<Tag>
   listTags: () => Promise<Tag[]>
+  listTagsWithUsage: () => Promise<TagWithUsage[]>
+  updateTag: (id: number, data: UpdateTagInput) => Promise<void>
+  mergeTags: (sourceId: number, targetId: number) => Promise<number>
   getOrCreateTag: (name: string) => Promise<Tag>
   deleteTag: (id: number) => Promise<void>
   getTaskTags: (taskId: number) => Promise<Tag[]>

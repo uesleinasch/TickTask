@@ -20,6 +20,15 @@ export interface Tag {
   created_at: string
 }
 
+export interface TagWithUsage extends Tag {
+  task_count: number
+}
+
+export interface UpdateTagInput {
+  name?: string
+  color?: string
+}
+
 // ===================== CONTEXT =====================
 
 export interface Context {
@@ -219,6 +228,26 @@ export interface TimeEntry {
   end_time: string | null
   duration_seconds: number | null
 }
+
+// ===================== TASK LIST FILTERS =====================
+
+export type TaskSort = 'updated' | 'due_date'
+
+export interface TaskListFilters {
+  archived?: boolean
+  status?: TaskStatus | 'all'
+  category?: TaskCategory | 'all'
+  projectId?: number | 'none' | null
+  tagId?: number | null
+  contextId?: number | null
+  search?: string
+  blockedOnly?: boolean
+  sort?: TaskSort
+  limit?: number
+  offset?: number
+}
+
+export type TaskListItem = Pick<Task, 'id' | 'name' | 'status' | 'category' | 'project_id'>
 
 // ===================== WEEKLY REVIEW =====================
 

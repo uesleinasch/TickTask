@@ -17,6 +17,10 @@ import {
   closeDatabase,
   createTask,
   listTasks,
+  countTasks,
+  listActiveTasksLight,
+  listRunningTasks,
+  listTasksForSync,
   getTask,
   updateTask,
   updateTaskNotes,
@@ -49,6 +53,10 @@ import {
   // Tags
   createTag,
   listTags,
+  listTagsWithUsage,
+  listTaskIdsWithTag,
+  updateTag,
+  mergeTags,
   getOrCreateTag,
   deleteTag,
   getTaskTags,
@@ -125,6 +133,8 @@ import type {
   CreateTaskInput,
   UpdateTaskInput,
   TaskStatus,
+  TaskListFilters,
+  UpdateTagInput,
   CreateProjectInput,
   UpdateProjectInput,
   ProjectStatus
@@ -187,6 +197,30 @@ async function autoSyncToNotion(taskId: number): Promise<void> {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
       mainWindow?.webContents.send('notion:syncError', errorMessage)
     }
+  }
+}
+
+// Renomear, mesclar ou excluir uma tag muda o multi_select das tarefas no Notion, que só é
+// reescrito quando a tarefa inteira é sincronizada de novo.
+async function syncTasksAfterTagChange(taskIds: number[]): Promise<void> {
+  if (taskIds.length === 0) return
+  const config = getNotionConfig()
+  if (!config?.autoSync || !config.databaseId) return
+
+  const label = `${taskIds.length} ${taskIds.length === 1 ? 'tarefa' : 'tarefas'}`
+  mainWindow?.webContents.send('notion:syncStart', label)
+  try {
+    for (const id of taskIds) {
+      const task = getTask(id)
+      if (task) {
+        await syncTaskToNotion(task)
+      }
+    }
+    mainWindow?.webContents.send('notion:syncSuccess', label)
+  } catch (error) {
+    console.error('Erro ao ressincronizar tarefas após mudança de tag:', error)
+    const message = error instanceof Error ? error.message : 'Erro desconhecido'
+    mainWindow?.webContents.send('notion:syncError', message)
   }
 }
 
@@ -275,7 +309,12 @@ function clearFloatWindowState(): void {
 function updateFloatWindow(timers: FloatTimerData[]): void {
   currentTimers = timers
   if (floatWindow && !floatWindow.isDestroyed() && floatWindow.isVisible()) {
-    floatWindow.setSize(FLOAT_WIDTH, floatHeightFor(timers.length))
+    // Redimensionar a cada tick repinta a janela transparente sem necessidade.
+    const [, currentHeight] = floatWindow.getSize()
+    const nextHeight = floatHeightFor(timers.length)
+    if (currentHeight !== nextHeight) {
+      floatWindow.setSize(FLOAT_WIDTH, nextHeight)
+    }
     floatWindow.webContents.send('float:update', timers)
   }
 }
@@ -410,7 +449,10 @@ function setupIpcHandlers(): void {
     autoSyncToNotion(task.id)
     return task
   })
-  ipcMain.handle('task:list', (_, archived?: boolean) => listTasks(archived))
+  ipcMain.handle('task:list', (_, filters?: TaskListFilters) => listTasks(filters))
+  ipcMain.handle('task:count', (_, filters?: TaskListFilters) => countTasks(filters))
+  ipcMain.handle('task:listActiveLight', () => listActiveTasksLight())
+  ipcMain.handle('task:listRunning', () => listRunningTasks())
   ipcMain.handle('task:get', (_, id: number) => getTask(id))
   ipcMain.handle('task:update', (_, id: number, data: UpdateTaskInput) => {
     updateTask(id, data)
@@ -659,7 +701,21 @@ function setupIpcHandlers(): void {
   ipcMain.handle('tag:create', (_, name: string, color?: string) => createTag(name, color))
   ipcMain.handle('tag:list', () => listTags())
   ipcMain.handle('tag:getOrCreate', (_, name: string) => getOrCreateTag(name))
-  ipcMain.handle('tag:delete', (_, id: number) => deleteTag(id))
+  ipcMain.handle('tag:listWithUsage', () => listTagsWithUsage())
+  ipcMain.handle('tag:update', (_, id: number, data: UpdateTagInput) => {
+    updateTag(id, data)
+    syncTasksAfterTagChange(listTaskIdsWithTag(id))
+  })
+  ipcMain.handle('tag:merge', (_, sourceId: number, targetId: number) => {
+    const affected = mergeTags(sourceId, targetId)
+    syncTasksAfterTagChange(affected)
+    return affected.length
+  })
+  ipcMain.handle('tag:delete', (_, id: number) => {
+    const affected = listTaskIdsWithTag(id)
+    deleteTag(id)
+    syncTasksAfterTagChange(affected)
+  })
   ipcMain.handle('tag:getTaskTags', (_, taskId: number) => getTaskTags(taskId))
   ipcMain.handle('tag:setTaskTags', (_, taskId: number, tagIds: number[]) => {
     setTaskTags(taskId, tagIds)
@@ -761,7 +817,7 @@ function setupIpcHandlers(): void {
     }
   })
   ipcMain.handle('notion:syncAllTasks', async () => {
-    const tasks = listTasks(false)
+    const tasks = listTasksForSync()
     return syncAllTasks(tasks)
   })
   ipcMain.handle('notion:createDatabase', () => findOrCreateDatabase())

@@ -1,5 +1,17 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Plus, Archive, BarChart3, Settings, FolderKanban, MapPin, ClipboardCheck, CalendarDays, Mountain, Calendar } from 'lucide-react'
+import {
+  Plus,
+  Archive,
+  BarChart3,
+  Settings,
+  FolderKanban,
+  MapPin,
+  ClipboardCheck,
+  CalendarDays,
+  Mountain,
+  Calendar,
+  Tag
+} from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 
 import appIcon from '../../../../resources/32.png'
@@ -72,6 +84,16 @@ export function TitleBar({ onNewTask }: TitleBarProps): React.JSX.Element {
           >
             <MapPin className="mr-2 h-4 w-4" />
             Contextos
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/tags')}
+            className="h-9 border-slate-200 text-slate-700 hover:bg-slate-100"
+            title="Gerenciar tags"
+          >
+            <Tag className="mr-2 h-4 w-4" />
+            Tags
           </Button>
           <Button
             variant="outline"
