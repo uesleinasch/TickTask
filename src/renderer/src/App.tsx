@@ -9,6 +9,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { ContextsPage } from './pages/ContextsPage'
+import { TagsPage } from './pages/TagsPage'
 import { WeeklyReviewPage } from './pages/WeeklyReviewPage'
 import { QuickCapturePage } from './pages/QuickCapturePage'
 import { TodayPage } from './pages/TodayPage'
@@ -72,6 +73,7 @@ function AppContent(): React.JSX.Element {
     isDashboardPage ||
     location.pathname === '/projects' ||
     location.pathname === '/contexts' ||
+    location.pathname === '/tags' ||
     location.pathname === '/review' ||
     location.pathname === '/archived' ||
     location.pathname === '/settings' ||
@@ -145,6 +147,7 @@ function AppContent(): React.JSX.Element {
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/project/:id" element={<ProjectDetailPage />} />
           <Route path="/contexts" element={<ContextsPage />} />
+          <Route path="/tags" element={<TagsPage />} />
           <Route path="/review" element={<WeeklyReviewPage />} />
           <Route path="/today" element={<TodayPage />} />
           <Route path="/horizons" element={<HorizonsPage />} />
