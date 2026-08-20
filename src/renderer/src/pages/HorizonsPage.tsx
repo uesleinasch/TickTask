@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Button } from '@renderer/components/ui/button'
@@ -22,8 +22,7 @@ import {
 } from '@renderer/components/ui/select'
 import { useAreas, useGoals } from '@renderer/hooks/useHorizons'
 import { useProjects } from '@renderer/hooks/useProjects'
-import { useTasks } from '@renderer/hooks/useTasks'
-import type { Area, Goal, GoalHorizon, CreateAreaInput, CreateGoalInput } from '@shared/types'
+import type { Area, Goal, GoalHorizon, CreateAreaInput, CreateGoalInput, Task } from '@shared/types'
 import {
   ArrowLeft,
   Plus,
@@ -303,17 +302,22 @@ export function HorizonsPage(): React.JSX.Element {
   const { areas, loading: areasLoading, createArea, deleteArea } = useAreas()
   const { goals, loading: goalsLoading, createGoal, deleteGoal } = useGoals()
   const { projects, loading: projectsLoading } = useProjects()
-  const { tasks, loading: tasksLoading } = useTasks()
+  const [todayTasks, setTodayTasks] = useState<Task[]>([])
+  const [tasksLoading, setTasksLoading] = useState(true)
 
   const [areaDialogOpen, setAreaDialogOpen] = useState(false)
   const [goalDialogOpen, setGoalDialogOpen] = useState(false)
   const [editingArea, setEditingArea] = useState<Area | null>(null)
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null)
 
-  // H0: tasks scheduled for today that are not finished
-  const todayTasks = tasks.filter(
-    (t) => t.scheduled_date === today && t.status !== 'finalizada' && !t.is_archived
-  )
+  // H0: tarefas agendadas para hoje e não finalizadas
+  useEffect(() => {
+    window.api
+      .getTasksForDate(today)
+      .then((result) => setTodayTasks(result.filter((t) => t.status !== 'finalizada')))
+      .catch(console.error)
+      .finally(() => setTasksLoading(false))
+  }, [today])
 
   // H1: active projects
   const activeProjects = projects.filter((p) => p.status === 'active')
