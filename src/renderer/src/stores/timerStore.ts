@@ -182,6 +182,7 @@ export const useTimerStore = create<TimerState>((set, get) => ({
 // Inicializar a store quando o app carrega
 if (typeof window !== 'undefined') {
   setTimeout(() => {
+    console.log(`[float-probe] timerStore inicializado na rota "${window.location.hash}"`)
     useTimerStore.getState().syncWithDatabase()
   }, 100)
 }

@@ -277,10 +277,18 @@ function clearFloatWindowState(): void {
   }
 }
 
-function updateFloatWindow(timers: FloatTimerData[]): void {
+function updateFloatWindow(timers: FloatTimerData[], senderId?: number): void {
   currentTimers = timers
   if (floatWindow && !floatWindow.isDestroyed() && floatWindow.isVisible()) {
-    floatWindow.setSize(FLOAT_WIDTH, floatHeightFor(timers.length))
+    const [, currentHeight] = floatWindow.getSize()
+    const nextHeight = floatHeightFor(timers.length)
+    console.log(
+      `[float-probe] sender=${senderId} floatWC=${floatWindow.webContents.id} count=${timers.length}` +
+        ` height=${currentHeight}->${nextHeight} resize=${currentHeight !== nextHeight}` +
+        ` ids=[${timers.map((t) => t.taskId).join(',')}]` +
+        ` secs=[${timers.map((t) => t.seconds).join(',')}]`
+    )
+    floatWindow.setSize(FLOAT_WIDTH, nextHeight)
     floatWindow.webContents.send('float:update', timers)
   }
 }
@@ -607,8 +615,8 @@ function setupIpcHandlers(): void {
   })
 
   // Float window controls
-  ipcMain.handle('float:updateTimer', (_, timers: FloatTimerData[]) => {
-    updateFloatWindow(timers)
+  ipcMain.handle('float:updateTimer', (event, timers: FloatTimerData[]) => {
+    updateFloatWindow(timers, event.sender.id)
   })
   ipcMain.handle('float:clearTimer', () => {
     clearFloatWindowState()
