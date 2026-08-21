@@ -7,6 +7,8 @@ import {
   createTask,
   deleteTasks,
   getChildTaskIds,
+  getGtdMetrics,
+  getReviewHealthIndicators,
   getSubtasks,
   getTask,
   getTaskDependencies,
@@ -399,6 +401,46 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
       // então sincronizar no Notion não faz sentido — só avisamos a janela para recarregar.
       broadcastRefresh()
       return ok({ deleted: args.ids })
+    }
+  )
+
+  server.registerTool(
+    'organize_overview',
+    {
+      title: 'Retrato GTD',
+      description:
+        'Diagnóstico do sistema: inbox, tasks sem projeto, atrasadas, bloqueadas, someday antigas e métricas GTD. Use antes de propor uma reorganização.',
+      inputSchema: {
+        today: z.string().describe('Data de referência no formato AAAA-MM-DD'),
+        sample_size: z.number().int().min(0).max(50).optional()
+      }
+    },
+    async ({ today, sample_size }) => {
+      const limit = sample_size ?? 10
+      const sample = (filters: TaskListFilters): Task[] =>
+        limit === 0 ? [] : listTasks({ ...filters, limit })
+
+      const inboxFilters: TaskListFilters = { status: 'inbox' }
+      const withoutProjectFilters: TaskListFilters = { projectId: 'none' }
+      const overdueFilters: TaskListFilters = { dueBefore: today, excludeStatus: ['finalizada'] }
+      const blockedFilters: TaskListFilters = { blockedOnly: true, excludeStatus: ['finalizada'] }
+      const somedayFilters: TaskListFilters = { status: 'someday' }
+
+      return ok({
+        metrics: getGtdMetrics(),
+        health: getReviewHealthIndicators(),
+        inbox: { total: countTasks(inboxFilters), sample: sample(inboxFilters) },
+        without_project: {
+          total: countTasks(withoutProjectFilters),
+          sample: sample(withoutProjectFilters)
+        },
+        overdue: {
+          total: countTasks(overdueFilters),
+          sample: sample({ ...overdueFilters, sort: 'due_date' })
+        },
+        blocked: { total: countTasks(blockedFilters), sample: sample(blockedFilters) },
+        someday: { total: countTasks(somedayFilters), sample: sample(somedayFilters) }
+      })
     }
   )
 }
