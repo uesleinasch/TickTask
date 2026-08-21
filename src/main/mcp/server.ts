@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { createConfirmStore } from './confirmGuard'
 import { ok } from './reply'
+import { registerStructureTools } from './tools/structure'
 import { registerTaskTools } from './tools/tasks'
 
 export function createMcpServer(bulkThreshold: number): McpServer {
@@ -20,6 +21,7 @@ export function createMcpServer(bulkThreshold: number): McpServer {
   )
 
   registerTaskTools(server, ctx)
+  registerStructureTools(server, ctx)
 
   return server
 }
