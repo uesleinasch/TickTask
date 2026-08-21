@@ -1,8 +1,9 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { TaskListFilters } from '@shared/types'
+import type { CreateTaskInput, TaskListFilters, UpdateTaskInput } from '@shared/types'
 import { z } from 'zod'
 import {
   countTasks,
+  createTask,
   getSubtasks,
   getTask,
   getTaskDependencies,
@@ -10,15 +11,50 @@ import {
   getTimeEntries,
   listContexts,
   listProjects,
-  listTasks
+  listTasks,
+  updateTask
 } from '../../database'
 import { prosemirrorToMarkdown } from '../../notesMarkdown'
+import { afterTaskWrite } from '../effects'
 import { fail, ok } from '../reply'
 import { resolveByName } from '../resolve'
 
 const STATUS = z.enum(['inbox', 'aguardando', 'proximas', 'executando', 'finalizada', 'someday'])
 const CATEGORY = z.enum(['urgente', 'prioridade', 'normal', 'time_leak'])
 const ENERGY = z.enum(['alto', 'medio', 'baixo'])
+
+type Resolution = { ok: true; id: number } | { ok: false; response: ReturnType<typeof fail> }
+
+function resolveProject(input: string | number): Resolution {
+  const resolved = resolveByName(listProjects(), input)
+  if (resolved.ok) return { ok: true, id: resolved.id }
+  return {
+    ok: false,
+    response: fail(resolved.code, 'Projeto não encontrado ou ambíguo.', {
+      candidates: resolved.candidates
+    })
+  }
+}
+
+function resolveContextIds(
+  inputs: Array<string | number>
+): { ok: true; ids: number[] } | { ok: false; response: ReturnType<typeof fail> } {
+  const rows = listContexts()
+  const ids: number[] = []
+  for (const input of inputs) {
+    const resolved = resolveByName(rows, input)
+    if (!resolved.ok) {
+      return {
+        ok: false,
+        response: fail(resolved.code, `Contexto "${input}" não encontrado ou ambíguo.`, {
+          candidates: resolved.candidates
+        })
+      }
+    }
+    ids.push(resolved.id)
+  }
+  return { ok: true, ids }
+}
 
 export function registerTaskTools(server: McpServer): void {
   server.registerTool(
@@ -63,23 +99,15 @@ export function registerTaskTools(server: McpServer): void {
       if (args.withoutProject) {
         filters.projectId = 'none'
       } else if (args.project !== undefined) {
-        const resolved = resolveByName(listProjects(), args.project)
-        if (!resolved.ok) {
-          return fail(resolved.code, 'Projeto não encontrado ou ambíguo.', {
-            candidates: resolved.candidates
-          })
-        }
-        filters.projectId = resolved.id
+        const project = resolveProject(args.project)
+        if (!project.ok) return project.response
+        filters.projectId = project.id
       }
 
       if (args.context !== undefined) {
-        const resolved = resolveByName(listContexts(), args.context)
-        if (!resolved.ok) {
-          return fail(resolved.code, 'Contexto não encontrado ou ambíguo.', {
-            candidates: resolved.candidates
-          })
-        }
-        filters.contextId = resolved.id
+        const contexts = resolveContextIds([args.context])
+        if (!contexts.ok) return contexts.response
+        filters.contextId = contexts.ids[0]
       }
 
       return ok({
@@ -109,6 +137,123 @@ export function registerTaskTools(server: McpServer): void {
         blocked_task_ids: getTaskDependents(id),
         time_entries: getTimeEntries(id)
       })
+    }
+  )
+
+  server.registerTool(
+    'create_task',
+    {
+      title: 'Criar task',
+      description:
+        'Cria uma task. Projeto e contextos aceitam nome ou id; tags são criadas se não existirem. Use parent_task_id para criar subtarefa.',
+      inputSchema: {
+        name: z.string().min(1),
+        description: z.string().optional(),
+        status: STATUS.optional(),
+        category: CATEGORY.optional(),
+        energy: ENERGY.optional(),
+        project: z.union([z.string(), z.number()]).optional(),
+        contexts: z.array(z.union([z.string(), z.number()])).optional(),
+        tags: z.array(z.string()).optional(),
+        due_date: z.string().optional(),
+        scheduled_date: z.string().optional(),
+        parent_task_id: z.number().int().positive().optional()
+      }
+    },
+    async (args) => {
+      const input: CreateTaskInput = {
+        name: args.name,
+        description: args.description,
+        category: args.category,
+        energy_level: args.energy,
+        due_date: args.due_date,
+        scheduled_date: args.scheduled_date,
+        parent_task_id: args.parent_task_id
+      }
+
+      if (args.project !== undefined) {
+        const project = resolveProject(args.project)
+        if (!project.ok) return project.response
+        input.project_id = project.id
+      }
+
+      if (args.contexts?.length) {
+        const contexts = resolveContextIds(args.contexts)
+        if (!contexts.ok) return contexts.response
+        input.contextIds = contexts.ids
+      }
+
+      if (args.tags?.length) {
+        input.tagNames = args.tags
+      }
+
+      const task = createTask(input)
+
+      if (args.status !== undefined) {
+        updateTask(task.id, { status: args.status })
+      }
+
+      afterTaskWrite(task.id)
+      return ok({ created: task.id, task: getTask(task.id) })
+    }
+  )
+
+  server.registerTool(
+    'update_task',
+    {
+      title: 'Atualizar uma task',
+      description:
+        'Altera campos de UMA task. Para mexer em várias de uma vez use bulk_update_tasks. Passar tags ou contexts substitui a lista inteira, não acrescenta. Tag inexistente é criada; projeto ou contexto inexistente falha com candidatos.',
+      inputSchema: {
+        id: z.number().int().positive(),
+        name: z.string().min(1).optional(),
+        description: z.string().optional(),
+        status: STATUS.optional(),
+        category: CATEGORY.optional(),
+        energy: ENERGY.optional(),
+        project: z.union([z.string(), z.number(), z.null()]).optional(),
+        contexts: z.array(z.union([z.string(), z.number()])).optional(),
+        tags: z.array(z.string()).optional(),
+        due_date: z.union([z.string(), z.null()]).optional(),
+        scheduled_date: z.union([z.string(), z.null()]).optional()
+      }
+    },
+    async (args) => {
+      if (!getTask(args.id)) return fail('not_found', `Task ${args.id} não existe.`)
+
+      const patch: UpdateTaskInput = {}
+      if (args.name !== undefined) patch.name = args.name
+      if (args.description !== undefined) patch.description = args.description
+      if (args.status !== undefined) patch.status = args.status
+      if (args.category !== undefined) patch.category = args.category
+      if (args.energy !== undefined) patch.energy_level = args.energy
+      if (args.due_date !== undefined) patch.due_date = args.due_date
+      if (args.scheduled_date !== undefined) patch.scheduled_date = args.scheduled_date
+
+      if (args.project !== undefined) {
+        if (args.project === null) {
+          patch.project_id = null
+        } else {
+          const project = resolveProject(args.project)
+          if (!project.ok) return project.response
+          patch.project_id = project.id
+        }
+      }
+
+      if (args.contexts !== undefined) {
+        const contexts = resolveContextIds(args.contexts)
+        if (!contexts.ok) return contexts.response
+        patch.contextIds = contexts.ids
+      }
+
+      if (args.tags !== undefined) {
+        patch.tagNames = args.tags
+      }
+
+      if (Object.keys(patch).length > 0) updateTask(args.id, patch)
+
+      afterTaskWrite(args.id)
+      return ok({ updated: args.id, task: getTask(args.id) })
     }
   )
 }
