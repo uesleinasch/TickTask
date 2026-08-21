@@ -30,6 +30,12 @@ describe('needsConfirmation', () => {
     expect(needsConfirmation('bulk_update_tasks', 6, 5)).toBe(true)
     expect(needsConfirmation('plan_day', 6, 5)).toBe(true)
   })
+
+  it('falha fechado quando a contagem não é um número finito ou não negativo', () => {
+    expect(needsConfirmation('bulk_update_tasks', NaN, 5)).toBe(true)
+    expect(needsConfirmation('bulk_update_tasks', Infinity, 5)).toBe(true)
+    expect(needsConfirmation('bulk_update_tasks', -1, 5)).toBe(true)
+  })
 })
 
 describe('createConfirmStore', () => {
@@ -72,5 +78,20 @@ describe('createConfirmStore', () => {
     const { store } = storeAt()
     const token = store.issue({ kind: 'delete_tasks', payload: { ids: [1] } })
     expect(store.consume(token, { kind: 'plan_day', payload: { ids: [1] } }).ok).toBe(false)
+  })
+
+  it('recusa reaproveitar o token depois de uma tentativa com operação errada', () => {
+    const { store } = storeAt()
+    const token = store.issue(OP)
+    expect(store.consume(token, { kind: 'delete_tasks', payload: { ids: [9] } }).ok).toBe(false)
+    expect(store.consume(token, OP).ok).toBe(false)
+  })
+
+  it('recusa reaproveitar o token depois de expirado, mesmo com a operação correta', () => {
+    const { store, tick } = storeAt()
+    const token = store.issue(OP)
+    tick(5001)
+    expect(store.consume(token, OP).ok).toBe(false)
+    expect(store.consume(token, OP).ok).toBe(false)
   })
 })

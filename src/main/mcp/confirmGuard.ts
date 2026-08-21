@@ -26,6 +26,9 @@ export function needsConfirmation(
   threshold: number
 ): boolean {
   if (ALWAYS_CONFIRM.includes(kind)) return true
+  // Falha fechado: contagem inválida (NaN, negativa) não pode desligar a confirmação
+  // silenciosamente — o custo de confirmar demais é aceitável, o de não confirmar não é.
+  if (!Number.isFinite(itemCount) || itemCount < 0) return true
   return itemCount > threshold
 }
 
@@ -92,7 +95,8 @@ export function createConfirmStore(options?: {
         return {
           ok: false,
           code: 'invalid_token',
-          message: 'A confirmação não corresponde a esta operação.'
+          message:
+            'A confirmação não corresponde a esta operação. Repita a operação para ver o preview de novo.'
         }
       }
       return { ok: true }
