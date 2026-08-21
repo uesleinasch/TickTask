@@ -68,4 +68,24 @@ describe('readMcpConfig', () => {
       '{ isto não é json'
     )
   })
+
+  it('sobe mesmo quando não consegue isolar o arquivo corrompido', () => {
+    writeMcpConfig({})
+    fs.writeFileSync(configFile, '{ ainda não é json', 'utf-8')
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const renameSpy = vi.spyOn(fs, 'renameSync').mockImplementation(() => {
+      throw new Error('permissão negada')
+    })
+
+    const config = readMcpConfig()
+
+    expect(errorSpy).toHaveBeenCalledTimes(2)
+    renameSpy.mockRestore()
+    errorSpy.mockRestore()
+
+    expect(config.token).toHaveLength(64)
+    const persisted = JSON.parse(fs.readFileSync(configFile, 'utf-8'))
+    expect(persisted.token).toBe(config.token)
+  })
 })

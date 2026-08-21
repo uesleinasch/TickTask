@@ -24,7 +24,13 @@ export function readMcpConfig(): McpConfig {
     }
 
     console.error('[mcp] mcp-config.json corrompido, isolando arquivo original:', error)
-    fs.renameSync(target, `${target}.corrupt-${Date.now()}`)
+    // Preservar o arquivo corrompido é desejável, mas nunca pode impedir o boot do
+    // app: se o rename falhar (permissão, disco cheio), seguimos e sobrescrevemos.
+    try {
+      fs.renameSync(target, `${target}.corrupt-${Date.now()}`)
+    } catch (renameError) {
+      console.error('[mcp] não foi possível isolar o arquivo corrompido:', renameError)
+    }
     const fresh = normalizeConfig(undefined)
     writeRaw(fresh)
     return fresh

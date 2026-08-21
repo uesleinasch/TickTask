@@ -64,3 +64,36 @@ describe('startMcpServer', () => {
     expect(isMcpRunning()).toBe(true)
   })
 })
+
+describe('stopMcpServer', () => {
+  afterEach(async () => {
+    await stopMcpServer()
+  })
+
+  it('interrompe um start em andamento e libera para um novo start em seguida', async () => {
+    const pendingStart = startMcpServer(buildConfig(0))
+
+    await stopMcpServer()
+    await pendingStart
+
+    expect(isMcpRunning()).toBe(false)
+
+    await startMcpServer(buildConfig(0))
+    expect(isMcpRunning()).toBe(true)
+  })
+
+  it('não propaga a falha de um start em andamento', async () => {
+    const blocker = http.createServer()
+    await new Promise<void>((resolve) => blocker.listen(0, '127.0.0.1', resolve))
+    const address = blocker.address()
+    const port = typeof address === 'object' && address !== null ? address.port : 0
+
+    const pendingStart = startMcpServer(buildConfig(port))
+
+    await expect(stopMcpServer()).resolves.toBeUndefined()
+    await expect(pendingStart).rejects.toThrow()
+    expect(isMcpRunning()).toBe(false)
+
+    await new Promise<void>((resolve) => blocker.close(() => resolve()))
+  })
+})

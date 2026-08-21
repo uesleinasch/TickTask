@@ -71,6 +71,12 @@ async function performStart(config: McpConfig): Promise<void> {
 }
 
 export async function stopMcpServer(): Promise<void> {
+  // Um start em andamento ainda não marcou `httpServer`; sem esperar por ele aqui,
+  // o stop vira no-op e o bind conclui por trás com a config já persistida como off.
+  if (startPromise) {
+    await startPromise.catch(() => undefined)
+  }
+
   const instance = httpServer
   if (!instance) return
   httpServer = null
