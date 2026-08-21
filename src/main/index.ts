@@ -911,7 +911,9 @@ function setupIpcHandlers(): void {
     const config = writeMcpConfig({ token: generateToken() })
     if (config.enabled) {
       await stopMcpServer()
-      await startMcpServer(config)
+      await startMcpServer(config).catch((error) => {
+        console.error('[mcp] falha ao reiniciar após regenerar token:', error)
+      })
     }
     return buildMcpStatus()
   })

@@ -197,15 +197,22 @@ export function SettingsPage(): React.JSX.Element {
     try {
       setMcpStatus(await window.api.mcpRegenerateToken())
       toast.success('Token regenerado com sucesso')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro desconhecido'
+      toast.error(`Erro ao regenerar token: ${message}`)
     } finally {
       setIsRegeneratingToken(false)
     }
   }
 
-  const copyMcpCommand = (): void => {
+  const copyMcpCommand = async (): Promise<void> => {
     if (!mcpStatus) return
-    navigator.clipboard.writeText(mcpStatus.command)
-    toast.success('Comando copiado para a área de transferência')
+    try {
+      await navigator.clipboard.writeText(mcpStatus.command)
+      toast.success('Comando copiado para a área de transferência')
+    } catch {
+      toast.error('Não foi possível copiar o comando')
+    }
   }
 
   if (isLoading) {
@@ -487,8 +494,20 @@ export function SettingsPage(): React.JSX.Element {
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
                   <div>
                     <label className="text-sm font-medium text-slate-700">Servidor MCP</label>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {mcpStatus.running ? `Rodando em 127.0.0.1:${mcpStatus.port}` : 'Desligado'}
+                    <p
+                      className={`text-xs mt-0.5 ${
+                        !mcpStatus.enabled
+                          ? 'text-slate-500'
+                          : mcpStatus.running
+                            ? 'text-emerald-600'
+                            : 'text-red-600'
+                      }`}
+                    >
+                      {!mcpStatus.enabled
+                        ? 'Desligado'
+                        : mcpStatus.running
+                          ? `Rodando em 127.0.0.1:${mcpStatus.port}`
+                          : `Falha ao iniciar na porta ${mcpStatus.port} — verifique se ela já está em uso`}
                     </p>
                   </div>
                   <button
