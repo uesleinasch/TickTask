@@ -65,6 +65,55 @@ describe('startMcpServer', () => {
   })
 })
 
+describe('integração HTTP', () => {
+  const PORT = 48765
+
+  afterEach(async () => {
+    await stopMcpServer()
+  })
+
+  it('atende duas chamadas initialize e um tools/list em sequência', async () => {
+    await startMcpServer(buildConfig(PORT))
+
+    const url = `http://127.0.0.1:${PORT}/mcp`
+    const headers = {
+      'Content-Type': 'application/json',
+      Accept: 'application/json, text/event-stream',
+      Authorization: `Bearer ${TOKEN}`
+    }
+    const initializeBody = JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-06-18',
+        capabilities: {},
+        clientInfo: { name: 'transport-test', version: '1.0.0' }
+      }
+    })
+
+    const firstInitialize = await fetch(url, { method: 'POST', headers, body: initializeBody })
+    expect(firstInitialize.status).toBe(200)
+    await firstInitialize.text()
+
+    const secondInitialize = await fetch(url, { method: 'POST', headers, body: initializeBody })
+    expect(secondInitialize.status).toBe(200)
+    await secondInitialize.text()
+
+    const toolsListResponse = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} })
+    })
+    expect(toolsListResponse.status).toBe(200)
+
+    const body = await toolsListResponse.text()
+    const dataLine = body.split('\n').find((line) => line.startsWith('data: '))
+    const payload = JSON.parse((dataLine ?? '').slice('data: '.length))
+    expect(payload.result.tools.length).toBeGreaterThan(0)
+  })
+})
+
 describe('stopMcpServer', () => {
   afterEach(async () => {
     await stopMcpServer()

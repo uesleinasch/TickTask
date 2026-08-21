@@ -39,11 +39,27 @@ export function startMcpServer(config: McpConfig): Promise<void> {
   return startPromise
 }
 
-async function performStart(config: McpConfig): Promise<void> {
+// O SDK só sustenta uma requisição por transport em modo stateless (sessionIdGenerator:
+// undefined); reusar o par para a próxima chamada faz o transport rejeitar com erro. Por isso o
+// par server+transport nasce e morre dentro de cada requisição.
+async function handleMcpRequest(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  config: McpConfig
+): Promise<void> {
   const server = createMcpServer(config.bulkThreshold)
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined })
-  await server.connect(transport)
 
+  res.on('close', () => {
+    transport.close().catch(() => undefined)
+    server.close().catch(() => undefined)
+  })
+
+  await server.connect(transport)
+  await transport.handleRequest(req, res)
+}
+
+async function performStart(config: McpConfig): Promise<void> {
   const instance = http.createServer((req, res) => {
     const url = (req.url ?? '').split('?')[0]
     if (url !== ROUTE) {
@@ -54,7 +70,7 @@ async function performStart(config: McpConfig): Promise<void> {
       res.writeHead(401).end()
       return
     }
-    transport.handleRequest(req, res).catch((error) => {
+    handleMcpRequest(req, res, config).catch((error) => {
       console.error('[mcp] falha ao tratar requisição:', error)
       if (!res.headersSent) res.writeHead(500).end()
     })
