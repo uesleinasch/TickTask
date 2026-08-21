@@ -242,6 +242,10 @@ export interface TaskListFilters {
   contextId?: number | null
   search?: string
   blockedOnly?: boolean
+  dueBefore?: string
+  dueAfter?: string
+  energy?: EnergyLevel
+  excludeStatus?: TaskStatus[]
   sort?: TaskSort
   limit?: number
   offset?: number
