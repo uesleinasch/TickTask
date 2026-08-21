@@ -26,6 +26,7 @@ import {
   listGoals,
   listProjects,
   listTagsWithUsage,
+  listTaskIdsWithTag,
   mergeTags,
   updateArea,
   updateContext,
@@ -33,7 +34,7 @@ import {
   updateProject,
   updateTag
 } from '../../database'
-import { broadcastRefresh } from '../effects'
+import { afterTagChange, broadcastRefresh } from '../effects'
 import { fail, ok } from '../reply'
 import { resolveByName } from '../resolve'
 import type { ToolContext } from '../toolContext'
@@ -280,7 +281,8 @@ export function registerStructureTools(server: McpServer, ctx: ToolContext): voi
         const consumed = ctx.confirmStore.consume(args.confirm_token, operation)
         if (!consumed.ok) return fail(consumed.code, consumed.message)
 
-        mergeTags(from.id, into.id)
+        const affected = mergeTags(from.id, into.id)
+        afterTagChange(affected)
         broadcastRefresh()
         return ok({ merged: { from: from.id, into: into.id } })
       }
@@ -355,6 +357,8 @@ export function registerStructureTools(server: McpServer, ctx: ToolContext): voi
       const consumed = ctx.confirmStore.consume(args.confirm_token, operation)
       if (!consumed.ok) return fail(consumed.code, consumed.message)
 
+      const affectedByTagDeletion = args.entity === 'tag' ? listTaskIdsWithTag(targetId) : []
+
       switch (args.entity) {
         case 'project':
           deleteProject(targetId)
@@ -372,6 +376,7 @@ export function registerStructureTools(server: McpServer, ctx: ToolContext): voi
           deleteGoal(targetId)
           break
       }
+      if (args.entity === 'tag') afterTagChange(affectedByTagDeletion)
       broadcastRefresh()
       return ok({ deleted: targetId })
     }

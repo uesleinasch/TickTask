@@ -83,7 +83,9 @@ export function registerPlanningTools(server: McpServer, ctx: ToolContext): void
       }
     },
     async ({ schedule, create_blocks, delete_block_ids, confirm_token }) => {
-      const scheduleItems = schedule ?? []
+      // Ordenado por task_id: o hash de confirmação depende da ordem do array, e o cliente pode
+      // reconstruir `schedule` numa ordem diferente entre o preview e a chamada de confirmação.
+      const scheduleItems = [...(schedule ?? [])].sort((a, b) => a.task_id - b.task_id)
       const blocks = create_blocks ?? []
       const removals = delete_block_ids ?? []
 

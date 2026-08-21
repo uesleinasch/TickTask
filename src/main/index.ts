@@ -978,7 +978,8 @@ app.whenReady().then(() => {
 
   registerWriteEffects({
     getMainWindow: () => mainWindow,
-    autoSync: (id) => autoSyncToNotion(id)
+    autoSync: (id) => autoSyncToNotion(id),
+    syncTagChange: (ids) => syncTasksAfterTagChange(ids)
   })
 
   // Nenhuma falha do MCP pode impedir createWindow(): esta promise não tem .catch.

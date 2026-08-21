@@ -35,6 +35,14 @@ const ENERGY = z.enum(['alto', 'medio', 'baixo'])
 
 type Resolution = { ok: true; id: number } | { ok: false; response: ReturnType<typeof fail> }
 
+// Invariante do projeto: só read_notes e o notes_markdown de get_task carregam corpo de nota;
+// todo outro retorno de task precisa passar por aqui.
+function stripNotes(task: Task): Task {
+  const clean: Task = { ...task }
+  delete clean.notes
+  return clean
+}
+
 function resolveProject(input: string | number): Resolution {
   const resolved = resolveByName(listProjects(), input)
   if (resolved.ok) return { ok: true, id: resolved.id }
@@ -147,13 +155,11 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
       if (!task) return fail('not_found', `Task ${id} não existe.`)
 
       const notesMarkdown = task.notes ? prosemirrorToMarkdown(task.notes) : null
-      const taskWithoutNotes: Task = { ...task }
-      delete taskWithoutNotes.notes
 
       return ok({
-        task: taskWithoutNotes,
+        task: stripNotes(task),
         notes_markdown: notesMarkdown,
-        subtasks: getSubtasks(id),
+        subtasks: getSubtasks(id).map(stripNotes),
         depends_on: getTaskDependencies(id),
         blocked_task_ids: getTaskDependents(id),
         time_entries: getTimeEntries(id)
@@ -220,7 +226,7 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
         afterTaskWrite(task.id)
       }
 
-      return ok({ created: task.id, task: getTask(task.id) })
+      return ok({ created: task.id, task: stripNotes(getTask(task.id)!) })
     }
   )
 
@@ -279,7 +285,7 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
       if (Object.keys(patch).length > 0) updateTask(args.id, patch)
 
       afterTaskWrite(args.id)
-      return ok({ updated: args.id, task: getTask(args.id) })
+      return ok({ updated: args.id, task: stripNotes(getTask(args.id)!) })
     }
   )
 
@@ -297,6 +303,8 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
       }
     },
     async (args) => {
+      const ids = [...new Set(args.ids)]
+
       const changes: Record<string, unknown> = {}
       if (args.status !== undefined) changes.status = args.status
       if (args.archive !== undefined) changes.archive = args.archive
@@ -317,20 +325,20 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
         return fail('validation', 'Informe ao menos um campo para alterar.')
       }
 
-      const found = args.ids.map((id) => getTask(id)).filter((task) => task !== undefined)
-      const missing = args.ids.filter((id) => !found.some((task) => task!.id === id))
+      const found = ids.map((id) => getTask(id)).filter((task) => task !== undefined)
+      const missing = ids.filter((id) => !found.some((task) => task!.id === id))
       if (missing.length > 0) {
         return fail('not_found', `Tasks inexistentes: ${missing.join(', ')}.`)
       }
 
-      const sortedIds = [...args.ids].sort((a, b) => a - b)
+      const sortedIds = [...ids].sort((a, b) => a - b)
       const operation = { kind: 'bulk_update_tasks', payload: { ids: sortedIds, changes } }
 
-      if (needsConfirmation('bulk_update_tasks', args.ids.length, ctx.bulkThreshold)) {
+      if (needsConfirmation('bulk_update_tasks', ids.length, ctx.bulkThreshold)) {
         if (!args.confirm_token) {
           return fail(
             'needs_confirmation',
-            `Esta operação altera ${args.ids.length} tasks. Mostre o preview ao usuário e repita a chamada com o confirm_token.`,
+            `Esta operação altera ${ids.length} tasks. Mostre o preview ao usuário e repita a chamada com o confirm_token.`,
             {
               confirm_token: ctx.confirmStore.issue(operation),
               changes,
@@ -346,13 +354,13 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
         if (!consumed.ok) return fail(consumed.code, consumed.message)
       }
 
-      if (args.status !== undefined) updateTasksStatus(args.ids, args.status)
-      if (projectId !== undefined) moveTasksToProject(args.ids, projectId)
-      if (args.archive === true) args.ids.forEach((id) => archiveTask(id))
-      if (args.archive === false) args.ids.forEach((id) => unarchiveTask(id))
+      if (args.status !== undefined) updateTasksStatus(ids, args.status)
+      if (projectId !== undefined) moveTasksToProject(ids, projectId)
+      if (args.archive === true) ids.forEach((id) => archiveTask(id))
+      if (args.archive === false) ids.forEach((id) => unarchiveTask(id))
 
-      args.ids.forEach((id) => afterTaskWrite(id))
-      return ok({ updated: args.ids })
+      ids.forEach((id) => afterTaskWrite(id))
+      return ok({ updated: ids })
     }
   )
 
@@ -368,19 +376,21 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
       }
     },
     async (args) => {
-      const found = args.ids.map((id) => getTask(id)).filter((task) => task !== undefined)
-      const missing = args.ids.filter((id) => !found.some((task) => task!.id === id))
+      const ids = [...new Set(args.ids)]
+
+      const found = ids.map((id) => getTask(id)).filter((task) => task !== undefined)
+      const missing = ids.filter((id) => !found.some((task) => task!.id === id))
       if (missing.length > 0) {
         return fail('not_found', `Tasks inexistentes: ${missing.join(', ')}.`)
       }
 
-      const sortedIds = [...args.ids].sort((a, b) => a - b)
+      const sortedIds = [...ids].sort((a, b) => a - b)
       const operation = { kind: 'delete_tasks', payload: { ids: sortedIds } }
 
       if (!args.confirm_token) {
         return fail(
           'needs_confirmation',
-          `Deleção permanente de ${args.ids.length} task(s), incluindo subtarefas. Mostre a lista ao usuário e repita a chamada com o confirm_token.`,
+          `Deleção permanente de ${ids.length} task(s), incluindo subtarefas. Mostre a lista ao usuário e repita a chamada com o confirm_token.`,
           {
             confirm_token: ctx.confirmStore.issue(operation),
             preview: found.map((task) => ({
@@ -396,11 +406,11 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
       const consumed = ctx.confirmStore.consume(args.confirm_token, operation)
       if (!consumed.ok) return fail(consumed.code, consumed.message)
 
-      deleteTasks(args.ids)
+      deleteTasks(ids)
       // deleteTasks também apaga as subtarefas em cascata; a task pai deixou de existir,
       // então sincronizar no Notion não faz sentido — só avisamos a janela para recarregar.
       broadcastRefresh()
-      return ok({ deleted: args.ids })
+      return ok({ deleted: ids })
     }
   )
 
