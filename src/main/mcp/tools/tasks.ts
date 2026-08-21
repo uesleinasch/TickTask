@@ -2,8 +2,10 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CreateTaskInput, Task, TaskListFilters, UpdateTaskInput } from '@shared/types'
 import { z } from 'zod'
 import {
+  archiveTask,
   countTasks,
   createTask,
+  deleteTasks,
   getSubtasks,
   getTask,
   getTaskDependencies,
@@ -12,12 +14,17 @@ import {
   listContexts,
   listProjects,
   listTasks,
-  updateTask
+  moveTasksToProject,
+  unarchiveTask,
+  updateTask,
+  updateTasksStatus
 } from '../../database'
 import { prosemirrorToMarkdown } from '../../notesMarkdown'
-import { afterTaskWrite } from '../effects'
+import { needsConfirmation } from '../confirmGuard'
+import { afterTaskWrite, broadcastRefresh } from '../effects'
 import { fail, ok } from '../reply'
 import { resolveByName } from '../resolve'
+import type { ToolContext } from '../toolContext'
 
 const STATUS = z.enum(['inbox', 'aguardando', 'proximas', 'executando', 'finalizada', 'someday'])
 const CATEGORY = z.enum(['urgente', 'prioridade', 'normal', 'time_leak'])
@@ -56,7 +63,7 @@ function resolveContextIds(
   return { ok: true, ids }
 }
 
-export function registerTaskTools(server: McpServer): void {
+export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     'search_tasks',
     {
@@ -270,6 +277,127 @@ export function registerTaskTools(server: McpServer): void {
 
       afterTaskWrite(args.id)
       return ok({ updated: args.id, task: getTask(args.id) })
+    }
+  )
+
+  server.registerTool(
+    'bulk_update_tasks',
+    {
+      title: 'Alterar várias tasks',
+      description: `Altera status, projeto ou arquivamento de várias tasks. Acima de ${ctx.bulkThreshold} itens devolve um preview e um confirm_token: mostre o preview ao usuário e só então repita a chamada com o token.`,
+      inputSchema: {
+        ids: z.array(z.number().int().positive()).min(1),
+        status: STATUS.optional(),
+        project: z.union([z.string(), z.number(), z.null()]).optional(),
+        archive: z.boolean().optional(),
+        confirm_token: z.string().optional()
+      }
+    },
+    async (args) => {
+      const changes: Record<string, unknown> = {}
+      if (args.status !== undefined) changes.status = args.status
+      if (args.archive !== undefined) changes.archive = args.archive
+
+      let projectId: number | null | undefined
+      if (args.project !== undefined) {
+        if (args.project === null) {
+          projectId = null
+        } else {
+          const project = resolveProject(args.project)
+          if (!project.ok) return project.response
+          projectId = project.id
+        }
+        changes.project_id = projectId
+      }
+
+      if (Object.keys(changes).length === 0) {
+        return fail('validation', 'Informe ao menos um campo para alterar.')
+      }
+
+      const found = args.ids.map((id) => getTask(id)).filter((task) => task !== undefined)
+      const missing = args.ids.filter((id) => !found.some((task) => task!.id === id))
+      if (missing.length > 0) {
+        return fail('not_found', `Tasks inexistentes: ${missing.join(', ')}.`)
+      }
+
+      const sortedIds = [...args.ids].sort((a, b) => a - b)
+      const operation = { kind: 'bulk_update_tasks', payload: { ids: sortedIds, changes } }
+
+      if (needsConfirmation('bulk_update_tasks', args.ids.length, ctx.bulkThreshold)) {
+        if (!args.confirm_token) {
+          return fail(
+            'needs_confirmation',
+            `Esta operação altera ${args.ids.length} tasks. Mostre o preview ao usuário e repita a chamada com o confirm_token.`,
+            {
+              confirm_token: ctx.confirmStore.issue(operation),
+              changes,
+              preview: found.map((task) => ({
+                id: task!.id,
+                name: task!.name,
+                status: task!.status
+              }))
+            }
+          )
+        }
+        const consumed = ctx.confirmStore.consume(args.confirm_token, operation)
+        if (!consumed.ok) return fail(consumed.code, consumed.message)
+      }
+
+      if (args.status !== undefined) updateTasksStatus(args.ids, args.status)
+      if (projectId !== undefined) moveTasksToProject(args.ids, projectId)
+      if (args.archive === true) args.ids.forEach((id) => archiveTask(id))
+      if (args.archive === false) args.ids.forEach((id) => unarchiveTask(id))
+
+      args.ids.forEach((id) => afterTaskWrite(id))
+      return ok({ updated: args.ids })
+    }
+  )
+
+  server.registerTool(
+    'delete_tasks',
+    {
+      title: 'Deletar tasks',
+      description:
+        'Deleta tasks permanentemente. SEMPRE devolve um preview e um confirm_token na primeira chamada, mesmo para uma única task. Considere arquivar em vez de deletar.',
+      inputSchema: {
+        ids: z.array(z.number().int().positive()).min(1),
+        confirm_token: z.string().optional()
+      }
+    },
+    async (args) => {
+      const found = args.ids.map((id) => getTask(id)).filter((task) => task !== undefined)
+      const missing = args.ids.filter((id) => !found.some((task) => task!.id === id))
+      if (missing.length > 0) {
+        return fail('not_found', `Tasks inexistentes: ${missing.join(', ')}.`)
+      }
+
+      const sortedIds = [...args.ids].sort((a, b) => a - b)
+      const operation = { kind: 'delete_tasks', payload: { ids: sortedIds } }
+
+      if (!args.confirm_token) {
+        return fail(
+          'needs_confirmation',
+          `Deleção permanente de ${args.ids.length} task(s), incluindo subtarefas. Mostre a lista ao usuário e repita a chamada com o confirm_token.`,
+          {
+            confirm_token: ctx.confirmStore.issue(operation),
+            preview: found.map((task) => ({
+              id: task!.id,
+              name: task!.name,
+              status: task!.status,
+              subtasks: getSubtasks(task!.id).length
+            }))
+          }
+        )
+      }
+
+      const consumed = ctx.confirmStore.consume(args.confirm_token, operation)
+      if (!consumed.ok) return fail(consumed.code, consumed.message)
+
+      deleteTasks(args.ids)
+      // deleteTasks também apaga as subtarefas em cascata; a task pai deixou de existir,
+      // então sincronizar no Notion não faz sentido — só avisamos a janela para recarregar.
+      broadcastRefresh()
+      return ok({ deleted: args.ids })
     }
   )
 }

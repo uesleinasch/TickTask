@@ -1,7 +1,19 @@
+import fs from 'fs'
 import http from 'http'
-import { afterEach, describe, expect, it } from 'vitest'
+import os from 'os'
+import path from 'path'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { McpConfig } from './config'
-import { isAuthorized, isMcpRunning, startMcpServer, stopMcpServer } from './transport'
+
+let mockUserDataDir = ''
+
+vi.mock('electron', () => ({
+  app: { getPath: () => mockUserDataDir }
+}))
+
+const { isAuthorized, isMcpRunning, startMcpServer, stopMcpServer } = await import('./transport')
+
+mockUserDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ticktask-mcp-transport-'))
 
 const TOKEN = 'a'.repeat(64)
 
