@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { ok } from './reply'
+import { registerTaskTools } from './tools/tasks'
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({ name: 'ticktask', version: '1.0.0' })
@@ -12,6 +13,8 @@ export function createMcpServer(): McpServer {
     },
     async () => ok({ app: 'TickTask', status: 'ok' })
   )
+
+  registerTaskTools(server)
 
   return server
 }
