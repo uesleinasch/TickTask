@@ -19,6 +19,6 @@ export function fail(
 ): CallToolResult {
   return {
     isError: true as const,
-    content: [{ type: 'text' as const, text: JSON.stringify({ code, message, ...extra }) }]
+    content: [{ type: 'text' as const, text: JSON.stringify({ ...extra, code, message }) }]
   }
 }

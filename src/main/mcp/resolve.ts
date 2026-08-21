@@ -8,7 +8,11 @@ export type ResolveResult =
   | { ok: false; code: 'not_found' | 'ambiguous'; candidates: string[] }
 
 export function resolveByName(rows: NamedRow[], input: string | number): ResolveResult {
-  if (typeof input === 'number') return { ok: true, id: input }
+  if (typeof input === 'number') {
+    const match = rows.find((row) => row.id === input)
+    if (match) return { ok: true, id: match.id }
+    return { ok: false, code: 'not_found', candidates: rows.map((row) => row.name) }
+  }
 
   const needle = input.trim()
   const exact = rows.filter((row) => row.name === needle)

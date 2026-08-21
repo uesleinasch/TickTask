@@ -8,8 +8,16 @@ const ROWS = [
 ]
 
 describe('resolveByName', () => {
-  it('devolve o id direto quando recebe número', () => {
-    expect(resolveByName(ROWS, 7)).toEqual({ ok: true, id: 7 })
+  it('devolve o id direto quando recebe número existente', () => {
+    expect(resolveByName(ROWS, 2)).toEqual({ ok: true, id: 2 })
+  })
+
+  it('reporta não encontrado quando o id numérico não existe nas rows', () => {
+    expect(resolveByName(ROWS, 7)).toEqual({
+      ok: false,
+      code: 'not_found',
+      candidates: ['TickTask', 'Casa', 'casa']
+    })
   })
 
   it('resolve nome exato', () => {

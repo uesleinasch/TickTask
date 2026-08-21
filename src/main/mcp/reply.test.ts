@@ -25,4 +25,17 @@ describe('fail', () => {
     if (content.type !== 'text') throw new Error('esperava conteúdo de texto')
     expect(JSON.parse(content.text).candidates).toEqual(['a', 'b'])
   })
+
+  it('não deixa extra sobrescrever code nem message', () => {
+    const result = fail('not_found', 'Projeto não encontrado.', {
+      code: 'app_state',
+      message: 'mensagem forjada'
+    })
+    const [content] = result.content
+    if (content.type !== 'text') throw new Error('esperava conteúdo de texto')
+    expect(JSON.parse(content.text)).toEqual({
+      code: 'not_found',
+      message: 'Projeto não encontrado.'
+    })
+  })
 })
