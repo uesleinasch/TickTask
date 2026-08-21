@@ -2149,3 +2149,8 @@ export function updateTimeBlock(id: number, data: UpdateTimeBlockInput): void {
 export function deleteTimeBlock(id: number): void {
   db.prepare('DELETE FROM time_blocks WHERE id = ?').run(id)
 }
+
+export function countTimeBlocksForTask(taskId: number): number {
+  const stmt = db.prepare('SELECT COUNT(*) as count FROM time_blocks WHERE task_id = ?')
+  return (stmt.get(taskId) as { count: number }).count
+}

@@ -24,6 +24,9 @@ import { afterTaskWrite, broadcastRefresh } from '../effects'
 import { fail, ok } from '../reply'
 import type { ToolContext } from '../toolContext'
 
+const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use o formato AAAA-MM-DD.')
+const TIME = z.string().regex(/^\d{2}:\d{2}$/, 'Use o formato HH:MM.')
+
 export function registerPlanningTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     'agenda',
@@ -63,7 +66,7 @@ export function registerPlanningTools(server: McpServer, ctx: ToolContext): void
           .array(
             z.object({
               task_id: z.number().int().positive(),
-              date: z.union([z.string(), z.null()]),
+              date: z.union([DATE, z.null()]),
               order: z.number().int().min(0).optional()
             })
           )
@@ -72,9 +75,9 @@ export function registerPlanningTools(server: McpServer, ctx: ToolContext): void
           .array(
             z.object({
               task_id: z.number().int().positive(),
-              date: z.string(),
-              start_time: z.string(),
-              end_time: z.string()
+              date: DATE,
+              start_time: TIME,
+              end_time: TIME
             })
           )
           .optional(),
@@ -105,6 +108,14 @@ export function registerPlanningTools(server: McpServer, ctx: ToolContext): void
       const missingBlocks = removals.filter((id) => !getTimeBlock(id))
       if (missingBlocks.length > 0) {
         return fail('not_found', `Blocos de tempo inexistentes: ${missingBlocks.join(', ')}.`)
+      }
+
+      const invertedBlock = blocks.find((block) => block.end_time <= block.start_time)
+      if (invertedBlock) {
+        return fail(
+          'validation',
+          `Bloco da task ${invertedBlock.task_id}: end_time (${invertedBlock.end_time}) deve ser depois de start_time (${invertedBlock.start_time}).`
+        )
       }
 
       const touched = scheduleItems.length + blocks.length + removals.length

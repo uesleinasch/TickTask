@@ -3,6 +3,7 @@ import type {
   CreateAreaInput,
   CreateGoalInput,
   CreateProjectInput,
+  GoalHorizon,
   ProjectStatus,
   UpdateAreaInput,
   UpdateGoalInput,
@@ -11,6 +12,7 @@ import type {
 } from '@shared/types'
 import { z } from 'zod'
 import {
+  countTasks,
   createArea,
   createContext,
   createGoal,
@@ -59,10 +61,119 @@ function numField(fields: Fields, key: string): number | undefined {
   return typeof value === 'number' ? value : undefined
 }
 
-function numOrNullField(fields: Fields, key: string): number | null | undefined {
+const PROJECT_FIELD_KEYS = ['description', 'outcome', 'status', 'color', 'due_date', 'area_id']
+const CONTEXT_FIELD_KEYS = ['icon', 'color']
+const TAG_FIELD_KEYS = ['color']
+const AREA_FIELD_KEYS = ['description', 'icon']
+const GOAL_FIELD_KEYS = ['description', 'horizon', 'area_id']
+const PROJECT_STATUSES: ProjectStatus[] = ['active', 'someday', 'done', 'archived']
+
+function unknownFieldsError(fields: Fields, allowed: string[]): ReturnType<typeof fail> | null {
+  if (!fields) return null
+  const unknown = Object.keys(fields).filter((key) => !allowed.includes(key))
+  if (unknown.length === 0) return null
+  return fail('validation', `Campo(s) desconhecido(s) em fields: ${unknown.join(', ')}.`)
+}
+
+function stringFieldTypeError(fields: Fields, key: string): ReturnType<typeof fail> | null {
   const value = fields?.[key]
-  if (value === null) return null
-  return typeof value === 'number' ? value : undefined
+  if (value !== undefined && typeof value !== 'string') {
+    return fail('validation', `fields.${key} deve ser texto.`)
+  }
+  return null
+}
+
+function projectStatusError(fields: Fields): ReturnType<typeof fail> | null {
+  const value = fields?.status
+  if (value === undefined) return null
+  if (typeof value !== 'string' || !PROJECT_STATUSES.includes(value as ProjectStatus)) {
+    return fail('validation', `fields.status deve ser um de: ${PROJECT_STATUSES.join(', ')}.`)
+  }
+  return null
+}
+
+function goalHorizonError(fields: Fields): ReturnType<typeof fail> | null {
+  const value = fields?.horizon
+  if (value === undefined) return null
+  if (value !== 3 && value !== 4 && value !== 5) {
+    return fail('validation', 'fields.horizon deve ser 3, 4 ou 5.')
+  }
+  return null
+}
+
+function validateProjectFields(fields: Fields): ReturnType<typeof fail> | null {
+  return (
+    unknownFieldsError(fields, PROJECT_FIELD_KEYS) ??
+    stringFieldTypeError(fields, 'description') ??
+    stringFieldTypeError(fields, 'outcome') ??
+    stringFieldTypeError(fields, 'color') ??
+    stringFieldTypeError(fields, 'due_date') ??
+    projectStatusError(fields)
+  )
+}
+
+function validateContextFields(fields: Fields): ReturnType<typeof fail> | null {
+  return (
+    unknownFieldsError(fields, CONTEXT_FIELD_KEYS) ??
+    stringFieldTypeError(fields, 'icon') ??
+    stringFieldTypeError(fields, 'color')
+  )
+}
+
+function validateTagFields(fields: Fields): ReturnType<typeof fail> | null {
+  return unknownFieldsError(fields, TAG_FIELD_KEYS) ?? stringFieldTypeError(fields, 'color')
+}
+
+function validateAreaFields(fields: Fields): ReturnType<typeof fail> | null {
+  return (
+    unknownFieldsError(fields, AREA_FIELD_KEYS) ??
+    stringFieldTypeError(fields, 'description') ??
+    stringFieldTypeError(fields, 'icon')
+  )
+}
+
+function validateGoalFields(fields: Fields): ReturnType<typeof fail> | null {
+  return (
+    unknownFieldsError(fields, GOAL_FIELD_KEYS) ??
+    stringFieldTypeError(fields, 'description') ??
+    goalHorizonError(fields)
+  )
+}
+
+type AreaIdResolution =
+  | { ok: true; value: number | undefined }
+  | { ok: false; response: ReturnType<typeof fail> }
+
+function resolveAreaId(fields: Fields): AreaIdResolution {
+  const raw = fields?.area_id
+  if (raw === undefined) return { ok: true, value: undefined }
+  if (typeof raw === 'number') return { ok: true, value: raw }
+  if (typeof raw === 'string') {
+    const resolved = resolveByName(listAreas(), raw)
+    if (!resolved.ok) {
+      return {
+        ok: false,
+        response: fail(resolved.code, 'Área não encontrada ou ambígua.', {
+          candidates: resolved.candidates
+        })
+      }
+    }
+    return { ok: true, value: resolved.id }
+  }
+  return { ok: false, response: fail('validation', 'fields.area_id deve ser number ou string.') }
+}
+
+type AreaIdOrNullResolution =
+  | { ok: true; value: number | null | undefined }
+  | { ok: false; response: ReturnType<typeof fail> }
+
+function resolveAreaIdOrNull(fields: Fields): AreaIdOrNullResolution {
+  if (fields?.area_id === null) return { ok: true, value: null }
+  return resolveAreaId(fields)
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return error instanceof Error && /UNIQUE constraint failed/i.test(error.message)
 }
 
 function listEntityRows(entity: Entity): EntityRow[] {
@@ -80,7 +191,11 @@ function listEntityRows(entity: Entity): EntityRow[] {
   }
 }
 
-function buildProjectCreateInput(name: string, fields: Fields): CreateProjectInput {
+function buildProjectCreateInput(
+  name: string,
+  fields: Fields,
+  areaId: number | undefined
+): CreateProjectInput {
   return {
     name,
     description: strField(fields, 'description'),
@@ -88,11 +203,15 @@ function buildProjectCreateInput(name: string, fields: Fields): CreateProjectInp
     status: strField(fields, 'status') as ProjectStatus | undefined,
     color: strField(fields, 'color'),
     due_date: strField(fields, 'due_date'),
-    area_id: numField(fields, 'area_id')
+    area_id: areaId
   }
 }
 
-function buildProjectUpdatePatch(name: string | undefined, fields: Fields): UpdateProjectInput {
+function buildProjectUpdatePatch(
+  name: string | undefined,
+  fields: Fields,
+  areaId: number | null | undefined
+): UpdateProjectInput {
   const patch: UpdateProjectInput = {}
   if (name !== undefined) patch.name = name
   const description = strField(fields, 'description')
@@ -105,7 +224,6 @@ function buildProjectUpdatePatch(name: string | undefined, fields: Fields): Upda
   if (color !== undefined) patch.color = color
   const dueDate = strField(fields, 'due_date')
   if (dueDate !== undefined) patch.due_date = dueDate
-  const areaId = numOrNullField(fields, 'area_id')
   if (areaId !== undefined) patch.area_id = areaId
   return patch
 }
@@ -128,14 +246,17 @@ function buildAreaUpdatePatch(name: string | undefined, fields: Fields): UpdateA
   return patch
 }
 
-function buildGoalUpdatePatch(name: string | undefined, fields: Fields): UpdateGoalInput {
+function buildGoalUpdatePatch(
+  name: string | undefined,
+  fields: Fields,
+  areaId: number | null | undefined
+): UpdateGoalInput {
   const patch: UpdateGoalInput = {}
   if (name !== undefined) patch.name = name
   const description = strField(fields, 'description')
   if (description !== undefined) patch.description = description
   const horizon = numField(fields, 'horizon')
-  if (horizon === 3 || horizon === 4 || horizon === 5) patch.horizon = horizon
-  const areaId = numOrNullField(fields, 'area_id')
+  if (horizon !== undefined) patch.horizon = horizon as GoalHorizon
   if (areaId !== undefined) patch.area_id = areaId
   return patch
 }
@@ -159,6 +280,25 @@ function buildTagUpdatePatch(name: string | undefined, fields: Fields): UpdateTa
   const color = strField(fields, 'color')
   if (color !== undefined) patch.color = color
   return patch
+}
+
+function deleteConfirmationMessage(
+  entity: Entity,
+  targetId: number,
+  row: EntityRow | undefined
+): string {
+  const label = row?.name ?? `#${targetId}`
+  // task_contexts tem ON DELETE CASCADE: apagar o contexto desvincula essas tasks dele.
+  if (entity === 'context') {
+    const affected = countTasks({ contextId: targetId })
+    return `Remover o contexto "${label}" é permanente e desvincula ${affected} task(s) dele; elas continuam existindo, apenas sem esse contexto. Confirme com o usuário.`
+  }
+  // FK de project_id é ON DELETE SET NULL: as tasks sobrevivem, mas ficam sem projeto.
+  if (entity === 'project') {
+    const affected = listProjects().find((project) => project.id === targetId)?.task_count ?? 0
+    return `Remover o projeto "${label}" é permanente; ${affected} task(s) desse projeto ficam sem projeto (project_id passa a nulo). Confirme com o usuário.`
+  }
+  return `Remover ${entity} é permanente. Confirme com o usuário.`
 }
 
 export function registerStructureTools(server: McpServer, ctx: ToolContext): void {
@@ -203,39 +343,67 @@ export function registerStructureTools(server: McpServer, ctx: ToolContext): voi
 
         switch (args.entity) {
           case 'project': {
-            const created = createProject(buildProjectCreateInput(name, args.fields))
-            broadcastRefresh()
-            return ok({ created })
-          }
-          case 'context': {
-            const created = createContext(
-              name,
-              strField(args.fields, 'icon'),
-              strField(args.fields, 'color')
+            const fieldsError = validateProjectFields(args.fields)
+            if (fieldsError) return fieldsError
+            const areaResolved = resolveAreaId(args.fields)
+            if (!areaResolved.ok) return areaResolved.response
+            const created = createProject(
+              buildProjectCreateInput(name, args.fields, areaResolved.value)
             )
             broadcastRefresh()
             return ok({ created })
           }
+          case 'context': {
+            const fieldsError = validateContextFields(args.fields)
+            if (fieldsError) return fieldsError
+            let created
+            try {
+              created = createContext(
+                name,
+                strField(args.fields, 'icon'),
+                strField(args.fields, 'color')
+              )
+            } catch (error) {
+              if (!isUniqueConstraintError(error)) throw error
+              return fail('validation', `Já existe um contexto chamado "${name}".`)
+            }
+            broadcastRefresh()
+            return ok({ created })
+          }
           case 'tag': {
-            const created = createTag(name, strField(args.fields, 'color'))
+            const fieldsError = validateTagFields(args.fields)
+            if (fieldsError) return fieldsError
+            let created
+            try {
+              created = createTag(name, strField(args.fields, 'color'))
+            } catch (error) {
+              if (!isUniqueConstraintError(error)) throw error
+              return fail('validation', `Já existe uma tag chamada "${name}".`)
+            }
             broadcastRefresh()
             return ok({ created })
           }
           case 'area': {
+            const fieldsError = validateAreaFields(args.fields)
+            if (fieldsError) return fieldsError
             const created = createArea(buildAreaCreateInput(name, args.fields))
             broadcastRefresh()
             return ok({ created })
           }
           case 'goal': {
+            const fieldsError = validateGoalFields(args.fields)
+            if (fieldsError) return fieldsError
             const horizon = numField(args.fields, 'horizon')
             if (horizon !== 3 && horizon !== 4 && horizon !== 5) {
               return fail('validation', 'Informe fields.horizon (3, 4 ou 5) para criar meta.')
             }
+            const areaResolved = resolveAreaId(args.fields)
+            if (!areaResolved.ok) return areaResolved.response
             const input: CreateGoalInput = {
               name,
               description: strField(args.fields, 'description'),
               horizon,
-              area_id: numField(args.fields, 'area_id')
+              area_id: areaResolved.value
             }
             const created = createGoal(input)
             broadcastRefresh()
@@ -299,7 +467,11 @@ export function registerStructureTools(server: McpServer, ctx: ToolContext): voi
       if (args.action === 'update') {
         switch (args.entity) {
           case 'project': {
-            const patch = buildProjectUpdatePatch(args.name, args.fields)
+            const fieldsError = validateProjectFields(args.fields)
+            if (fieldsError) return fieldsError
+            const areaResolved = resolveAreaIdOrNull(args.fields)
+            if (!areaResolved.ok) return areaResolved.response
+            const patch = buildProjectUpdatePatch(args.name, args.fields, areaResolved.value)
             if (Object.keys(patch).length === 0) {
               return fail('validation', 'Informe name ou fields para atualizar.')
             }
@@ -307,22 +479,38 @@ export function registerStructureTools(server: McpServer, ctx: ToolContext): voi
             break
           }
           case 'context': {
+            const fieldsError = validateContextFields(args.fields)
+            if (fieldsError) return fieldsError
             const patch = buildContextUpdatePatch(args.name, args.fields)
             if (Object.keys(patch).length === 0) {
               return fail('validation', 'Informe name ou fields para atualizar.')
             }
-            updateContext(targetId, patch)
+            try {
+              updateContext(targetId, patch)
+            } catch (error) {
+              if (!isUniqueConstraintError(error)) throw error
+              return fail('validation', `Já existe um contexto chamado "${patch.name}".`)
+            }
             break
           }
           case 'tag': {
+            const fieldsError = validateTagFields(args.fields)
+            if (fieldsError) return fieldsError
             const patch = buildTagUpdatePatch(args.name, args.fields)
             if (Object.keys(patch).length === 0) {
               return fail('validation', 'Informe name ou fields para atualizar.')
             }
-            updateTag(targetId, patch)
+            try {
+              updateTag(targetId, patch)
+            } catch (error) {
+              if (!(error instanceof Error)) throw error
+              return fail('validation', error.message)
+            }
             break
           }
           case 'area': {
+            const fieldsError = validateAreaFields(args.fields)
+            if (fieldsError) return fieldsError
             const patch = buildAreaUpdatePatch(args.name, args.fields)
             if (Object.keys(patch).length === 0) {
               return fail('validation', 'Informe name ou fields para atualizar.')
@@ -331,7 +519,11 @@ export function registerStructureTools(server: McpServer, ctx: ToolContext): voi
             break
           }
           case 'goal': {
-            const patch = buildGoalUpdatePatch(args.name, args.fields)
+            const fieldsError = validateGoalFields(args.fields)
+            if (fieldsError) return fieldsError
+            const areaResolved = resolveAreaIdOrNull(args.fields)
+            if (!areaResolved.ok) return areaResolved.response
+            const patch = buildGoalUpdatePatch(args.name, args.fields, areaResolved.value)
             if (Object.keys(patch).length === 0) {
               return fail('validation', 'Informe name ou fields para atualizar.')
             }
@@ -345,12 +537,13 @@ export function registerStructureTools(server: McpServer, ctx: ToolContext): voi
 
       const operation = { kind: 'delete_structure', payload: { entity: args.entity, id: targetId } }
       if (!args.confirm_token) {
+        const previewRow = rows.find((row) => row.id === targetId)
         return fail(
           'needs_confirmation',
-          `Remover ${args.entity} é permanente. Confirme com o usuário.`,
+          deleteConfirmationMessage(args.entity, targetId, previewRow),
           {
             confirm_token: ctx.confirmStore.issue(operation),
-            preview: rows.find((row) => row.id === targetId)
+            preview: previewRow
           }
         )
       }

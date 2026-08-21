@@ -4,6 +4,7 @@ import { z } from 'zod'
 import {
   archiveTask,
   countTasks,
+  countTimeBlocksForTask,
   createTask,
   deleteTasks,
   getChildTaskIds,
@@ -32,6 +33,7 @@ import type { ToolContext } from '../toolContext'
 const STATUS = z.enum(['inbox', 'aguardando', 'proximas', 'executando', 'finalizada', 'someday'])
 const CATEGORY = z.enum(['urgente', 'prioridade', 'normal', 'time_leak'])
 const ENERGY = z.enum(['alto', 'medio', 'baixo'])
+const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use o formato AAAA-MM-DD.')
 
 type Resolution = { ok: true; id: number } | { ok: false; response: ReturnType<typeof fail> }
 
@@ -182,12 +184,16 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
         project: z.union([z.string(), z.number()]).optional(),
         contexts: z.array(z.union([z.string(), z.number()])).optional(),
         tags: z.array(z.string()).optional(),
-        due_date: z.string().optional(),
-        scheduled_date: z.string().optional(),
+        due_date: DATE.optional(),
+        scheduled_date: DATE.optional(),
         parent_task_id: z.number().int().positive().optional()
       }
     },
     async (args) => {
+      if (args.parent_task_id !== undefined && !getTask(args.parent_task_id)) {
+        return fail('not_found', `Task pai ${args.parent_task_id} não existe.`)
+      }
+
       const input: CreateTaskInput = {
         name: args.name,
         description: args.description,
@@ -246,8 +252,8 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
         project: z.union([z.string(), z.number(), z.null()]).optional(),
         contexts: z.array(z.union([z.string(), z.number()])).optional(),
         tags: z.array(z.string()).optional(),
-        due_date: z.union([z.string(), z.null()]).optional(),
-        scheduled_date: z.union([z.string(), z.null()]).optional()
+        due_date: z.union([DATE, z.null()]).optional(),
+        scheduled_date: z.union([DATE, z.null()]).optional()
       }
     },
     async (args) => {
@@ -390,14 +396,16 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
       if (!args.confirm_token) {
         return fail(
           'needs_confirmation',
-          `Deleção permanente de ${ids.length} task(s), incluindo subtarefas. Mostre a lista ao usuário e repita a chamada com o confirm_token.`,
+          `Deleção permanente de ${ids.length} task(s), incluindo subtarefas, registros de tempo e blocos agendados. Mostre a lista ao usuário e repita a chamada com o confirm_token.`,
           {
             confirm_token: ctx.confirmStore.issue(operation),
             preview: found.map((task) => ({
               id: task!.id,
               name: task!.name,
               status: task!.status,
-              subtasks: getChildTaskIds(task!.id).length
+              subtasks: getChildTaskIds(task!.id).length,
+              total_seconds: task!.total_seconds,
+              time_blocks: countTimeBlocksForTask(task!.id)
             }))
           }
         )
