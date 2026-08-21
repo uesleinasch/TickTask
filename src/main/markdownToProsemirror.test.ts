@@ -42,6 +42,18 @@ describe('markdownToProsemirror', () => {
     expect(doc.content[0].content?.[0].text).toBe('const a = 1')
   })
 
+  it('não emite nó de texto vazio em code fence vazio', () => {
+    const doc = markdownToProsemirror('```\n```')
+    expect(doc.content[0].type).toBe('codeBlock')
+    expect(doc.content[0].content).toBeUndefined()
+  })
+
+  it('não emite nó de texto vazio em code fence só com linha em branco', () => {
+    const doc = markdownToProsemirror('```\n\n```')
+    expect(doc.content[0].type).toBe('codeBlock')
+    expect(doc.content[0].content).toBeUndefined()
+  })
+
   it('sobrevive ao round-trip do subconjunto suportado', () => {
     const original = '# Título\n\nTexto com **forte**.\n\n- um\n- dois'
     const roundTrip = prosemirrorToMarkdown(JSON.stringify(markdownToProsemirror(original)))

@@ -2,19 +2,41 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { getTask, updateTaskNotes } from '../../database'
 import { markdownToProsemirror, type PMDoc } from '../../markdownToProsemirror'
+import { detectNotesDialect } from '../../notionBlocks'
 import { prosemirrorToMarkdown } from '../../notesMarkdown'
 import { needsConfirmation } from '../confirmGuard'
 import { afterTaskWrite } from '../effects'
 import { fail, ok } from '../reply'
 import type { ToolContext } from '../toolContext'
 
-function parseDoc(raw: string | null | undefined): PMDoc | null {
-  if (!raw) return null
-  try {
-    const doc = JSON.parse(raw) as PMDoc
-    return doc && doc.type === 'doc' && Array.isArray(doc.content) ? doc : null
-  } catch {
-    return null
+type ParsedNotes =
+  | { kind: 'empty' }
+  | { kind: 'doc'; doc: PMDoc }
+  | { kind: 'editorjs'; blockCount: number }
+  | { kind: 'unknown' }
+
+function parseNotes(raw: string | null | undefined): ParsedNotes {
+  const dialect = detectNotesDialect(raw)
+  if (dialect === 'unknown') return raw ? { kind: 'unknown' } : { kind: 'empty' }
+  const parsed = JSON.parse(raw as string) as { content?: unknown; blocks?: unknown }
+  if (dialect === 'doc') {
+    return Array.isArray(parsed.content)
+      ? { kind: 'doc', doc: parsed as PMDoc }
+      : { kind: 'doc', doc: { type: 'doc', content: [] } }
+  }
+  return { kind: 'editorjs', blockCount: (parsed.blocks as unknown[]).length }
+}
+
+function hasRealContent(parsed: ParsedNotes): boolean {
+  switch (parsed.kind) {
+    case 'empty':
+      return false
+    case 'doc':
+      return parsed.doc.content.length > 0
+    case 'editorjs':
+      return parsed.blockCount > 0
+    case 'unknown':
+      return true
   }
 }
 
@@ -30,6 +52,25 @@ export function registerNotesTools(server: McpServer, ctx: ToolContext): void {
       const task = getTask(task_id)
       if (!task) return fail('not_found', `Task ${task_id} não existe.`)
 
+      const parsed = parseNotes(task.notes)
+      if (parsed.kind === 'editorjs') {
+        return ok({
+          task_id,
+          markdown: null,
+          format: 'editorjs_legacy',
+          message:
+            'Notas em formato legado (Editor.js); o servidor MCP não converte esse formato para Markdown. Abra a task no app para migrar a nota automaticamente.'
+        })
+      }
+      if (parsed.kind === 'unknown') {
+        return ok({
+          task_id,
+          markdown: null,
+          format: 'unknown',
+          message: 'Formato de notas não reconhecido; não foi possível converter para Markdown.'
+        })
+      }
+
       return ok({ task_id, markdown: prosemirrorToMarkdown(task.notes) })
     }
   )
@@ -39,7 +80,7 @@ export function registerNotesTools(server: McpServer, ctx: ToolContext): void {
     {
       title: 'Escrever nas notas de uma task',
       description:
-        'Grava Markdown nas notas de uma task. Prefira mode=append: a conversão cobre parágrafo, títulos, listas, ênfases, código, citação e link, mas descarta menções @, destaques e tabelas do editor. mode=replace sobre uma nota não vazia apaga esse conteúdo e exige confirm_token.',
+        'Grava Markdown nas notas de uma task. Prefira mode=append: a conversão cobre parágrafo, títulos, listas, ênfases, código, citação e link, mas descarta menções @, destaques (highlight) e tabelas do editor; também não reconhece checklist (- [ ]/- [x] vira item de lista com o texto literal "[ ] ..."), texto riscado (~~x~~ fica literal), sublinhado, quebra de linha forçada, nem imagens (![alt](src) vira link quebrado, sem o "!"). mode=replace sobre uma nota não vazia, ou em formato que o servidor não reconhece, apaga esse conteúdo e exige confirm_token.',
       inputSchema: {
         task_id: z.number().int().positive(),
         markdown: z.string().min(1),
@@ -52,20 +93,29 @@ export function registerNotesTools(server: McpServer, ctx: ToolContext): void {
       if (!task) return fail('not_found', `Task ${task_id} não existe.`)
 
       const effectiveMode = mode ?? 'append'
-      const existing = parseDoc(task.notes)
+      const parsed = parseNotes(task.notes)
       const incoming = markdownToProsemirror(markdown)
-      const hasContent = (existing?.content.length ?? 0) > 0
+      const hasContent = hasRealContent(parsed)
+      // Sem um doc ProseMirror existente não há como mesclar: append sobre nota legada ou não
+      // reconhecida destrói o conteúdo tanto quanto replace, então precisa do mesmo guard.
+      const destructive = effectiveMode === 'replace' || parsed.kind !== 'doc'
 
-      if (effectiveMode === 'replace' && hasContent) {
+      if (hasContent && destructive) {
         if (needsConfirmation('replace_notes', 1, ctx.bulkThreshold)) {
           const operation = { kind: 'replace_notes', payload: { task_id, markdown } }
           if (!confirm_token) {
+            const legacyNotice =
+              parsed.kind === 'editorjs'
+                ? 'A nota atual está em formato legado (Editor.js): não pode ser exibida nem mesclada, e será perdida por completo. '
+                : parsed.kind === 'unknown'
+                  ? 'A nota atual está em formato não reconhecido pelo servidor e será perdida por completo. '
+                  : ''
             return fail(
               'needs_confirmation',
-              'Substituir apaga as notas atuais, incluindo menções, destaques e tabelas que o Markdown não representa. Mostre o conteúdo atual ao usuário antes de confirmar.',
+              `${legacyNotice}Substituir apaga as notas atuais, incluindo menções, destaques e tabelas que o Markdown não representa. Mostre o conteúdo atual ao usuário antes de confirmar.`,
               {
                 confirm_token: ctx.confirmStore.issue(operation),
-                current_markdown: prosemirrorToMarkdown(task.notes)
+                current_markdown: parsed.kind === 'doc' ? prosemirrorToMarkdown(task.notes) : null
               }
             )
           }
@@ -75,8 +125,8 @@ export function registerNotesTools(server: McpServer, ctx: ToolContext): void {
       }
 
       const next: PMDoc =
-        effectiveMode === 'append' && existing
-          ? { type: 'doc', content: [...existing.content, ...incoming.content] }
+        effectiveMode === 'append' && parsed.kind === 'doc'
+          ? { type: 'doc', content: [...parsed.doc.content, ...incoming.content] }
           : incoming
 
       updateTaskNotes(task_id, JSON.stringify(next))

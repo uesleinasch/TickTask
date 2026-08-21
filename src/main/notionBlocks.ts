@@ -464,20 +464,36 @@ export function collectImageAssetIds(json: string | null | undefined): string[] 
   return ids
 }
 
+export type NotesDialect = 'doc' | 'editorjs' | 'unknown'
+
+/** Detecta o dialeto salvo em `tasks.notes`: ProseMirror, Editor.js legado ou não reconhecido. */
+export function detectNotesDialect(json: string | null | undefined): NotesDialect {
+  if (!json) return 'unknown'
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    return 'unknown'
+  }
+  if (parsed && typeof parsed === 'object') {
+    const candidate = parsed as { type?: unknown; blocks?: unknown }
+    if (candidate.type === 'doc') return 'doc'
+    if (Array.isArray(candidate.blocks)) return 'editorjs'
+  }
+  return 'unknown'
+}
+
 /** Detecta o dialeto salvo e converte para blocos do Notion. */
 export function notesToNotionBlocks(
   json: string | null | undefined,
   resolveImage?: ImageResolver
 ): NotionBlock[] {
-  if (!json) return []
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(json)
-  } catch {
-    return []
+  switch (detectNotesDialect(json)) {
+    case 'doc':
+      return prosemirrorToNotionBlocks(json, resolveImage)
+    case 'editorjs':
+      return editorJsToNotionBlocks(json)
+    default:
+      return []
   }
-  if (parsed && typeof parsed === 'object' && (parsed as PMNode).type === 'doc') {
-    return prosemirrorToNotionBlocks(json, resolveImage)
-  }
-  return editorJsToNotionBlocks(json)
 }

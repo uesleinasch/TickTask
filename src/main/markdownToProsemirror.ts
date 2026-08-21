@@ -79,10 +79,11 @@ export function markdownToProsemirror(markdown: string): PMDoc {
         index += 1
       }
       index += 1
+      const bodyText = body.join('\n')
       content.push({
         type: 'codeBlock',
         attrs: { language: fence[1] || null },
-        content: body.length > 0 ? [{ type: 'text', text: body.join('\n') }] : undefined
+        content: bodyText.length > 0 ? [{ type: 'text', text: bodyText }] : undefined
       })
       continue
     }

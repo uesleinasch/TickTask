@@ -54,7 +54,8 @@ async function performStart(config: McpConfig): Promise<void> {
       res.writeHead(401).end()
       return
     }
-    transport.handleRequest(req, res).catch(() => {
+    transport.handleRequest(req, res).catch((error) => {
+      console.error('[mcp] falha ao tratar requisição:', error)
       if (!res.headersSent) res.writeHead(500).end()
     })
   })
