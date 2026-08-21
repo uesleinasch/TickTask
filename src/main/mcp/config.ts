@@ -18,7 +18,9 @@ export function generateToken(random: (size: number) => Buffer = randomBytes): s
 }
 
 function isUsablePort(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= MIN_PORT && value <= MAX_PORT
+  return (
+    typeof value === 'number' && Number.isInteger(value) && value >= MIN_PORT && value <= MAX_PORT
+  )
 }
 
 function isPositiveInteger(value: unknown): value is number {
