@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { CreateTaskInput, TaskListFilters, UpdateTaskInput } from '@shared/types'
+import type { CreateTaskInput, Task, TaskListFilters, UpdateTaskInput } from '@shared/types'
 import { z } from 'zod'
 import {
   countTasks,
@@ -96,6 +96,13 @@ export function registerTaskTools(server: McpServer): void {
       if (args.dueBefore) filters.dueBefore = args.dueBefore
       if (args.dueAfter) filters.dueAfter = args.dueAfter
 
+      if (args.withoutProject && args.project !== undefined) {
+        return fail(
+          'validation',
+          'Use "project" para filtrar por um projeto específico ou "withoutProject" para tasks sem projeto, não os dois juntos.'
+        )
+      }
+
       if (args.withoutProject) {
         filters.projectId = 'none'
       } else if (args.project !== undefined) {
@@ -129,9 +136,13 @@ export function registerTaskTools(server: McpServer): void {
       const task = getTask(id)
       if (!task) return fail('not_found', `Task ${id} não existe.`)
 
+      const notesMarkdown = task.notes ? prosemirrorToMarkdown(task.notes) : null
+      const taskWithoutNotes: Task = { ...task }
+      delete taskWithoutNotes.notes
+
       return ok({
-        task,
-        notes_markdown: task.notes ? prosemirrorToMarkdown(task.notes) : null,
+        task: taskWithoutNotes,
+        notes_markdown: notesMarkdown,
         subtasks: getSubtasks(id),
         depends_on: getTaskDependencies(id),
         blocked_task_ids: getTaskDependents(id),
