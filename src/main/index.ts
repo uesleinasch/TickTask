@@ -132,6 +132,7 @@ import { exportTaskToLocal } from './localExport'
 import { readMcpConfig, writeMcpConfig } from './mcp/store'
 import { isMcpRunning, startMcpServer, stopMcpServer } from './mcp/transport'
 import { generateToken } from './mcp/config'
+import { registerWriteEffects } from './mcp/effects'
 import type {
   CreateTaskInput,
   UpdateTaskInput,
@@ -974,6 +975,11 @@ function startNotificationScheduler(): void {
 
 app.whenReady().then(() => {
   initDatabase()
+
+  registerWriteEffects({
+    getMainWindow: () => mainWindow,
+    autoSync: (id) => autoSyncToNotion(id)
+  })
 
   const mcpConfig = readMcpConfig()
   if (mcpConfig.enabled) {
