@@ -40,11 +40,12 @@ import {
   type TagUsageRow
 } from './tagQueries'
 
-const dbPath = path.join(app.getPath('userData'), 'ticktask.db')
-
 let db: Database.Database
 
 export function initDatabase(): void {
+  // Resolvido aqui, não em escopo de módulo: database.ts precisa ser importável sem Electron
+  // (ex.: tools do MCP importadas pelos testes de transport, que rodam sem app inicializado).
+  const dbPath = path.join(app.getPath('userData'), 'ticktask.db')
   db = new Database(dbPath)
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
