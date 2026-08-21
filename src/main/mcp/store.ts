@@ -18,9 +18,7 @@ export function readMcpConfig(): McpConfig {
     return normalizeConfig(raw)
   } catch (error) {
     if (isMissingFileError(error)) {
-      const fresh = normalizeConfig(undefined)
-      writeRaw(fresh)
-      return fresh
+      return persistFreshConfig()
     }
 
     console.error('[mcp] mcp-config.json corrompido, isolando arquivo original:', error)
@@ -31,10 +29,20 @@ export function readMcpConfig(): McpConfig {
     } catch (renameError) {
       console.error('[mcp] não foi possível isolar o arquivo corrompido:', renameError)
     }
-    const fresh = normalizeConfig(undefined)
-    writeRaw(fresh)
-    return fresh
+    return persistFreshConfig()
   }
+}
+
+function persistFreshConfig(): McpConfig {
+  const fresh = normalizeConfig(undefined)
+  // Ler a config no boot nunca pode impedir o app de abrir: se não der para gravar
+  // (disco cheio, permissão), seguimos com a config default só em memória.
+  try {
+    writeRaw(fresh)
+  } catch (error) {
+    console.error('[mcp] não foi possível gravar a configuração nova, seguindo em memória:', error)
+  }
+  return fresh
 }
 
 function writeRaw(config: McpConfig): void {

@@ -88,4 +88,20 @@ describe('readMcpConfig', () => {
     const persisted = JSON.parse(fs.readFileSync(configFile, 'utf-8'))
     expect(persisted.token).toBe(config.token)
   })
+
+  it('sobe com a config em memória quando não consegue gravar a configuração nova', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const writeSpy = vi.spyOn(fs, 'writeFileSync').mockImplementation(() => {
+      throw new Error('disco cheio')
+    })
+
+    const config = readMcpConfig()
+
+    expect(errorSpy).toHaveBeenCalled()
+    writeSpy.mockRestore()
+    errorSpy.mockRestore()
+
+    expect(config.enabled).toBe(false)
+    expect(config.token).toHaveLength(64)
+  })
 })

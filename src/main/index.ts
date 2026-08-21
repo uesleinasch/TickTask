@@ -981,11 +981,16 @@ app.whenReady().then(() => {
     autoSync: (id) => autoSyncToNotion(id)
   })
 
-  const mcpConfig = readMcpConfig()
-  if (mcpConfig.enabled) {
-    startMcpServer(mcpConfig).catch((error) => {
-      console.error('[mcp] falha ao iniciar na porta', mcpConfig.port, error)
-    })
+  // Nenhuma falha do MCP pode impedir createWindow(): esta promise não tem .catch.
+  try {
+    const mcpConfig = readMcpConfig()
+    if (mcpConfig.enabled) {
+      startMcpServer(mcpConfig).catch((error) => {
+        console.error('[mcp] falha ao iniciar na porta', mcpConfig.port, error)
+      })
+    }
+  } catch (error) {
+    console.error('[mcp] falha ao inicializar na abertura do app:', error)
   }
 
   registerAssetProtocol()
