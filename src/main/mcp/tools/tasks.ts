@@ -156,7 +156,7 @@ export function registerTaskTools(server: McpServer): void {
     {
       title: 'Criar task',
       description:
-        'Cria uma task. Projeto e contextos aceitam nome ou id; tags são criadas se não existirem. Use parent_task_id para criar subtarefa.',
+        'Cria uma task. Projeto e contextos aceitam nome ou id e falham com candidatos se não forem encontrados; tags são criadas se não existirem. Use parent_task_id para criar subtarefa.',
       inputSchema: {
         name: z.string().min(1),
         description: z.string().optional(),
@@ -200,11 +200,16 @@ export function registerTaskTools(server: McpServer): void {
 
       const task = createTask(input)
 
-      if (args.status !== undefined) {
-        updateTask(task.id, { status: args.status })
+      // afterTaskWrite precisa rodar mesmo se o backfill de status falhar — a task já foi
+      // persistida e não pode ficar sem sync no Notion nem tasks:refresh.
+      try {
+        if (args.status !== undefined) {
+          updateTask(task.id, { status: args.status })
+        }
+      } finally {
+        afterTaskWrite(task.id)
       }
 
-      afterTaskWrite(task.id)
       return ok({ created: task.id, task: getTask(task.id) })
     }
   )
