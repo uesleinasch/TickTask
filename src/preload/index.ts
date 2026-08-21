@@ -27,7 +27,8 @@ import type {
   TaskListFilters,
   TaskListItem,
   TagWithUsage,
-  UpdateTagInput
+  UpdateTagInput,
+  McpStatus
 } from '../shared/types'
 
 // Custom APIs for renderer
@@ -320,7 +321,13 @@ const api = {
   },
   offSyncError: (callback: (event: unknown, error?: string) => void): void => {
     ipcRenderer.removeListener('notion:syncError', callback)
-  }
+  },
+
+  // ===================== MCP SERVER =====================
+  mcpGetStatus: (): Promise<McpStatus> => ipcRenderer.invoke('mcp:getStatus'),
+  mcpSetEnabled: (enabled: boolean): Promise<McpStatus> =>
+    ipcRenderer.invoke('mcp:setEnabled', enabled),
+  mcpRegenerateToken: (): Promise<McpStatus> => ipcRenderer.invoke('mcp:regenerateToken')
 }
 
 // Types for statistics

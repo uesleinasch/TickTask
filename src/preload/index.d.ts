@@ -28,7 +28,8 @@ import type {
   TaskListFilters,
   TaskListItem,
   TagWithUsage,
-  UpdateTagInput
+  UpdateTagInput,
+  McpStatus
 } from '../shared/types'
 
 interface FloatTimerData {
@@ -257,6 +258,11 @@ interface API {
   offSyncSuccess?: (callback: (event: unknown, taskName?: string) => void) => void
   onSyncError?: (callback: (event: unknown, error?: string) => void) => void
   offSyncError?: (callback: (event: unknown, error?: string) => void) => void
+
+  // MCP Server
+  mcpGetStatus: () => Promise<McpStatus>
+  mcpSetEnabled: (enabled: boolean) => Promise<McpStatus>
+  mcpRegenerateToken: () => Promise<McpStatus>
 }
 
 declare global {

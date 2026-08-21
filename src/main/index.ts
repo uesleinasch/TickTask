@@ -129,6 +129,9 @@ import {
 } from './notion'
 import { saveNoteImage, registerAssetProtocol, ASSET_SCHEME } from './notesAssets'
 import { exportTaskToLocal } from './localExport'
+import { readMcpConfig, writeMcpConfig } from './mcp/store'
+import { isMcpRunning, startMcpServer, stopMcpServer } from './mcp/transport'
+import { generateToken } from './mcp/config'
 import type {
   CreateTaskInput,
   UpdateTaskInput,
@@ -137,7 +140,8 @@ import type {
   UpdateTagInput,
   CreateProjectInput,
   UpdateProjectInput,
-  ProjectStatus
+  ProjectStatus,
+  McpStatus
 } from '../shared/types'
 
 // Protocolo custom para servir imagens locais das notas ao renderer.
@@ -426,6 +430,20 @@ function createWindow(): void {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+  }
+}
+
+// ===================== MCP SERVER =====================
+
+function buildMcpStatus(): McpStatus {
+  const config = readMcpConfig()
+  const url = `http://127.0.0.1:${config.port}/mcp`
+  return {
+    enabled: config.enabled,
+    running: isMcpRunning(),
+    port: config.port,
+    token: config.token,
+    command: `claude mcp add --transport http ticktask ${url} --header "Authorization: Bearer ${config.token}"`
   }
 }
 
@@ -875,6 +893,28 @@ function setupIpcHandlers(): void {
   ipcMain.handle('goal:list', (_, areaId?: number) => listGoals(areaId))
   ipcMain.handle('goal:update', (_, id: number, data) => updateGoal(id, data))
   ipcMain.handle('goal:delete', (_, id: number) => deleteGoal(id))
+
+  // ===================== MCP SERVER =====================
+  ipcMain.handle('mcp:getStatus', () => buildMcpStatus())
+  ipcMain.handle('mcp:setEnabled', async (_, enabled: boolean) => {
+    const config = writeMcpConfig({ enabled })
+    if (enabled) {
+      await startMcpServer(config).catch((error) => {
+        console.error('[mcp] falha ao iniciar:', error)
+      })
+    } else {
+      await stopMcpServer()
+    }
+    return buildMcpStatus()
+  })
+  ipcMain.handle('mcp:regenerateToken', async () => {
+    const config = writeMcpConfig({ token: generateToken() })
+    if (config.enabled) {
+      await stopMcpServer()
+      await startMcpServer(config)
+    }
+    return buildMcpStatus()
+  })
 }
 
 // ===================== APP LIFECYCLE =====================
@@ -932,6 +972,14 @@ function startNotificationScheduler(): void {
 
 app.whenReady().then(() => {
   initDatabase()
+
+  const mcpConfig = readMcpConfig()
+  if (mcpConfig.enabled) {
+    startMcpServer(mcpConfig).catch((error) => {
+      console.error('[mcp] falha ao iniciar na porta', mcpConfig.port, error)
+    })
+  }
+
   registerAssetProtocol()
   setupIpcHandlers()
   startNotificationScheduler()
@@ -969,5 +1017,6 @@ app.on('will-quit', () => {
 
 app.on('before-quit', () => {
   if (notificationInterval) clearInterval(notificationInterval)
+  void stopMcpServer()
   closeDatabase()
 })
