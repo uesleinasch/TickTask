@@ -7,11 +7,24 @@ function configPath(): string {
   return path.join(app.getPath('userData'), 'mcp-config.json')
 }
 
+function isMissingFileError(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException)?.code === 'ENOENT'
+}
+
 export function readMcpConfig(): McpConfig {
+  const target = configPath()
   try {
-    const raw = JSON.parse(fs.readFileSync(configPath(), 'utf-8'))
+    const raw = JSON.parse(fs.readFileSync(target, 'utf-8'))
     return normalizeConfig(raw)
-  } catch {
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      const fresh = normalizeConfig(undefined)
+      writeRaw(fresh)
+      return fresh
+    }
+
+    console.error('[mcp] mcp-config.json corrompido, isolando arquivo original:', error)
+    fs.renameSync(target, `${target}.corrupt-${Date.now()}`)
     const fresh = normalizeConfig(undefined)
     writeRaw(fresh)
     return fresh
@@ -19,7 +32,11 @@ export function readMcpConfig(): McpConfig {
 }
 
 function writeRaw(config: McpConfig): void {
-  fs.writeFileSync(configPath(), JSON.stringify(config, null, 2), 'utf-8')
+  const target = configPath()
+  // mode só é aplicado por writeFileSync na criação do arquivo; o chmod garante
+  // 0600 também quando o arquivo já existia com permissão aberta.
+  fs.writeFileSync(target, JSON.stringify(config, null, 2), { encoding: 'utf-8', mode: 0o600 })
+  fs.chmodSync(target, 0o600)
 }
 
 export function writeMcpConfig(patch: Partial<McpConfig>): McpConfig {

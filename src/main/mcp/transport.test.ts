@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest'
-import { isAuthorized } from './transport'
+import http from 'http'
+import { afterEach, describe, expect, it } from 'vitest'
+import type { McpConfig } from './config'
+import { isAuthorized, isMcpRunning, startMcpServer, stopMcpServer } from './transport'
 
 const TOKEN = 'a'.repeat(64)
+
+function buildConfig(port: number): McpConfig {
+  return { enabled: true, port, token: TOKEN, bulkThreshold: 5 }
+}
 
 describe('isAuthorized', () => {
   it('aceita o token correto com o prefixo Bearer', () => {
@@ -26,5 +32,35 @@ describe('isAuthorized', () => {
 
   it('recusa token vazio configurado', () => {
     expect(isAuthorized('Bearer ', '')).toBe(false)
+  })
+})
+
+describe('startMcpServer', () => {
+  afterEach(async () => {
+    await stopMcpServer()
+  })
+
+  it('devolve a mesma promise em curso para chamadas concorrentes', async () => {
+    const config = buildConfig(0)
+    const first = startMcpServer(config)
+    const second = startMcpServer(config)
+
+    expect(second).toBe(first)
+    await first
+    expect(isMcpRunning()).toBe(true)
+  })
+
+  it('libera para nova tentativa depois de uma falha de bind', async () => {
+    const blocker = http.createServer()
+    await new Promise<void>((resolve) => blocker.listen(0, '127.0.0.1', resolve))
+    const address = blocker.address()
+    const port = typeof address === 'object' && address !== null ? address.port : 0
+
+    await expect(startMcpServer(buildConfig(port))).rejects.toThrow()
+    expect(isMcpRunning()).toBe(false)
+
+    await new Promise<void>((resolve) => blocker.close(() => resolve()))
+    await startMcpServer(buildConfig(port))
+    expect(isMcpRunning()).toBe(true)
   })
 })

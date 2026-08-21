@@ -8,6 +8,7 @@ const HOST = '127.0.0.1'
 const ROUTE = '/mcp'
 
 let httpServer: http.Server | null = null
+let startPromise: Promise<void> | null = null
 
 export function isAuthorized(header: string | undefined, token: string): boolean {
   if (!header || token.length === 0) return false
@@ -24,9 +25,21 @@ export function isMcpRunning(): boolean {
   return httpServer !== null
 }
 
-export async function startMcpServer(config: McpConfig): Promise<void> {
-  if (httpServer) return
+export function startMcpServer(config: McpConfig): Promise<void> {
+  if (httpServer) return Promise.resolve()
 
+  // Chamadas concorrentes (ex.: duplo clique no toggle) recebem a mesma promise em
+  // curso em vez de disputar o bind da porta com um segundo McpServer/transport.
+  if (!startPromise) {
+    startPromise = performStart(config).finally(() => {
+      startPromise = null
+    })
+  }
+
+  return startPromise
+}
+
+async function performStart(config: McpConfig): Promise<void> {
   const server = createMcpServer()
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined })
   await server.connect(transport)
