@@ -40,7 +40,7 @@ export function startMcpServer(config: McpConfig): Promise<void> {
 }
 
 async function performStart(config: McpConfig): Promise<void> {
-  const server = createMcpServer()
+  const server = createMcpServer(config.bulkThreshold)
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined })
   await server.connect(transport)
 

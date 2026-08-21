@@ -6,6 +6,7 @@ import {
   countTasks,
   createTask,
   deleteTasks,
+  getChildTaskIds,
   getSubtasks,
   getTask,
   getTaskDependencies,
@@ -384,7 +385,7 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
               id: task!.id,
               name: task!.name,
               status: task!.status,
-              subtasks: getSubtasks(task!.id).length
+              subtasks: getChildTaskIds(task!.id).length
             }))
           }
         )
