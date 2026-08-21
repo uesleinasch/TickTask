@@ -3,6 +3,7 @@ import { createConfirmStore } from './confirmGuard'
 import { ok } from './reply'
 import { registerStructureTools } from './tools/structure'
 import { registerTaskTools } from './tools/tasks'
+import { registerTimerTools } from './tools/timer'
 
 export function createMcpServer(bulkThreshold: number): McpServer {
   const server = new McpServer({ name: 'ticktask', version: '1.0.0' })
@@ -22,6 +23,7 @@ export function createMcpServer(bulkThreshold: number): McpServer {
 
   registerTaskTools(server, ctx)
   registerStructureTools(server, ctx)
+  registerTimerTools(server)
 
   return server
 }
