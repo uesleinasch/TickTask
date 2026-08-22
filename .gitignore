@@ -4,6 +4,7 @@ out
 .DS_Store
 .eslintcache
 *.log*
+*.tsbuildinfo
 copilot-instructions.md
 
 # Artefatos de processo do SDD (ledger, briefs, relatórios de review)
@@ -17,5 +18,5 @@ copilot-instructions.md
 !docs/
 !docs/**
 
-# As specs e os planos gerados pelo fluxo de implementação continuam fora do repo.
+# Artefatos do fluxo de especificação: nunca versionados.
 docs/superpowers/
