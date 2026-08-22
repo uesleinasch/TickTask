@@ -40,11 +40,11 @@ import {
   type TagUsageRow
 } from './tagQueries'
 
-const dbPath = path.join(app.getPath('userData'), 'ticktask.db')
-
 let db: Database.Database
 
 export function initDatabase(): void {
+  // Resolvido aqui, não em escopo de módulo: app.getPath não pode ser chamado antes de o app estar pronto, e este módulo é importado por caminhos que rodam cedo demais para isso.
+  const dbPath = path.join(app.getPath('userData'), 'ticktask.db')
   db = new Database(dbPath)
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
@@ -2148,4 +2148,9 @@ export function updateTimeBlock(id: number, data: UpdateTimeBlockInput): void {
 
 export function deleteTimeBlock(id: number): void {
   db.prepare('DELETE FROM time_blocks WHERE id = ?').run(id)
+}
+
+export function countTimeBlocksForTask(taskId: number): number {
+  const stmt = db.prepare('SELECT COUNT(*) as count FROM time_blocks WHERE task_id = ?')
+  return (stmt.get(taskId) as { count: number }).count
 }
