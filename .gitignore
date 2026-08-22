@@ -4,4 +4,19 @@ out
 .DS_Store
 .eslintcache
 *.log*
+*.tsbuildinfo
 copilot-instructions.md
+
+# Artefatos de processo do SDD (ledger, briefs, relatórios de review)
+.superpowers/
+
+# O .gitignore_global do usuário ignora `/docs/` e `CLAUDE.md`; neste projeto os dois
+# são documentação do produto e precisam ser versionados. Um `.gitignore` de diretório
+# tem precedência sobre o global, e o diretório precisa ser re-incluído antes dos
+# arquivos dentro dele — o git não entra em diretório excluído.
+!CLAUDE.md
+!docs/
+!docs/**
+
+# Artefatos do fluxo de especificação: nunca versionados.
+docs/superpowers/

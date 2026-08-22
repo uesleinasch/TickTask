@@ -242,6 +242,10 @@ export interface TaskListFilters {
   contextId?: number | null
   search?: string
   blockedOnly?: boolean
+  dueBefore?: string
+  dueAfter?: string
+  energy?: EnergyLevel
+  excludeStatus?: TaskStatus[]
   sort?: TaskSort
   limit?: number
   offset?: number
@@ -376,6 +380,16 @@ export const PROJECT_STATUS_COLORS: Record<ProjectStatus, string> = {
   someday: 'bg-teal-500',
   done: 'bg-purple-500',
   archived: 'bg-gray-500'
+}
+
+// ===================== MCP SERVER =====================
+
+export interface McpStatus {
+  enabled: boolean
+  running: boolean
+  port: number
+  token: string
+  command: string
 }
 
 // ===================== DEFAULT CONTEXTS =====================

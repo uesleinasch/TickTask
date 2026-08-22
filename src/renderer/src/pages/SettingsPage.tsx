@@ -15,9 +15,13 @@ import {
   ExternalLink,
   Loader2,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Server,
+  Copy,
+  KeyRound
 } from 'lucide-react'
 import { toast } from '@renderer/components/ui/sonner'
+import type { McpStatus } from '@shared/types'
 
 interface NotionConfig {
   apiKey: string
@@ -40,6 +44,8 @@ export function SettingsPage(): React.JSX.Element {
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [hasChanges, setHasChanges] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [mcpStatus, setMcpStatus] = useState<McpStatus | null>(null)
+  const [isRegeneratingToken, setIsRegeneratingToken] = useState(false)
 
   // Carregar configuração salva
   useEffect(() => {
@@ -56,6 +62,10 @@ export function SettingsPage(): React.JSX.Element {
       }
     }
     loadConfig()
+  }, [])
+
+  useEffect(() => {
+    void window.api.mcpGetStatus().then(setMcpStatus)
   }, [])
 
   const handleInputChange = useCallback(
@@ -176,6 +186,34 @@ export function SettingsPage(): React.JSX.Element {
       toast.error('Erro ao limpar configurações')
     }
   }, [])
+
+  const toggleMcp = async (): Promise<void> => {
+    if (!mcpStatus) return
+    setMcpStatus(await window.api.mcpSetEnabled(!mcpStatus.enabled))
+  }
+
+  const regenerateMcpToken = async (): Promise<void> => {
+    setIsRegeneratingToken(true)
+    try {
+      setMcpStatus(await window.api.mcpRegenerateToken())
+      toast.success('Token regenerado com sucesso')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro desconhecido'
+      toast.error(`Erro ao regenerar token: ${message}`)
+    } finally {
+      setIsRegeneratingToken(false)
+    }
+  }
+
+  const copyMcpCommand = async (): Promise<void> => {
+    if (!mcpStatus) return
+    try {
+      await navigator.clipboard.writeText(mcpStatus.command)
+      toast.success('Comando copiado para a área de transferência')
+    } catch {
+      toast.error('Não foi possível copiar o comando')
+    }
+  }
 
   if (isLoading) {
     return (
@@ -435,6 +473,92 @@ export function SettingsPage(): React.JSX.Element {
                 </Button>
               )}
             </div>
+          </div>
+
+          {/* MCP Server Section */}
+          <div className="bg-white border border-slate-200 rounded-sm p-6 space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-slate-900 rounded-lg">
+                <Server size={24} className="text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Servidor MCP</h2>
+                <p className="text-sm text-slate-500">
+                  Exponha o TickTask para assistentes como o Claude Code via MCP
+                </p>
+              </div>
+            </div>
+
+            {mcpStatus && (
+              <>
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <div>
+                    <label className="text-sm font-medium text-slate-700">Servidor MCP</label>
+                    <p
+                      className={`text-xs mt-0.5 ${
+                        !mcpStatus.enabled
+                          ? 'text-slate-500'
+                          : mcpStatus.running
+                            ? 'text-emerald-600'
+                            : 'text-red-600'
+                      }`}
+                    >
+                      {!mcpStatus.enabled
+                        ? 'Desligado'
+                        : mcpStatus.running
+                          ? `Rodando em 127.0.0.1:${mcpStatus.port}`
+                          : `Falha ao iniciar na porta ${mcpStatus.port} — verifique se ela já está em uso`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={toggleMcp}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      mcpStatus.enabled ? 'bg-emerald-500' : 'bg-slate-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        mcpStatus.enabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Comando para registrar no Claude Code
+                  </label>
+                  <div className="flex items-start gap-2">
+                    <pre className="flex-1 overflow-x-auto bg-slate-900 text-slate-100 text-xs rounded-lg p-3 whitespace-pre-wrap break-all">
+                      {mcpStatus.command}
+                    </pre>
+                    <Button onClick={copyMcpCommand} variant="outline" className="shrink-0">
+                      <Copy size={16} />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-500 flex items-center gap-1">
+                    <AlertCircle size={12} />
+                    Rode esse comando no terminal do Claude Code para registrar o servidor.
+                  </p>
+                </div>
+
+                <div className="pt-2">
+                  <Button
+                    onClick={regenerateMcpToken}
+                    disabled={isRegeneratingToken}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    {isRegeneratingToken ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <KeyRound size={16} />
+                    )}
+                    Regenerar Token
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Info Section */}

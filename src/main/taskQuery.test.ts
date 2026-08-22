@@ -184,6 +184,53 @@ describe('buildTaskCountQuery', () => {
   })
 })
 
+describe('buildTaskListWhere - prazo e energia', () => {
+  it('filtra por prazo máximo incluindo o próprio dia', () => {
+    const { clause, params } = buildTaskListWhere({ dueBefore: '2026-08-21' })
+    expect(clause).toContain('t.due_date IS NOT NULL AND t.due_date <= ?')
+    expect(params).toContain('2026-08-21')
+  })
+
+  it('filtra por prazo mínimo', () => {
+    const { clause, params } = buildTaskListWhere({ dueAfter: '2026-08-01' })
+    expect(clause).toContain('t.due_date IS NOT NULL AND t.due_date >= ?')
+    expect(params).toContain('2026-08-01')
+  })
+
+  it('combina as duas pontas do intervalo', () => {
+    const { params } = buildTaskListWhere({ dueAfter: '2026-08-01', dueBefore: '2026-08-31' })
+    expect(params).toEqual([0, '2026-08-01', '2026-08-31'])
+  })
+
+  it('filtra por nível de energia', () => {
+    const { clause, params } = buildTaskListWhere({ energy: 'alto' })
+    expect(clause).toContain('t.energy_level = ?')
+    expect(params).toContain('alto')
+  })
+
+  it('ignora prazo e energia quando não informados', () => {
+    const { clause } = buildTaskListWhere({})
+    expect(clause).not.toContain('due_date <=')
+    expect(clause).not.toContain('energy_level')
+  })
+
+  it('exclui os status informados', () => {
+    const { clause, params } = buildTaskListWhere({ excludeStatus: ['finalizada'] })
+    expect(clause).toContain('t.status NOT IN (?)')
+    expect(params).toContain('finalizada')
+  })
+
+  it('monta um placeholder por status excluído', () => {
+    const { clause, params } = buildTaskListWhere({ excludeStatus: ['finalizada', 'someday'] })
+    expect(clause).toContain('t.status NOT IN (?, ?)')
+    expect(params).toEqual([0, 'finalizada', 'someday'])
+  })
+
+  it('ignora excludeStatus vazio', () => {
+    expect(buildTaskListWhere({ excludeStatus: [] }).clause).not.toContain('NOT IN')
+  })
+})
+
 describe('escapeLike', () => {
   it('neutraliza curingas e a própria barra de escape', () => {
     expect(escapeLike('a%b_c\\d')).toBe('a\\%b\\_c\\\\d')

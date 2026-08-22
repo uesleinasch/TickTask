@@ -60,6 +60,26 @@ export function buildTaskListWhere(filters: TaskListFilters): {
     )`)
   }
 
+  if (filters.dueAfter) {
+    conditions.push('t.due_date IS NOT NULL AND t.due_date >= ?')
+    params.push(filters.dueAfter)
+  }
+
+  if (filters.dueBefore) {
+    conditions.push('t.due_date IS NOT NULL AND t.due_date <= ?')
+    params.push(filters.dueBefore)
+  }
+
+  if (filters.energy) {
+    conditions.push('t.energy_level = ?')
+    params.push(filters.energy)
+  }
+
+  if (filters.excludeStatus && filters.excludeStatus.length > 0) {
+    conditions.push(`t.status NOT IN (${filters.excludeStatus.map(() => '?').join(', ')})`)
+    params.push(...filters.excludeStatus)
+  }
+
   return { clause: conditions.join(' AND '), params }
 }
 
