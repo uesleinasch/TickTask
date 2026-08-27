@@ -12,6 +12,14 @@ export function ok(data: unknown): CallToolResult {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] }
 }
 
+export function okImage(base64: string, mimeType: string, data?: unknown): CallToolResult {
+  const content: CallToolResult['content'] = [{ type: 'image' as const, data: base64, mimeType }]
+  if (data !== undefined) {
+    content.push({ type: 'text' as const, text: JSON.stringify(data) })
+  }
+  return { content }
+}
+
 export function fail(
   code: ErrorCode,
   message: string,

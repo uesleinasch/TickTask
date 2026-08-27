@@ -3,7 +3,13 @@ import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import type { Task, Tag } from '@shared/types'
-import { collectImageAssetIds, notesToNotionBlocks, type ImageResolver } from './notionBlocks'
+import { drawingPreviewPath } from './drawingAssets'
+import {
+  collectImageAssetIds,
+  notesToNotionBlocks,
+  type ImageResolver,
+  type NotionBlock
+} from './notionBlocks'
 import { getNoteAsset, setNoteAssetUpload } from './database'
 import { uploadImageToNotion } from './notionFileUpload'
 import { getAssetFilePath } from './notesAssets'
@@ -601,6 +607,21 @@ export async function syncTaskToNotion(task: Task): Promise<string> {
  * também o formato legado Editor.js via dispatcher). Imagens sobem via File Upload API.
  * O Notion não tem "replace all children": listamos, deletamos e recriamos.
  */
+async function buildDrawingBlock(client: Client, task: Task): Promise<NotionBlock | null> {
+  if (!task.drawing) return null
+
+  const filePath = drawingPreviewPath(task.id)
+  if (!fs.existsSync(filePath)) return null
+
+  try {
+    const id = await uploadImageToNotion(client, filePath, 'image/png', `desenho-${task.id}.png`)
+    return { object: 'block', type: 'image', image: { type: 'file_upload', file_upload: { id } } }
+  } catch (error) {
+    console.error('Falha ao subir o desenho para o Notion:', error)
+    return null
+  }
+}
+
 export async function syncTaskNotesToNotion(task: Task): Promise<void> {
   const client = getClient() // lança se Notion não configurado
 
@@ -659,6 +680,12 @@ export async function syncTaskNotesToNotion(task: Task): Promise<void> {
 
   // 2b. Converter e adicionar os novos blocos (lotes de 100 — limite da API).
   const blocks = notesToNotionBlocks(task.notes, resolveImage)
+
+  // O desenho entra ao final, como imagem. É reenviado a cada sync: o PNG é regravado a cada
+  // save e não há asset id para servir de chave de cache, como acontece com as imagens da nota.
+  const drawingBlock = await buildDrawingBlock(client, task)
+  if (drawingBlock) blocks.push(drawingBlock)
+
   for (let i = 0; i < blocks.length; i += 100) {
     const batch = blocks.slice(i, i + 100)
     await client.blocks.children.append({
