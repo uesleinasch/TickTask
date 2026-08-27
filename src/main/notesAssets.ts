@@ -55,11 +55,51 @@ export function getAssetFilePath(assetId: string): string | null {
   return path.join(assetsDir(), asset.filename)
 }
 
+// As fontes do Excalidraw são servidas por aqui, e não por file://, porque o renderer roda em
+// file:// em produção — origem opaca, da qual o Chromium recusa carregar fontes. O diretório fica
+// dentro do app.asar; por isso o corpo é lido com fs (que entende asar) em vez de net.fetch.
+export const EXCALIDRAW_HOST = 'excalidraw'
+
+const EXCALIDRAW_MIME: Record<string, string> = {
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.ttf': 'font/ttf',
+  '.json': 'application/json',
+  '.js': 'text/javascript',
+  '.css': 'text/css'
+}
+
+function excalidrawAssetsDir(): string {
+  return path.join(app.getAppPath(), 'node_modules', '@excalidraw', 'excalidraw', 'dist', 'prod')
+}
+
+async function serveExcalidrawAsset(pathname: string): Promise<Response> {
+  const root = excalidrawAssetsDir()
+  const target = path.resolve(root, decodeURIComponent(pathname).replace(/^\/+/, ''))
+  // O pathname vem da página; sem esta checagem um ../ escaparia do diretório de assets.
+  if (target !== root && !target.startsWith(root + path.sep)) {
+    return new Response('Forbidden', { status: 403 })
+  }
+
+  try {
+    const body = await fs.readFile(target)
+    const mime = EXCALIDRAW_MIME[path.extname(target)] ?? 'application/octet-stream'
+    return new Response(new Uint8Array(body), { headers: { 'Content-Type': mime } })
+  } catch {
+    return new Response('Not found', { status: 404 })
+  }
+}
+
 /** Chamar DENTRO de app.whenReady(). O scheme precisa ser privilegiado antes (ver index.ts). */
 export function registerAssetProtocol(): void {
   protocol.handle(ASSET_SCHEME, (request) => {
+    const url = new URL(request.url)
+    if (url.host === EXCALIDRAW_HOST) {
+      return serveExcalidrawAsset(url.pathname)
+    }
+
     // URL: ticktask-asset://asset/<assetId>
-    const assetId = new URL(request.url).pathname.replace(/^\/+/, '')
+    const assetId = url.pathname.replace(/^\/+/, '')
     const filePath = getAssetFilePath(assetId)
     if (!filePath || !existsSync(filePath)) {
       return new Response('Not found', { status: 404 })

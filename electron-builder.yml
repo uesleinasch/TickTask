@@ -9,6 +9,9 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  # 13 MB dos 14 MB de fontes do Excalidraw são a família CJK; sem ela, texto em chinês cai no
+  # fallback do sistema e o instalador não engorda dez vezes por isso.
+  - '!node_modules/@excalidraw/excalidraw/dist/prod/fonts/Xiaolai/**'
 asarUnpack:
   - resources/**
 win:

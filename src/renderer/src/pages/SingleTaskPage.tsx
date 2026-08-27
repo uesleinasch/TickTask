@@ -57,7 +57,8 @@ import { toast } from '@renderer/components/ui/sonner'
 import type { TaskNotesEditorHandle } from '@renderer/components/editor/TaskNotesEditor'
 import { parseNotes } from '@renderer/components/editor/notesFormat'
 import { NotesActions } from '@renderer/components/editor/NotesActions'
-import { NotesPanel } from '@renderer/components/editor/NotesPanel'
+import { NotesPanel, type NotesTab } from '@renderer/components/editor/NotesPanel'
+import type { TaskDrawingEditorHandle } from '@renderer/components/editor/TaskDrawingEditor'
 import { NotesFocusBar } from '@renderer/components/editor/NotesFocusBar'
 import {
   clampNotesWidth,
@@ -159,9 +160,14 @@ export function SingleTaskPage(): React.JSX.Element {
   // mantém a remontagem fiel — e sem tocar em `task`, cujo useEffect ressincroniza o formulário
   // inteiro e apagaria o que estiver digitado nos campos.
   const [savedNotes, setSavedNotes] = useState<string | null>(null)
+  const [savedDrawing, setSavedDrawing] = useState<string | null>(null)
+  const [notesTab, setNotesTab] = useState<NotesTab>('notes')
+  const drawingEditorRef = useRef<TaskDrawingEditorHandle>(null)
 
   useEffect(() => {
     setSavedNotes(null)
+    setSavedDrawing(null)
+    setNotesTab('notes')
   }, [taskId])
 
   const initialNotes = useMemo(
@@ -371,6 +377,15 @@ export function SingleTaskPage(): React.JSX.Element {
   const handleNotesSaved = useCallback(
     (notes: string): void => {
       setSavedNotes(notes)
+      if (!localExportRef.current) return
+      window.api.exportNotesLocal(taskId).catch((e) => console.error('Export local falhou:', e))
+    },
+    [taskId]
+  )
+
+  const handleDrawingSaved = useCallback(
+    (drawing: string): void => {
+      setSavedDrawing(drawing)
       if (!localExportRef.current) return
       window.api.exportNotesLocal(taskId).catch((e) => console.error('Export local falhou:', e))
     },
@@ -1045,6 +1060,12 @@ export function SingleTaskPage(): React.JSX.Element {
             onZen={handleZenNotes}
             actions={notesActions}
             zenWidth={zenWidth}
+            tab={notesTab}
+            onTabChange={setNotesTab}
+            initialDrawing={savedDrawing ?? task.drawing ?? null}
+            drawingRef={drawingEditorRef}
+            onDrawingChange={handleNotesChange}
+            onDrawingSaved={handleDrawingSaved}
           />
           {viewMode === 'zen' && (
             <button
