@@ -9,6 +9,7 @@ import {
   dialog,
   protocol
 } from 'electron'
+import { copyFileSync } from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/512.png?asset'
@@ -481,15 +482,30 @@ function createWindow(): void {
 
 // ===================== MCP SERVER =====================
 
+const BRIDGE_FILE = 'mcp-bridge.js'
+
+// A ponte é registrada no cliente MCP por caminho absoluto, então ele precisa sobreviver a
+// atualizações do app e, no AppImage, ao volume temporário onde a instalação vive. Copiar para
+// o userData a cada boot resolve os dois casos.
+function ensureBridgeScript(): string {
+  const target = join(app.getPath('userData'), BRIDGE_FILE)
+  try {
+    copyFileSync(join(__dirname, BRIDGE_FILE), target)
+  } catch (error) {
+    console.error('[mcp] falha ao publicar a ponte stdio:', error)
+  }
+  return target
+}
+
 function buildMcpStatus(): McpStatus {
   const config = readMcpConfig()
-  const url = `http://127.0.0.1:${config.port}/mcp`
+  const bridge = join(app.getPath('userData'), BRIDGE_FILE)
   return {
     enabled: config.enabled,
     running: isMcpRunning(),
     port: config.port,
     token: config.token,
-    command: `claude mcp add --transport http ticktask ${url} --header "Authorization: Bearer ${config.token}"`
+    command: `claude mcp add ticktask --scope user --env ELECTRON_RUN_AS_NODE=1 -- "${process.execPath}" "${bridge}"`
   }
 }
 
@@ -1035,6 +1051,7 @@ app.whenReady().then(() => {
 
   // Nenhuma falha do MCP pode impedir createWindow(): esta promise não tem .catch.
   try {
+    ensureBridgeScript()
     const mcpConfig = readMcpConfig()
     if (mcpConfig.enabled) {
       startMcpServer(mcpConfig).catch((error) => {
