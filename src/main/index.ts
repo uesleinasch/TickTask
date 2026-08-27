@@ -12,6 +12,9 @@ import {
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/512.png?asset'
+import { shouldStartHidden } from './launchArgs'
+import { createTray, destroyTray } from './tray'
+import { isAutostartEnabled, setAutostartEnabled } from './autostart'
 import {
   initDatabase,
   closeDatabase,
@@ -154,11 +157,20 @@ protocol.registerSchemesAsPrivileged([
   }
 ])
 
+// Uma segunda instância abriria o mesmo SQLite e disputaria a porta do MCP. Sair aqui, antes
+// de qualquer inicialização, é o que mantém a instância viva como dona única desses recursos.
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+if (!hasSingleInstanceLock) {
+  app.quit()
+}
+
 let mainWindow: BrowserWindow | null = null
 let floatWindow: BrowserWindow | null = null
 let quickCaptureWindow: BrowserWindow | null = null
 type FloatTimerData = { taskId: number; taskName: string; seconds: number }
 let currentTimers: FloatTimerData[] = []
+let isQuitting = false
+let startHidden = shouldStartHidden(process.argv)
 
 // Dimensões da janela flutuante (lista com altura dinâmica)
 const FLOAT_WIDTH = 300
@@ -388,6 +400,24 @@ function registerGlobalShortcut(): void {
 
 // ===================== MAIN WINDOW =====================
 
+function revealMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    startHidden = false
+    createWindow()
+    return
+  }
+
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+  hideFloatWindow()
+}
+
+function quitApp(): void {
+  isQuitting = true
+  app.quit()
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1024,
@@ -405,7 +435,22 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
+    if (startHidden) {
+      startHidden = false
+      return
+    }
     mainWindow?.show()
+  })
+
+  mainWindow.on('close', (event) => {
+    if (isQuitting) return
+    event.preventDefault()
+    mainWindow?.hide()
+    // hide() não emite 'minimize', então o float precisa ser acionado aqui — é justamente
+    // ao esconder a janela com um timer rodando que ele importa.
+    if (currentTimers.length > 0) {
+      showFloatWindow()
+    }
   })
 
   mainWindow.on('minimize', () => {
@@ -895,6 +940,10 @@ function setupIpcHandlers(): void {
   ipcMain.handle('goal:update', (_, id: number, data) => updateGoal(id, data))
   ipcMain.handle('goal:delete', (_, id: number) => deleteGoal(id))
 
+  // ===================== INICIALIZAÇÃO =====================
+  ipcMain.handle('app:getAutostart', () => isAutostartEnabled())
+  ipcMain.handle('app:setAutostart', (_, enabled: boolean) => setAutostartEnabled(enabled))
+
   // ===================== MCP SERVER =====================
   ipcMain.handle('mcp:getStatus', () => buildMcpStatus())
   ipcMain.handle('mcp:setEnabled', async (_, enabled: boolean) => {
@@ -974,6 +1023,8 @@ function startNotificationScheduler(): void {
 }
 
 app.whenReady().then(() => {
+  if (!hasSingleInstanceLock) return
+
   initDatabase()
 
   registerWriteEffects({
@@ -1011,25 +1062,35 @@ app.whenReady().then(() => {
 
   createWindow()
 
+  createTray({
+    showMainWindow: revealMainWindow,
+    openQuickCapture: createQuickCaptureWindow,
+    quit: quitApp
+  })
+
   // Registrar atalho global para captura rápida
   registerGlobalShortcut()
+
+  app.on('second-instance', () => {
+    revealMainWindow()
+  })
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
-})
+// O app vive na bandeja: fechar a janela principal não encerra o processo, senão o servidor
+// MCP cairia junto. A saída acontece pelo menu do tray (quitApp).
+app.on('window-all-closed', () => {})
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
 })
 
 app.on('before-quit', () => {
+  isQuitting = true
+  destroyTray()
   if (notificationInterval) clearInterval(notificationInterval)
   void stopMcpServer()
   closeDatabase()
