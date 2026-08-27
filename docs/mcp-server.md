@@ -14,11 +14,47 @@ regenerar o token a qualquer momento (reinicia o servidor).
 
 ## Registrar num cliente MCP
 
+O registro recomendado é via **ponte stdio** (`src/mcp-bridge/`, comando pronto na tela de Ajustes):
+
 ```
-claude mcp add --transport http ticktask http://127.0.0.1:<porta>/mcp --header "Authorization: Bearer <token>"
+claude mcp add ticktask --scope user --env ELECTRON_RUN_AS_NODE=1 -- "<executável>" "<userData>/mcp-bridge.js"
 ```
 
-Porta e token vêm da tela de Ajustes (botão "copiar comando").
+Dois detalhes importam nesse comando:
+
+- **`--scope user`** — registra para todos os projetos. Com o escopo `local` (padrão), o servidor
+  vale só no diretório onde o comando rodou, e cada diretório novo exige repetir o registro e
+  reiniciar o cliente.
+- **stdio, não HTTP** — quem sobe o processo da ponte é o cliente MCP, então o servidor nunca
+  entra em `failed` por o app estar fechado.
+
+O HTTP em loopback continua disponível para clientes que preferirem falar direto com ele:
+
+```
+claude mcp add ticktask --scope user --transport http http://127.0.0.1:<porta>/mcp --header "Authorization: Bearer <token>"
+```
+
+A diferença prática: nesse modo o TickTask **precisa** estar aberto no momento em que a sessão do
+cliente inicia, ou o servidor fica indisponível até a sessão ser reiniciada.
+
+## Ponte stdio
+
+`src/mcp-bridge/index.ts` é compilado para `out/main/mcp-bridge.js` (segundo entry do build do
+main) e copiado para `userData/mcp-bridge.js` a cada boot — o caminho registrado no cliente precisa
+sobreviver a atualizações do app e, no AppImage, ao volume temporário da instalação.
+
+Por frame JSON-RPC lido do stdin, a ponte faz POST no servidor HTTP local. Em `ECONNREFUSED`, ela
+abre o app com `--hidden` (bandeja, sem janela), aguarda a porta aceitar conexão (poll de 250 ms,
+teto de 20 s) e reenvia. Como o servidor é stateless, o repasse é transparente: tool nova no app
+aparece no cliente sem nada a espelhar na ponte.
+
+A config (porta e token) é lida a cada frame, então regenerar o token em Ajustes passa a valer na
+chamada seguinte, sem reiniciar o cliente. Todo caminho de falha — MCP desligado, config ausente,
+token recusado, app que não abriu no tempo — responde um erro JSON-RPC legível em vez de encerrar
+o processo, para o cliente seguir conectado.
+
+Ao subir a ponte com `ELECTRON_RUN_AS_NODE=1`, essa variável é removida do ambiente antes do
+`spawn` do app: herdada, faria o Electron subir como Node puro, sem janela e sem servidor.
 
 ## Tools
 
@@ -58,7 +94,11 @@ não vazia) sempre exigem confirmação. `bulk_update_tasks` e `plan_day` só ex
 
 ## Limitações conhecidas
 
-- O servidor só responde enquanto o app TickTask está aberto (não há processo headless).
+- O servidor só responde enquanto o app TickTask está aberto (não há processo headless). Com a
+  ponte stdio isso deixa de exigir ação sua — ela abre o app quando necessário —, mas a primeira
+  chamada nesse caso paga o tempo de inicialização do app (~1–3 s).
+- O app agora vive na bandeja: fechar a janela não encerra o processo, então o servidor continua
+  de pé. Encerrar de verdade é pelo item "Sair" no ícone da bandeja.
 - `search_tasks` não retorna subtarefas — use `get_task` para o detalhe de uma task específica.
 - `write_notes` converte um subconjunto de Markdown; menções `@` a outras tasks, tabelas e imagens
   do editor Tiptap não sobrevivem à conversão.
