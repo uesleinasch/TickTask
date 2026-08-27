@@ -323,6 +323,11 @@ const api = {
     ipcRenderer.removeListener('notion:syncError', callback)
   },
 
+  // ===================== INICIALIZAÇÃO =====================
+  appGetAutostart: (): Promise<boolean> => ipcRenderer.invoke('app:getAutostart'),
+  appSetAutostart: (enabled: boolean): Promise<boolean> =>
+    ipcRenderer.invoke('app:setAutostart', enabled),
+
   // ===================== MCP SERVER =====================
   mcpGetStatus: (): Promise<McpStatus> => ipcRenderer.invoke('mcp:getStatus'),
   mcpSetEnabled: (enabled: boolean): Promise<McpStatus> =>

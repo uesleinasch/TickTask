@@ -18,7 +18,8 @@ import {
   ChevronUp,
   Server,
   Copy,
-  KeyRound
+  KeyRound,
+  Power
 } from 'lucide-react'
 import { toast } from '@renderer/components/ui/sonner'
 import type { McpStatus } from '@shared/types'
@@ -46,6 +47,7 @@ export function SettingsPage(): React.JSX.Element {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [mcpStatus, setMcpStatus] = useState<McpStatus | null>(null)
   const [isRegeneratingToken, setIsRegeneratingToken] = useState(false)
+  const [autostart, setAutostart] = useState(false)
 
   // Carregar configuração salva
   useEffect(() => {
@@ -66,6 +68,7 @@ export function SettingsPage(): React.JSX.Element {
 
   useEffect(() => {
     void window.api.mcpGetStatus().then(setMcpStatus)
+    void window.api.appGetAutostart().then(setAutostart)
   }, [])
 
   const handleInputChange = useCallback(
@@ -190,6 +193,14 @@ export function SettingsPage(): React.JSX.Element {
   const toggleMcp = async (): Promise<void> => {
     if (!mcpStatus) return
     setMcpStatus(await window.api.mcpSetEnabled(!mcpStatus.enabled))
+  }
+
+  const toggleAutostart = async (): Promise<void> => {
+    const next = await window.api.appSetAutostart(!autostart)
+    setAutostart(next)
+    if (next === autostart) {
+      toast.error('Não foi possível alterar a inicialização automática')
+    }
   }
 
   const regenerateMcpToken = async (): Promise<void> => {
@@ -473,6 +484,52 @@ export function SettingsPage(): React.JSX.Element {
                 </Button>
               )}
             </div>
+          </div>
+
+          {/* Inicialização Section */}
+          <div className="bg-white border border-slate-200 rounded-sm p-6 space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-slate-900 rounded-lg">
+                <Power size={24} className="text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Inicialização</h2>
+                <p className="text-sm text-slate-500">
+                  Mantenha o TickTask e o servidor MCP disponíveis desde o login
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div>
+                <label className="text-sm font-medium text-slate-700">
+                  Iniciar o TickTask com o sistema
+                </label>
+                <p className="text-xs mt-0.5 text-slate-500">
+                  {autostart
+                    ? 'Ativado — o app sobe na bandeja, sem abrir janela'
+                    : 'Desativado — o app só abre quando você mandar'}
+                </p>
+              </div>
+              <button
+                onClick={toggleAutostart}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  autostart ? 'bg-emerald-500' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    autostart ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 flex items-center gap-1">
+              <AlertCircle size={12} />
+              Fechar a janela esconde o app na bandeja; para encerrar, use “Sair” no ícone da
+              bandeja.
+            </p>
           </div>
 
           {/* MCP Server Section */}

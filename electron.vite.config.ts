@@ -10,6 +10,14 @@ export default defineConfig({
       alias: {
         '@shared': resolve('src/shared')
       }
+    },
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/main/index.ts'),
+          'mcp-bridge': resolve('src/mcp-bridge/index.ts')
+        }
+      }
     }
   },
   preload: {

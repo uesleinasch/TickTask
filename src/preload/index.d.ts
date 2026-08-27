@@ -259,6 +259,10 @@ interface API {
   onSyncError?: (callback: (event: unknown, error?: string) => void) => void
   offSyncError?: (callback: (event: unknown, error?: string) => void) => void
 
+  // Inicialização
+  appGetAutostart: () => Promise<boolean>
+  appSetAutostart: (enabled: boolean) => Promise<boolean>
+
   // MCP Server
   mcpGetStatus: () => Promise<McpStatus>
   mcpSetEnabled: (enabled: boolean) => Promise<McpStatus>
