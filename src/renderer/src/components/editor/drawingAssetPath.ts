@@ -9,7 +9,11 @@ declare global {
   }
 }
 
+// Executado no import, e importado pelo entry do renderer: os `import` de um módulo ES são
+// avaliados antes do corpo dele, então chamar isto dentro do componente do editor rodaria
+// depois de o Excalidraw já ter resolvido o caminho — e ele cai no CDN, que a CSP recusa.
+window.EXCALIDRAW_ASSET_PATH = ASSET_PATH
+
 export function ensureExcalidrawAssetPath(): void {
-  if (window.EXCALIDRAW_ASSET_PATH === ASSET_PATH) return
   window.EXCALIDRAW_ASSET_PATH = ASSET_PATH
 }
