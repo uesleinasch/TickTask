@@ -1,4 +1,4 @@
-import type { Editor, Extensions } from '@tiptap/core'
+import type { Extensions } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Highlight from '@tiptap/extension-highlight'
 import { TaskList, TaskItem } from '@tiptap/extension-list'
@@ -8,6 +8,7 @@ import FileHandler from '@tiptap/extension-file-handler'
 import { TableKit } from '@tiptap/extension-table'
 import { SlashCommand } from './slash/SlashCommand'
 import { MentionExtension } from './mention/mentionConfig'
+import { IMAGE_MIME_TYPES, uploadAndInsert } from './imageUpload'
 
 const ImageWithAsset = Image.extend({
   addAttributes() {
@@ -17,28 +18,6 @@ const ImageWithAsset = Image.extend({
     }
   }
 })
-
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024
-
-async function uploadAndInsert(
-  editor: Editor,
-  taskId: number,
-  file: File,
-  pos?: number
-): Promise<void> {
-  if (!file.type.startsWith('image/')) return
-  if (file.size > MAX_IMAGE_BYTES) {
-    window.alert('Imagem maior que 5 MB não é suportada na sincronização com o Notion.')
-    return
-  }
-  const bytes = new Uint8Array(await file.arrayBuffer())
-  const { assetId, src } = await window.api.saveNoteImage(taskId, bytes, file.name, file.type)
-  const node = { type: 'image', attrs: { src, assetId } }
-  const chain = editor.chain().focus()
-  if (typeof pos === 'number') chain.insertContentAt(pos, node)
-  else chain.insertContent(node)
-  chain.run()
-}
 
 export function buildExtensions(taskId: number): Extensions {
   return [
@@ -50,11 +29,11 @@ export function buildExtensions(taskId: number): Extensions {
     TaskItem.configure({ nested: true }),
     Placeholder.configure({ placeholder: 'Escreva suas anotações... (digite / para comandos)' }),
     TableKit.configure({ table: { resizable: true } }),
-    SlashCommand,
+    SlashCommand.configure({ taskId }),
     MentionExtension,
     ImageWithAsset,
     FileHandler.configure({
-      allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp'],
+      allowedMimeTypes: IMAGE_MIME_TYPES,
       // Consome o evento de paste quando há arquivos, evitando que outras paste
       // rules insiram conteúdo duplicado.
       consumePasteEvent: true,
