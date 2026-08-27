@@ -5,6 +5,7 @@ import { TaskList, TaskItem } from '@tiptap/extension-list'
 import { Placeholder } from '@tiptap/extensions'
 import Image from '@tiptap/extension-image'
 import FileHandler from '@tiptap/extension-file-handler'
+import { FontSize, TextStyle } from '@tiptap/extension-text-style'
 import { TableKit } from '@tiptap/extension-table'
 import { SlashCommand } from './slash/SlashCommand'
 import { MentionExtension } from './mention/mentionConfig'
@@ -46,6 +47,9 @@ export function buildExtensions(taskId: number): Extensions {
     // bold, italic, strike, code, link, underline, histórico (undo/redo).
     StarterKit,
     Highlight,
+    // FontSize grava numa mark textStyle, que precisa estar registrada antes.
+    TextStyle,
+    FontSize,
     TaskList,
     TaskItem.configure({ nested: true }),
     Placeholder.configure({ placeholder: 'Escreva suas anotações... (digite / para comandos)' }),
