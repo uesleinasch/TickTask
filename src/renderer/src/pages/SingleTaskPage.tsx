@@ -534,7 +534,7 @@ export function SingleTaskPage(): React.JSX.Element {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-100">
+      <div className="flex items-center justify-center h-full bg-slate-100">
         <p className="text-slate-400 font-mono text-sm">carregando...</p>
       </div>
     )
@@ -542,7 +542,7 @@ export function SingleTaskPage(): React.JSX.Element {
 
   if (!task) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen gap-4 bg-slate-100">
+      <div className="flex flex-col items-center justify-center h-full gap-4 bg-slate-100">
         <p className="text-slate-500">Tarefa não encontrada</p>
         <Button onClick={() => navigate('/')} variant="outline">
           <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
@@ -573,7 +573,11 @@ export function SingleTaskPage(): React.JSX.Element {
   return (
     <div
       className={cn(
-        'flex h-screen overflow-hidden bg-slate-50',
+        // h-full, não h-screen: a página vive dentro do <main> do App, que já desconta a altura
+        // do TitleBar. Com 100vh ela sobra 56px, e um scrollIntoView (o Excalidraw dá foco ao
+        // canvas ao selecionar) rola esse excesso — overflow-hidden não impede scroll
+        // programático — escondendo a barra do modo foco atrás do TitleBar, sem volta.
+        'flex h-full overflow-hidden bg-slate-50',
         dragWidth !== null && 'select-none cursor-col-resize'
       )}
     >
