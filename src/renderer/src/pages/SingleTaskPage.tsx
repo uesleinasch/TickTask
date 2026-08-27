@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@renderer/components/ui/button'
 import { SearchableSelect } from '@renderer/components/ui/searchable-select'
@@ -153,7 +153,21 @@ export function SingleTaskPage(): React.JSX.Element {
   const localExportRef = useRef<string | null>(null)
   localExportRef.current = localExportPath
 
-  const initialNotes = parseNotes(task?.notes)
+  // O editor grava as notas direto pelo IPC, sem passar pelo useTaskDetail, então `task.notes`
+  // envelhece enquanto a página vive. Fechar e reabrir o painel desmonta e remonta o editor,
+  // que voltaria ao conteúdo carregado no início da visita. Guardar aqui o último JSON salvo
+  // mantém a remontagem fiel — e sem tocar em `task`, cujo useEffect ressincroniza o formulário
+  // inteiro e apagaria o que estiver digitado nos campos.
+  const [savedNotes, setSavedNotes] = useState<string | null>(null)
+
+  useEffect(() => {
+    setSavedNotes(null)
+  }, [taskId])
+
+  const initialNotes = useMemo(
+    () => parseNotes(savedNotes ?? task?.notes),
+    [savedNotes, task?.notes]
+  )
 
   // Form state
   const [name, setName] = useState('')
@@ -354,10 +368,14 @@ export function SingleTaskPage(): React.JSX.Element {
   }, [taskId, exportingLocal])
 
   // Reexporta o arquivo local a cada auto-save, quando já configurado.
-  const handleNotesSaved = useCallback((): void => {
-    if (!localExportRef.current) return
-    window.api.exportNotesLocal(taskId).catch((e) => console.error('Export local falhou:', e))
-  }, [taskId])
+  const handleNotesSaved = useCallback(
+    (notes: string): void => {
+      setSavedNotes(notes)
+      if (!localExportRef.current) return
+      window.api.exportNotesLocal(taskId).catch((e) => console.error('Export local falhou:', e))
+    },
+    [taskId]
+  )
 
   // Auto-sync com o Notion a cada 1 minuto enquanto o painel está aberto
   // (só quando há alterações pendentes e o Notion está configurado).
