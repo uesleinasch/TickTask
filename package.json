@@ -1,6 +1,6 @@
 {
   "name": "ticktask",
-  "version": "3.8.0",
+  "version": "3.8.1",
   "description": "A simple and efficient task and time tracking application built with Electron, React, and Vite.",
   "main": "./out/main/index.js",
   "author": "https://ueslei.pro/",
@@ -67,6 +67,9 @@
     "tailwindcss": "^4.1.17",
     "zod": "^4.4.3",
     "zustand": "^5.0.9"
+  },
+  "overrides": {
+    "sass": "1.77.8"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
