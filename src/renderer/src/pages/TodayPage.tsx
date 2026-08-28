@@ -259,7 +259,7 @@ export function TodayPage(): React.JSX.Element {
   const completedCount = todayTasks.filter((t) => t.status === 'finalizada').length
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
+    <div className="flex flex-col h-full overflow-hidden bg-slate-50">
       {/* Header — mesmo padrão de SingleTaskPage */}
       <header className="shrink-0 px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between">
         <button

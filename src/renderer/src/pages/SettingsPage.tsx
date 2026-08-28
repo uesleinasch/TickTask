@@ -228,14 +228,14 @@ export function SettingsPage(): React.JSX.Element {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-50">
+      <div className="flex items-center justify-center h-full bg-slate-50">
         <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
+    <div className="flex flex-col h-full overflow-hidden bg-slate-50">
       {/* Header */}
       <header className="shrink-0 px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between">
         <Button
