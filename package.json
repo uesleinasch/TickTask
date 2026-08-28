@@ -29,6 +29,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "@excalidraw/excalidraw": "^0.18.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@notionhq/client": "^4.0.2",
     "@radix-ui/react-alert-dialog": "^1.1.15",

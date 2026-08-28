@@ -211,6 +211,11 @@ export function initDatabase(): void {
     /* já existe */
   }
   try {
+    db.exec('ALTER TABLE tasks ADD COLUMN drawing TEXT')
+  } catch {
+    /* já existe */
+  }
+  try {
     db.exec('ALTER TABLE tasks ADD COLUMN parent_task_id INTEGER')
   } catch {
     /* já existe */
@@ -1038,6 +1043,13 @@ export function updateTask(id: number, data: UpdateTaskInput): void {
 export function updateTaskNotes(id: number, notes: string | null): void {
   const stmt = db.prepare('UPDATE tasks SET notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
   stmt.run(notes, id)
+}
+
+export function updateTaskDrawing(id: number, drawing: string | null): void {
+  const stmt = db.prepare(
+    'UPDATE tasks SET drawing = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+  )
+  stmt.run(drawing, id)
 }
 
 export function setTaskLocalExportPath(id: number, filePath: string | null): void {

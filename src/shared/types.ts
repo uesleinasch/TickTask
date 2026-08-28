@@ -181,6 +181,8 @@ export interface Task {
   notes?: string
   // Tiptap: caminho do arquivo de exportação local (Markdown)
   local_export_path?: string
+  // Desenho da task (JSON serializado do Excalidraw); o PNG derivado vive em userData/drawings
+  drawing?: string
 }
 
 export interface CreateTaskInput {

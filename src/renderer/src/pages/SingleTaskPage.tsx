@@ -57,7 +57,8 @@ import { toast } from '@renderer/components/ui/sonner'
 import type { TaskNotesEditorHandle } from '@renderer/components/editor/TaskNotesEditor'
 import { parseNotes } from '@renderer/components/editor/notesFormat'
 import { NotesActions } from '@renderer/components/editor/NotesActions'
-import { NotesPanel } from '@renderer/components/editor/NotesPanel'
+import { NotesPanel, type NotesTab } from '@renderer/components/editor/NotesPanel'
+import type { TaskDrawingEditorHandle } from '@renderer/components/editor/TaskDrawingEditor'
 import { NotesFocusBar } from '@renderer/components/editor/NotesFocusBar'
 import {
   clampNotesWidth,
@@ -159,9 +160,14 @@ export function SingleTaskPage(): React.JSX.Element {
   // mantém a remontagem fiel — e sem tocar em `task`, cujo useEffect ressincroniza o formulário
   // inteiro e apagaria o que estiver digitado nos campos.
   const [savedNotes, setSavedNotes] = useState<string | null>(null)
+  const [savedDrawing, setSavedDrawing] = useState<string | null>(null)
+  const [notesTab, setNotesTab] = useState<NotesTab>('notes')
+  const drawingEditorRef = useRef<TaskDrawingEditorHandle>(null)
 
   useEffect(() => {
     setSavedNotes(null)
+    setSavedDrawing(null)
+    setNotesTab('notes')
   }, [taskId])
 
   const initialNotes = useMemo(
@@ -377,6 +383,15 @@ export function SingleTaskPage(): React.JSX.Element {
     [taskId]
   )
 
+  const handleDrawingSaved = useCallback(
+    (drawing: string): void => {
+      setSavedDrawing(drawing)
+      if (!localExportRef.current) return
+      window.api.exportNotesLocal(taskId).catch((e) => console.error('Export local falhou:', e))
+    },
+    [taskId]
+  )
+
   // Auto-sync com o Notion a cada 1 minuto enquanto o painel está aberto
   // (só quando há alterações pendentes e o Notion está configurado).
   useEffect(() => {
@@ -519,7 +534,7 @@ export function SingleTaskPage(): React.JSX.Element {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-100">
+      <div className="flex items-center justify-center h-full bg-slate-100">
         <p className="text-slate-400 font-mono text-sm">carregando...</p>
       </div>
     )
@@ -527,7 +542,7 @@ export function SingleTaskPage(): React.JSX.Element {
 
   if (!task) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen gap-4 bg-slate-100">
+      <div className="flex flex-col items-center justify-center h-full gap-4 bg-slate-100">
         <p className="text-slate-500">Tarefa não encontrada</p>
         <Button onClick={() => navigate('/')} variant="outline">
           <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
@@ -558,7 +573,11 @@ export function SingleTaskPage(): React.JSX.Element {
   return (
     <div
       className={cn(
-        'flex h-screen overflow-hidden bg-slate-50',
+        // h-full, não h-screen: a página vive dentro do <main> do App, que já desconta a altura
+        // do TitleBar. Com 100vh ela sobra 56px, e um scrollIntoView (o Excalidraw dá foco ao
+        // canvas ao selecionar) rola esse excesso — overflow-hidden não impede scroll
+        // programático — escondendo a barra do modo foco atrás do TitleBar, sem volta.
+        'flex h-full overflow-hidden bg-slate-50',
         dragWidth !== null && 'select-none cursor-col-resize'
       )}
     >
@@ -1045,6 +1064,12 @@ export function SingleTaskPage(): React.JSX.Element {
             onZen={handleZenNotes}
             actions={notesActions}
             zenWidth={zenWidth}
+            tab={notesTab}
+            onTabChange={setNotesTab}
+            initialDrawing={savedDrawing ?? task.drawing ?? null}
+            drawingRef={drawingEditorRef}
+            onDrawingChange={handleNotesChange}
+            onDrawingSaved={handleDrawingSaved}
           />
           {viewMode === 'zen' && (
             <button

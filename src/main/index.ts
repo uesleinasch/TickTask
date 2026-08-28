@@ -28,6 +28,7 @@ import {
   getTask,
   updateTask,
   updateTaskNotes,
+  updateTaskDrawing,
   searchMentions,
   setTaskLocalExportPath,
   deleteTask,
@@ -132,6 +133,7 @@ import {
   type NotionConfig
 } from './notion'
 import { saveNoteImage, registerAssetProtocol, ASSET_SCHEME } from './notesAssets'
+import { deleteDrawingPreview, saveDrawingPreview } from './drawingAssets'
 import { exportTaskToLocal } from './localExport'
 import { readMcpConfig, writeMcpConfig } from './mcp/store'
 import { isMcpRunning, startMcpServer, stopMcpServer } from './mcp/transport'
@@ -541,6 +543,20 @@ function setupIpcHandlers(): void {
   ipcMain.handle('task:updateNotes', (_, id: number, notes: string | null) => {
     updateTaskNotes(id, notes)
   })
+  // O PNG alimenta MCP, Notion e export local. Gravá-lo junto do JSON evita que essas três
+  // saídas passem a servir um preview defasado quando só uma das escritas falha.
+  ipcMain.handle(
+    'drawing:save',
+    async (_, taskId: number, drawing: string | null, preview: Uint8Array | null) => {
+      if (drawing === null) {
+        updateTaskDrawing(taskId, null)
+        await deleteDrawingPreview(taskId)
+        return
+      }
+      if (preview) await saveDrawingPreview(taskId, preview)
+      updateTaskDrawing(taskId, drawing)
+    }
+  )
   ipcMain.handle('notes:searchMentions', (_, query: string) => searchMentions(query))
   ipcMain.handle(
     'notes:saveImage',

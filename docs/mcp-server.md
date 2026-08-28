@@ -73,6 +73,7 @@ Ao subir a ponte com `ELECTRON_RUN_AS_NODE=1`, essa variável é removida do amb
 | `timer` | Inicia, para, consulta status ou lança tempo manual numa task. |
 | `time_report` | Tempo gasto: geral, semanal, por task, ou registros de uma task. |
 | `read_notes` | Devolve as notas de uma task convertidas para Markdown. |
+| `read_drawing` | Devolve o desenho (Excalidraw) de uma task como imagem PNG, com um resumo dos elementos e dos textos contidos. |
 | `write_notes` | Grava Markdown nas notas; `mode=append` (recomendado) ou `mode=replace` sobre nota não vazia, que exige `confirm_token`. |
 | `agenda` | Tasks agendadas e blocos de tempo de um dia, semana ou mês. |
 | `plan_day` | Agenda tasks numa data, ordena o dia, cria/remove blocos de tempo; acima do `bulkThreshold` exige `confirm_token`. |
@@ -103,3 +104,5 @@ não vazia) sempre exigem confirmação. `bulk_update_tasks` e `plan_day` só ex
 - `write_notes` converte um subconjunto de Markdown; menções `@` a outras tasks, tabelas e imagens
   do editor Tiptap não sobrevivem à conversão.
 - Deletar uma task pai apaga as subtarefas em cascata — não há como recuperar depois de confirmado.
+- `read_drawing` serve o PNG gerado no último save feito no app. Um desenho criado num TickTask
+  desatualizado, antes da coluna `drawing` existir, não tem imagem para servir.
