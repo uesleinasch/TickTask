@@ -91,7 +91,7 @@ export function ProjectDetailPage(): React.JSX.Element {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-50">
+      <div className="flex items-center justify-center h-full bg-slate-50">
         <p className="text-slate-400">Carregando...</p>
       </div>
     )
@@ -99,7 +99,7 @@ export function ProjectDetailPage(): React.JSX.Element {
 
   if (!project) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen gap-4 bg-slate-50">
+      <div className="flex flex-col items-center justify-center h-full gap-4 bg-slate-50">
         <p className="text-slate-400">Projeto não encontrado</p>
         <Button onClick={() => navigate('/projects')} variant="outline">
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -115,7 +115,7 @@ export function ProjectDetailPage(): React.JSX.Element {
       : 0
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
+    <div className="flex flex-col h-full overflow-hidden bg-slate-50">
       {/* Header */}
       <header className="shrink-0 px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between">
         <div className="flex items-center gap-3">
