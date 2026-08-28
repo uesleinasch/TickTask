@@ -6,6 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 TickTask is an Electron desktop app for personal task and time tracking, organized around GTD (Getting Things Done) concepts: an inbox, contexts, projects, areas, goals/horizons, weekly reviews, plus time tracking, recurring tasks, subtasks, and task dependencies. Local-first with SQLite; optional one-way+ sync to Notion. UI strings, task statuses, and categories are in Portuguese (e.g. status `inbox`/`aguardando`/`proximas`/`executando`/`finalizada`/`someday`).
 
+## Where the docs are
+
+- **`docs/ui/`** — screen-by-screen map of the interface (written in pt-BR): every route, region and
+  interactive element, plus the component library, the real design tokens and a catalogue of
+  inconsistencies. Start at `docs/ui/README.md`. **Read the relevant screen doc before touching a
+  page** — it records behaviour that isn't obvious from the JSX (persisted preferences, why the float
+  appears, which colors disagree with which).
+- **`docs/mcp-server.md`** — embedded MCP server: tool list and known limitations.
+- **`ui-ux/`** — original design system and mockups; see the caveat under **Conventions**.
+
 ## Commands
 
 ```bash
@@ -66,6 +76,13 @@ renderer (React)  →  preload (window.api)  →  main (ipcMain.handle)  →  da
 ### Adding a feature (the cross-cutting path)
 
 A typical new capability touches, in order: `src/shared/types.ts` → a query fn in `src/main/database.ts` → an `ipcMain.handle('domain:action', …)` in `src/main/index.ts` (inside `setupIpcHandlers`) → a wrapper in `src/preload/index.ts` **and** its type in `index.d.ts` → a hook in `src/renderer/src/hooks/` → page/component + (if a new screen) a `<Route>` in `App.tsx`.
+
+A **new screen** needs three more touches in `App.tsx`/`TitleBar.tsx`, all easy to miss:
+its `<Route>`; the `isSubPage` list in `AppContent` (which decides whether the `FloatingTimer`
+overlay renders); and a button in `TitleBar` — whose whole nav bar only renders on `/`, so a screen
+with no `TitleBar` entry is reachable only by code. The page shell itself must use `h-full`, never
+`h-screen`: `<main>` already subtracted the TitleBar, and the extra 56px can be scrolled by a
+programmatic `scrollIntoView` (see `docs/ui/02-detalhe-da-tarefa.md`).
 
 ## Database
 
@@ -132,11 +149,16 @@ confirmation guard in `confirmGuard.ts` (preview + `confirm_token`, then repeat 
 
 ## Windows & shortcuts
 
-`index.ts` manages three `BrowserWindow`s: `mainWindow`, an always-on-top `floatWindow` (the floating timer, route `/float`), and `quickCaptureWindow` (route `/quick-capture`). Global shortcut **`CommandOrControl+Shift+Space`** toggles quick capture. The float and quick-capture windows are `frame: false`; the main window keeps its OS frame with `autoHideMenuBar` and renders its own in-app `TitleBar` (the `window:minimize`/`maximize`/`close` channels).
+`index.ts` manages three `BrowserWindow`s: `mainWindow`, an always-on-top `floatWindow` (the floating timer, route `/float`), and `quickCaptureWindow` (route `/quick-capture`). Global shortcut **`CommandOrControl+Shift+Space`** toggles quick capture. The float and quick-capture windows are `frame: false`; the main window keeps its OS frame with `autoHideMenuBar` and renders its own in-app `TitleBar`. The `window:minimize`/`maximize`/`close` channels exist in the preload but no button in the current UI is wired to them.
 
-The float is driven by `mainWindow` events, not by the renderer: `minimize` shows it **only when a
-timer is running**, `restore` and `focus` hide it. A due-date notification sweep
-(`startNotificationScheduler`) also runs hourly from the main process.
+The float is driven by `mainWindow` events, not by the renderer: `minimize` **and `close`** show it
+**only when a timer is running**, `restore` and `focus` hide it. Its size is derived from the timer
+count (`FLOAT_WIDTH = 300`, 44px per row, max 5 rows) and only re-set when that count changes.
+A due-date notification sweep (`startNotificationScheduler`) also runs hourly from the main process.
+
+Closing the main window **hides** it — the app lives on in a tray icon (`src/main/tray.ts`: Abrir
+TickTask / Captura rápida / Sair); only "Sair" actually quits. Autostart is toggled from Settings
+(`app:getAutostart` / `app:setAutostart`) and launches the app straight into the tray.
 
 All three windows load the **same renderer bundle**, so anything that runs at module scope runs
 three times. `stores/timerWindow.ts` (`shouldBootstrapTimerStore`) is the guard: the auxiliary
@@ -154,9 +176,16 @@ Defined in `electron.vite.config.ts` and the tsconfigs:
 
 - Pages: `*Page.tsx`; hooks: `useX.ts`; stores: `xStore.ts`. shadcn config in `components.json` (new-york style, lucide icons, `@renderer/components/ui`).
 - No global app store beyond the timer — screen data is fetched on demand inside hooks via `window.api`; cross-screen freshness comes from the `tasks:refresh` event, not shared state.
-- Visual language (slate palette, status colors, typography scale, flat/no-shadow aesthetic) is
-  specified in `ui-ux/TickTask - Design System & Guia de Estilo.md`. Check it before inventing
-  colors or spacing.
+- Visual language: **`docs/ui/14-design-tokens.md` describes what the code actually uses** and is the
+  practical reference before inventing colors, radii or spacing.
+  `ui-ux/TickTask - Design System & Guia de Estilo.md` is the original intent and is partly stale
+  (it prescribes `rounded-xl` + shadows; the app moved to `rounded-sm` and dropped `shadow-sm`).
+  Two gotchas worth knowing: `--radius: 0.75rem` makes `rounded-sm` resolve to **8px**, not
+  Tailwind's 2px; and `--font-sans`/`--font-mono` point at `--font-geist-*` variables that are never
+  defined.
+- Status/category colors are declared in several places at once (`shared/types.ts`, `StatusBadge`,
+  `CategoryBadge`, plus local copies in `DashboardPage` and `CalendarPage`) and they **disagree** —
+  check `docs/ui/14-design-tokens.md` before assuming a single source of truth.
 - Carried over from `.github/copilot-instructions.md`: change only what the task requires, keep the
   code simple over clever, and reserve inline comments for genuinely non-obvious constraints.
 
