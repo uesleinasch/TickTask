@@ -9,6 +9,13 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  # 13 MB dos 14 MB de fontes do Excalidraw são a família CJK; sem ela, texto em chinês cai no
+  # fallback do sistema e o instalador não engorda dez vezes por isso.
+  - '!node_modules/@excalidraw/excalidraw/dist/prod/fonts/Xiaolai/**'
+  # O renderer é bundlado pelo Vite, então do pacote só sobrevive o que o main lê em runtime: as
+  # fontes servidas de dist/prod (notesAssets.ts). O dist/dev só é resolvido pela condition
+  # development do package.json do Excalidraw, e traz outra cópia da mesma família CJK.
+  - '!node_modules/@excalidraw/excalidraw/dist/dev/**'
 asarUnpack:
   - resources/**
 win:

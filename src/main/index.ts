@@ -1,16 +1,39 @@
-import { app, shell, BrowserWindow, ipcMain, Notification, screen, globalShortcut } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  ipcMain,
+  Notification,
+  screen,
+  globalShortcut,
+  dialog,
+  protocol
+} from 'electron'
+import { copyFileSync } from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/512.png?asset'
+import { shouldStartHidden } from './launchArgs'
+import { createTray, destroyTray } from './tray'
+import { isAutostartEnabled, setAutostartEnabled } from './autostart'
 import {
   initDatabase,
   closeDatabase,
   createTask,
   listTasks,
+  countTasks,
+  listActiveTasksLight,
+  listRunningTasks,
+  listTasksForSync,
   getTask,
   updateTask,
+  updateTaskNotes,
+  updateTaskDrawing,
+  searchMentions,
+  setTaskLocalExportPath,
   deleteTask,
   deleteTasks,
+  getChildTaskIds,
   archiveTask,
   unarchiveTask,
   updateTaskStatus,
@@ -30,9 +53,15 @@ import {
   getCategoryStats,
   getHeatmapData,
   getGeneralStats,
+  getGtdMetrics,
+  getEnergyStats,
   // Tags
   createTag,
   listTags,
+  listTagsWithUsage,
+  listTaskIdsWithTag,
+  updateTag,
+  mergeTags,
   getOrCreateTag,
   deleteTag,
   getTaskTags,
@@ -58,6 +87,24 @@ import {
   getLastWeeklyReview,
   updateWeeklyReview,
   getReviewHealthIndicators,
+  // FASE 4.3: Blocos de Tempo
+  createTimeBlock,
+  getTimeBlocksForDate,
+  getTimeBlocksForWeek,
+  getTimeBlocksForMonth,
+  updateTimeBlock,
+  deleteTimeBlock,
+  // FASE 4: Horizontes GTD
+  createArea,
+  getArea,
+  listAreas,
+  updateArea,
+  deleteArea,
+  createGoal,
+  getGoal,
+  listGoals,
+  updateGoal,
+  deleteGoal,
   // FASE 2
   getSubtasks,
   completeSubtasksCheck,
@@ -79,24 +126,66 @@ import {
   clearNotionConfig,
   testNotionConnection,
   syncTaskToNotion,
+  syncTaskNotesToNotion,
   syncAllTasks,
   findOrCreateDatabase,
   deleteTaskFromNotion,
   type NotionConfig
 } from './notion'
+import { saveNoteImage, registerAssetProtocol, ASSET_SCHEME } from './notesAssets'
+import { deleteDrawingPreview, saveDrawingPreview } from './drawingAssets'
+import { exportTaskToLocal } from './localExport'
+import { readMcpConfig, writeMcpConfig } from './mcp/store'
+import { isMcpRunning, startMcpServer, stopMcpServer } from './mcp/transport'
+import { generateToken } from './mcp/config'
+import { registerWriteEffects } from './mcp/effects'
 import type {
   CreateTaskInput,
   UpdateTaskInput,
   TaskStatus,
+  TaskListFilters,
+  UpdateTagInput,
   CreateProjectInput,
   UpdateProjectInput,
-  ProjectStatus
+  ProjectStatus,
+  McpStatus
 } from '../shared/types'
+
+// Protocolo custom para servir imagens locais das notas ao renderer.
+// Precisa ser registrado como privilegiado ANTES do app 'ready'.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: ASSET_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true }
+  }
+])
+
+// Uma segunda instância abriria o mesmo SQLite e disputaria a porta do MCP. Sair aqui, antes
+// de qualquer inicialização, é o que mantém a instância viva como dona única desses recursos.
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+if (!hasSingleInstanceLock) {
+  app.quit()
+}
 
 let mainWindow: BrowserWindow | null = null
 let floatWindow: BrowserWindow | null = null
 let quickCaptureWindow: BrowserWindow | null = null
-let currentTimerData: { taskId: number; taskName: string; seconds: number } | null = null
+type FloatTimerData = { taskId: number; taskName: string; seconds: number }
+let currentTimers: FloatTimerData[] = []
+let isQuitting = false
+let startHidden = shouldStartHidden(process.argv)
+
+// Dimensões da janela flutuante (lista com altura dinâmica)
+const FLOAT_WIDTH = 300
+const FLOAT_ROW_HEIGHT = 44
+const FLOAT_FOOTER_HEIGHT = 44
+const FLOAT_VPADDING = 16
+const FLOAT_MAX_ROWS = 5
+
+function floatHeightFor(count: number): number {
+  const rows = Math.min(Math.max(count, 1), FLOAT_MAX_ROWS)
+  return rows * FLOAT_ROW_HEIGHT + FLOAT_FOOTER_HEIGHT + FLOAT_VPADDING
+}
 
 // Atalho global padrão para captura rápida
 const quickCaptureShortcut = 'CommandOrControl+Shift+Space'
@@ -131,6 +220,30 @@ async function autoSyncToNotion(taskId: number): Promise<void> {
   }
 }
 
+// Renomear, mesclar ou excluir uma tag muda o multi_select das tarefas no Notion, que só é
+// reescrito quando a tarefa inteira é sincronizada de novo.
+async function syncTasksAfterTagChange(taskIds: number[]): Promise<void> {
+  if (taskIds.length === 0) return
+  const config = getNotionConfig()
+  if (!config?.autoSync || !config.databaseId) return
+
+  const label = `${taskIds.length} ${taskIds.length === 1 ? 'tarefa' : 'tarefas'}`
+  mainWindow?.webContents.send('notion:syncStart', label)
+  try {
+    for (const id of taskIds) {
+      const task = getTask(id)
+      if (task) {
+        await syncTaskToNotion(task)
+      }
+    }
+    mainWindow?.webContents.send('notion:syncSuccess', label)
+  } catch (error) {
+    console.error('Erro ao ressincronizar tarefas após mudança de tag:', error)
+    const message = error instanceof Error ? error.message : 'Erro desconhecido'
+    mainWindow?.webContents.send('notion:syncError', message)
+  }
+}
+
 // ===================== FLOAT WINDOW =====================
 
 function createFloatWindow(): void {
@@ -143,9 +256,9 @@ function createFloatWindow(): void {
   const { width } = display.workAreaSize
 
   floatWindow = new BrowserWindow({
-    width: 280,
-    height: 70,
-    x: width - 300,
+    width: FLOAT_WIDTH,
+    height: floatHeightFor(currentTimers.length),
+    x: width - FLOAT_WIDTH - 20,
     y: 20,
     frame: false,
     transparent: true,
@@ -176,25 +289,26 @@ function showFloatWindow(): void {
   if (!floatWindow) {
     createFloatWindow()
   }
+  if (!floatWindow || floatWindow.isVisible()) return
 
-  if (floatWindow && !floatWindow.isVisible()) {
+  const pushState = (): void => {
+    if (!floatWindow || floatWindow.isDestroyed()) return
+    floatWindow.setSize(FLOAT_WIDTH, floatHeightFor(currentTimers.length))
+    if (currentTimers.length > 0) {
+      floatWindow.webContents.send('float:update', currentTimers)
+    } else {
+      floatWindow.webContents.send('float:clear')
+    }
+  }
+
+  if (floatWindow.webContents.isLoading()) {
     floatWindow.once('ready-to-show', () => {
       floatWindow?.show()
-      if (currentTimerData) {
-        floatWindow?.webContents.send('float:update', currentTimerData)
-      } else {
-        floatWindow?.webContents.send('float:clear')
-      }
+      pushState()
     })
-
-    if (floatWindow.webContents.isLoading() === false) {
-      floatWindow.show()
-      if (currentTimerData) {
-        floatWindow.webContents.send('float:update', currentTimerData)
-      } else {
-        floatWindow.webContents.send('float:clear')
-      }
-    }
+  } else {
+    floatWindow.show()
+    pushState()
   }
 }
 
@@ -205,17 +319,23 @@ function hideFloatWindow(): void {
 }
 
 function clearFloatWindowState(): void {
-  currentTimerData = null
+  currentTimers = []
   if (floatWindow && !floatWindow.isDestroyed()) {
     floatWindow.destroy()
     floatWindow = null
   }
 }
 
-function updateFloatWindow(data: { taskId: number; taskName: string; seconds: number }): void {
-  currentTimerData = data
+function updateFloatWindow(timers: FloatTimerData[]): void {
+  currentTimers = timers
   if (floatWindow && !floatWindow.isDestroyed() && floatWindow.isVisible()) {
-    floatWindow.webContents.send('float:update', data)
+    // Redimensionar a cada tick repinta a janela transparente sem necessidade.
+    const [, currentHeight] = floatWindow.getSize()
+    const nextHeight = floatHeightFor(timers.length)
+    if (currentHeight !== nextHeight) {
+      floatWindow.setSize(FLOAT_WIDTH, nextHeight)
+    }
+    floatWindow.webContents.send('float:update', timers)
   }
 }
 
@@ -251,7 +371,9 @@ function createQuickCaptureWindow(): void {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     quickCaptureWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/quick-capture`)
   } else {
-    quickCaptureWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/quick-capture' })
+    quickCaptureWindow.loadFile(join(__dirname, '../renderer/index.html'), {
+      hash: '/quick-capture'
+    })
   }
 
   quickCaptureWindow.once('ready-to-show', () => {
@@ -281,6 +403,24 @@ function registerGlobalShortcut(): void {
 
 // ===================== MAIN WINDOW =====================
 
+function revealMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    startHidden = false
+    createWindow()
+    return
+  }
+
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+  hideFloatWindow()
+}
+
+function quitApp(): void {
+  isQuitting = true
+  app.quit()
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1024,
@@ -298,11 +438,26 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
+    if (startHidden) {
+      startHidden = false
+      return
+    }
     mainWindow?.show()
   })
 
+  mainWindow.on('close', (event) => {
+    if (isQuitting) return
+    event.preventDefault()
+    mainWindow?.hide()
+    // hide() não emite 'minimize', então o float precisa ser acionado aqui — é justamente
+    // ao esconder a janela com um timer rodando que ele importa.
+    if (currentTimers.length > 0) {
+      showFloatWindow()
+    }
+  })
+
   mainWindow.on('minimize', () => {
-    if (currentTimerData) {
+    if (currentTimers.length > 0) {
       showFloatWindow()
     }
   })
@@ -327,6 +482,35 @@ function createWindow(): void {
   }
 }
 
+// ===================== MCP SERVER =====================
+
+const BRIDGE_FILE = 'mcp-bridge.js'
+
+// A ponte é registrada no cliente MCP por caminho absoluto, então ele precisa sobreviver a
+// atualizações do app e, no AppImage, ao volume temporário onde a instalação vive. Copiar para
+// o userData a cada boot resolve os dois casos.
+function ensureBridgeScript(): string {
+  const target = join(app.getPath('userData'), BRIDGE_FILE)
+  try {
+    copyFileSync(join(__dirname, BRIDGE_FILE), target)
+  } catch (error) {
+    console.error('[mcp] falha ao publicar a ponte stdio:', error)
+  }
+  return target
+}
+
+function buildMcpStatus(): McpStatus {
+  const config = readMcpConfig()
+  const bridge = join(app.getPath('userData'), BRIDGE_FILE)
+  return {
+    enabled: config.enabled,
+    running: isMcpRunning(),
+    port: config.port,
+    token: config.token,
+    command: `claude mcp add ticktask --scope user --env ELECTRON_RUN_AS_NODE=1 -- "${process.execPath}" "${bridge}"`
+  }
+}
+
 // ===================== IPC HANDLERS =====================
 
 function setupIpcHandlers(): void {
@@ -347,15 +531,69 @@ function setupIpcHandlers(): void {
     autoSyncToNotion(task.id)
     return task
   })
-  ipcMain.handle('task:list', (_, archived?: boolean) => listTasks(archived))
+  ipcMain.handle('task:list', (_, filters?: TaskListFilters) => listTasks(filters))
+  ipcMain.handle('task:count', (_, filters?: TaskListFilters) => countTasks(filters))
+  ipcMain.handle('task:listActiveLight', () => listActiveTasksLight())
+  ipcMain.handle('task:listRunning', () => listRunningTasks())
   ipcMain.handle('task:get', (_, id: number) => getTask(id))
   ipcMain.handle('task:update', (_, id: number, data: UpdateTaskInput) => {
     updateTask(id, data)
     autoSyncToNotion(id)
   })
+  ipcMain.handle('task:updateNotes', (_, id: number, notes: string | null) => {
+    updateTaskNotes(id, notes)
+  })
+  // O PNG alimenta MCP, Notion e export local. Gravá-lo junto do JSON evita que essas três
+  // saídas passem a servir um preview defasado quando só uma das escritas falha.
+  ipcMain.handle(
+    'drawing:save',
+    async (_, taskId: number, drawing: string | null, preview: Uint8Array | null) => {
+      if (drawing === null) {
+        updateTaskDrawing(taskId, null)
+        await deleteDrawingPreview(taskId)
+        return
+      }
+      if (preview) await saveDrawingPreview(taskId, preview)
+      updateTaskDrawing(taskId, drawing)
+    }
+  )
+  ipcMain.handle('notes:searchMentions', (_, query: string) => searchMentions(query))
+  ipcMain.handle(
+    'notes:saveImage',
+    (_, taskId: number, bytes: Uint8Array, filename: string, mime: string) =>
+      saveNoteImage(taskId, bytes, filename, mime)
+  )
+  // Escolhe (via diálogo) o arquivo de exportação local, persiste o caminho e exporta.
+  ipcMain.handle('notes:exportLocalChoose', async (_, taskId: number) => {
+    const task = getTask(taskId)
+    if (!task) return null
+    const safeName = (task.name || 'task').replace(/[^\w\-. ]+/g, '_').trim() || 'task'
+    const result = await dialog.showSaveDialog({
+      title: 'Salvar nota localmente',
+      defaultPath: task.local_export_path || `${safeName}.md`,
+      filters: [{ name: 'Markdown', extensions: ['md'] }]
+    })
+    if (result.canceled || !result.filePath) return null
+    setTaskLocalExportPath(taskId, result.filePath)
+    await exportTaskToLocal({ ...task, local_export_path: result.filePath }, result.filePath)
+    return result.filePath
+  })
+  // Reexporta silenciosamente se a task já tem um caminho local configurado.
+  ipcMain.handle('notes:exportLocal', async (_, taskId: number) => {
+    const task = getTask(taskId)
+    if (!task || !task.local_export_path) return false
+    await exportTaskToLocal(task, task.local_export_path)
+    return true
+  })
   ipcMain.handle('task:delete', (_, id: number) => {
     const config = getNotionConfig()
     if (config?.autoSync && config.databaseId) {
+      // Excluir também as subtarefas do Notion
+      for (const childId of getChildTaskIds(id)) {
+        deleteTaskFromNotion(childId).catch((error) => {
+          console.error('Erro ao deletar subtarefa do Notion:', error)
+        })
+      }
       deleteTaskFromNotion(id).catch((error) => {
         console.error('Erro ao deletar do Notion:', error)
       })
@@ -368,8 +606,10 @@ function setupIpcHandlers(): void {
 
     const config = getNotionConfig()
     if (config?.autoSync && config.databaseId) {
+      // Incluir as subtarefas de cada tarefa para excluí-las também do Notion
+      const idsToDelete = [...taskIds, ...taskIds.flatMap((id) => getChildTaskIds(id))]
       await Promise.all(
-        taskIds.map(async (id) => {
+        idsToDelete.map(async (id) => {
           try {
             await deleteTaskFromNotion(id)
           } catch (error) {
@@ -497,12 +737,9 @@ function setupIpcHandlers(): void {
   })
 
   // Float window controls
-  ipcMain.handle(
-    'float:updateTimer',
-    (_, data: { taskId: number; taskName: string; seconds: number }) => {
-      updateFloatWindow(data)
-    }
-  )
+  ipcMain.handle('float:updateTimer', (_, timers: FloatTimerData[]) => {
+    updateFloatWindow(timers)
+  })
   ipcMain.handle('float:clearTimer', () => {
     clearFloatWindowState()
     hideFloatWindow()
@@ -516,10 +753,17 @@ function setupIpcHandlers(): void {
   })
   ipcMain.handle('float:stopTimer', async (_, taskId: number) => {
     const result = await stopTask(taskId)
-    clearFloatWindowState()
-    hideFloatWindow()
+    autoSyncToNotion(taskId)
     mainWindow?.webContents.send('timer:stopped', taskId)
     return result
+  })
+  ipcMain.handle('float:stopAll', async () => {
+    const ids = currentTimers.map((t) => t.taskId)
+    for (const id of ids) {
+      await stopTask(id)
+      autoSyncToNotion(id)
+      mainWindow?.webContents.send('timer:stopped', id)
+    }
   })
 
   // Statistics
@@ -529,12 +773,45 @@ function setupIpcHandlers(): void {
   ipcMain.handle('stats:category', () => getCategoryStats())
   ipcMain.handle('stats:heatmap', () => getHeatmapData())
   ipcMain.handle('stats:general', () => getGeneralStats())
+  // FASE 4.2: Advanced stats
+  ipcMain.handle('stats:gtdMetrics', () => getGtdMetrics())
+  ipcMain.handle('stats:energy', () => getEnergyStats())
+  ipcMain.handle('report:weeklyPDF', async () => {
+    if (!mainWindow) return
+    const { filePath } = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: `ticktask-relatorio-${new Date().toISOString().split('T')[0]}.pdf`,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    })
+    if (filePath) {
+      const data = await mainWindow.webContents.printToPDF({
+        printBackground: true,
+        landscape: true
+      })
+      const { writeFile } = await import('fs/promises')
+      await writeFile(filePath, data)
+      shell.openPath(filePath)
+    }
+  })
 
   // Tags
   ipcMain.handle('tag:create', (_, name: string, color?: string) => createTag(name, color))
   ipcMain.handle('tag:list', () => listTags())
   ipcMain.handle('tag:getOrCreate', (_, name: string) => getOrCreateTag(name))
-  ipcMain.handle('tag:delete', (_, id: number) => deleteTag(id))
+  ipcMain.handle('tag:listWithUsage', () => listTagsWithUsage())
+  ipcMain.handle('tag:update', (_, id: number, data: UpdateTagInput) => {
+    updateTag(id, data)
+    syncTasksAfterTagChange(listTaskIdsWithTag(id))
+  })
+  ipcMain.handle('tag:merge', (_, sourceId: number, targetId: number) => {
+    const affected = mergeTags(sourceId, targetId)
+    syncTasksAfterTagChange(affected)
+    return affected.length
+  })
+  ipcMain.handle('tag:delete', (_, id: number) => {
+    const affected = listTaskIdsWithTag(id)
+    deleteTag(id)
+    syncTasksAfterTagChange(affected)
+  })
   ipcMain.handle('tag:getTaskTags', (_, taskId: number) => getTaskTags(taskId))
   ipcMain.handle('tag:setTaskTags', (_, taskId: number, tagIds: number[]) => {
     setTaskTags(taskId, tagIds)
@@ -545,7 +822,9 @@ function setupIpcHandlers(): void {
   ipcMain.handle('project:create', (_, data: CreateProjectInput) => createProject(data))
   ipcMain.handle('project:get', (_, id: number) => getProject(id))
   ipcMain.handle('project:list', (_, status?: ProjectStatus) => listProjects(status))
-  ipcMain.handle('project:update', (_, id: number, data: UpdateProjectInput) => updateProject(id, data))
+  ipcMain.handle('project:update', (_, id: number, data: UpdateProjectInput) =>
+    updateProject(id, data)
+  )
   ipcMain.handle('project:delete', (_, id: number) => deleteProject(id))
   ipcMain.handle('project:getTasks', (_, projectId: number) => getProjectTasks(projectId))
 
@@ -554,8 +833,10 @@ function setupIpcHandlers(): void {
     createContext(name, icon, color)
   )
   ipcMain.handle('context:list', () => listContexts())
-  ipcMain.handle('context:update', (_, id: number, data: { name?: string; icon?: string; color?: string }) =>
-    updateContext(id, data)
+  ipcMain.handle(
+    'context:update',
+    (_, id: number, data: { name?: string; icon?: string; color?: string }) =>
+      updateContext(id, data)
   )
   ipcMain.handle('context:delete', (_, id: number) => deleteContext(id))
   ipcMain.handle('context:getTaskContexts', (_, taskId: number) => getTaskContexts(taskId))
@@ -573,7 +854,12 @@ function setupIpcHandlers(): void {
     (
       _,
       id: number,
-      data: { inbox_cleared?: boolean; notes?: string; checklist_state?: string; completed_at?: string }
+      data: {
+        inbox_cleared?: boolean
+        notes?: string
+        checklist_state?: string
+        completed_at?: string
+      }
     ) => updateWeeklyReview(id, data)
   )
   ipcMain.handle('review:healthIndicators', () => getReviewHealthIndicators())
@@ -613,16 +899,33 @@ function setupIpcHandlers(): void {
     if (!task) throw new Error('Tarefa não encontrada')
     return syncTaskToNotion(task)
   })
+  ipcMain.handle('notion:syncTaskNotes', async (_, taskId: number) => {
+    const task = getTask(taskId)
+    if (!task) throw new Error('Tarefa não encontrada')
+    mainWindow?.webContents.send('notion:syncStart', task.name)
+    try {
+      await syncTaskNotesToNotion(task)
+      mainWindow?.webContents.send('notion:syncSuccess', task.name)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+      mainWindow?.webContents.send('notion:syncError', errorMessage)
+      throw error
+    }
+  })
   ipcMain.handle('notion:syncAllTasks', async () => {
-    const tasks = listTasks(false)
+    const tasks = listTasksForSync()
     return syncAllTasks(tasks)
   })
   ipcMain.handle('notion:createDatabase', () => findOrCreateDatabase())
 
   // ===================== FASE 2: Subtarefas =====================
   ipcMain.handle('subtask:list', (_, parentId: number) => getSubtasks(parentId))
-  ipcMain.handle('subtask:create', (_, data: { name: string; parent_task_id: number }) => {
+  ipcMain.handle('subtask:create', async (_, data: { name: string; parent_task_id: number }) => {
     const task = createTask({ name: data.name, parent_task_id: data.parent_task_id })
+    // Sincroniza a pai primeiro (garante a página no Notion) e depois a subtarefa,
+    // para que a relação "Tarefa Pai" encontre a página da pai.
+    await autoSyncToNotion(data.parent_task_id)
+    autoSyncToNotion(task.id)
     return task
   })
 
@@ -643,6 +946,58 @@ function setupIpcHandlers(): void {
   )
   ipcMain.handle('task:scheduleForDate', (_, taskId: number, date: string | null) => {
     updateTask(taskId, { scheduled_date: date })
+  })
+
+  // ===================== FASE 4.3: Blocos de Tempo =====================
+  ipcMain.handle('timeBlock:create', (_, data) => createTimeBlock(data))
+  ipcMain.handle('timeBlock:getForDate', (_, date: string) => getTimeBlocksForDate(date))
+  ipcMain.handle('timeBlock:getForWeek', (_, startDate: string) => getTimeBlocksForWeek(startDate))
+  ipcMain.handle('timeBlock:getForMonth', (_, yearMonth: string) =>
+    getTimeBlocksForMonth(yearMonth)
+  )
+  ipcMain.handle('timeBlock:update', (_, id: number, data) => updateTimeBlock(id, data))
+  ipcMain.handle('timeBlock:delete', (_, id: number) => deleteTimeBlock(id))
+
+  // ===================== FASE 4: Áreas de Foco =====================
+  ipcMain.handle('area:create', (_, data) => createArea(data))
+  ipcMain.handle('area:get', (_, id: number) => getArea(id))
+  ipcMain.handle('area:list', () => listAreas())
+  ipcMain.handle('area:update', (_, id: number, data) => updateArea(id, data))
+  ipcMain.handle('area:delete', (_, id: number) => deleteArea(id))
+
+  // ===================== FASE 4: Objetivos (Goals) =====================
+  ipcMain.handle('goal:create', (_, data) => createGoal(data))
+  ipcMain.handle('goal:get', (_, id: number) => getGoal(id))
+  ipcMain.handle('goal:list', (_, areaId?: number) => listGoals(areaId))
+  ipcMain.handle('goal:update', (_, id: number, data) => updateGoal(id, data))
+  ipcMain.handle('goal:delete', (_, id: number) => deleteGoal(id))
+
+  // ===================== INICIALIZAÇÃO =====================
+  ipcMain.handle('app:getAutostart', () => isAutostartEnabled())
+  ipcMain.handle('app:setAutostart', (_, enabled: boolean) => setAutostartEnabled(enabled))
+
+  // ===================== MCP SERVER =====================
+  ipcMain.handle('mcp:getStatus', () => buildMcpStatus())
+  ipcMain.handle('mcp:setEnabled', async (_, enabled: boolean) => {
+    const config = writeMcpConfig({ enabled })
+    if (enabled) {
+      await startMcpServer(config).catch((error) => {
+        console.error('[mcp] falha ao iniciar:', error)
+      })
+    } else {
+      await stopMcpServer()
+    }
+    return buildMcpStatus()
+  })
+  ipcMain.handle('mcp:regenerateToken', async () => {
+    const config = writeMcpConfig({ token: generateToken() })
+    if (config.enabled) {
+      await stopMcpServer()
+      await startMcpServer(config).catch((error) => {
+        console.error('[mcp] falha ao reiniciar após regenerar token:', error)
+      })
+    }
+    return buildMcpStatus()
   })
 }
 
@@ -700,7 +1055,30 @@ function startNotificationScheduler(): void {
 }
 
 app.whenReady().then(() => {
+  if (!hasSingleInstanceLock) return
+
   initDatabase()
+
+  registerWriteEffects({
+    getMainWindow: () => mainWindow,
+    autoSync: (id) => autoSyncToNotion(id),
+    syncTagChange: (ids) => syncTasksAfterTagChange(ids)
+  })
+
+  // Nenhuma falha do MCP pode impedir createWindow(): esta promise não tem .catch.
+  try {
+    ensureBridgeScript()
+    const mcpConfig = readMcpConfig()
+    if (mcpConfig.enabled) {
+      startMcpServer(mcpConfig).catch((error) => {
+        console.error('[mcp] falha ao iniciar na porta', mcpConfig.port, error)
+      })
+    }
+  } catch (error) {
+    console.error('[mcp] falha ao inicializar na abertura do app:', error)
+  }
+
+  registerAssetProtocol()
   setupIpcHandlers()
   startNotificationScheduler()
 
@@ -717,25 +1095,36 @@ app.whenReady().then(() => {
 
   createWindow()
 
+  createTray({
+    showMainWindow: revealMainWindow,
+    openQuickCapture: createQuickCaptureWindow,
+    quit: quitApp
+  })
+
   // Registrar atalho global para captura rápida
   registerGlobalShortcut()
+
+  app.on('second-instance', () => {
+    revealMainWindow()
+  })
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
-})
+// O app vive na bandeja: fechar a janela principal não encerra o processo, senão o servidor
+// MCP cairia junto. A saída acontece pelo menu do tray (quitApp).
+app.on('window-all-closed', () => {})
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
 })
 
 app.on('before-quit', () => {
+  isQuitting = true
+  destroyTray()
   if (notificationInterval) clearInterval(notificationInterval)
+  void stopMcpServer()
   closeDatabase()
 })

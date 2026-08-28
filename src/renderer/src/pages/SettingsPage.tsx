@@ -15,9 +15,14 @@ import {
   ExternalLink,
   Loader2,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Server,
+  Copy,
+  KeyRound,
+  Power
 } from 'lucide-react'
 import { toast } from '@renderer/components/ui/sonner'
+import type { McpStatus } from '@shared/types'
 
 interface NotionConfig {
   apiKey: string
@@ -40,6 +45,9 @@ export function SettingsPage(): React.JSX.Element {
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [hasChanges, setHasChanges] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [mcpStatus, setMcpStatus] = useState<McpStatus | null>(null)
+  const [isRegeneratingToken, setIsRegeneratingToken] = useState(false)
+  const [autostart, setAutostart] = useState(false)
 
   // Carregar configuração salva
   useEffect(() => {
@@ -56,6 +64,11 @@ export function SettingsPage(): React.JSX.Element {
       }
     }
     loadConfig()
+  }, [])
+
+  useEffect(() => {
+    void window.api.mcpGetStatus().then(setMcpStatus)
+    void window.api.appGetAutostart().then(setAutostart)
   }, [])
 
   const handleInputChange = useCallback(
@@ -177,16 +190,52 @@ export function SettingsPage(): React.JSX.Element {
     }
   }, [])
 
+  const toggleMcp = async (): Promise<void> => {
+    if (!mcpStatus) return
+    setMcpStatus(await window.api.mcpSetEnabled(!mcpStatus.enabled))
+  }
+
+  const toggleAutostart = async (): Promise<void> => {
+    const next = await window.api.appSetAutostart(!autostart)
+    setAutostart(next)
+    if (next === autostart) {
+      toast.error('Não foi possível alterar a inicialização automática')
+    }
+  }
+
+  const regenerateMcpToken = async (): Promise<void> => {
+    setIsRegeneratingToken(true)
+    try {
+      setMcpStatus(await window.api.mcpRegenerateToken())
+      toast.success('Token regenerado com sucesso')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro desconhecido'
+      toast.error(`Erro ao regenerar token: ${message}`)
+    } finally {
+      setIsRegeneratingToken(false)
+    }
+  }
+
+  const copyMcpCommand = async (): Promise<void> => {
+    if (!mcpStatus) return
+    try {
+      await navigator.clipboard.writeText(mcpStatus.command)
+      toast.success('Comando copiado para a área de transferência')
+    } catch {
+      toast.error('Não foi possível copiar o comando')
+    }
+  }
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-50">
+      <div className="flex items-center justify-center h-full bg-slate-50">
         <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
+    <div className="flex flex-col h-full overflow-hidden bg-slate-50">
       {/* Header */}
       <header className="shrink-0 px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between">
         <Button
@@ -207,7 +256,7 @@ export function SettingsPage(): React.JSX.Element {
       <ScrollArea className="flex-1 h-0">
         <div className="max-w-2xl mx-auto p-6 space-y-6">
           {/* Notion Integration Section */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
+          <div className="bg-white border border-slate-200 rounded-sm p-6 space-y-6">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-slate-900 rounded-lg">
                 <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
@@ -437,8 +486,140 @@ export function SettingsPage(): React.JSX.Element {
             </div>
           </div>
 
+          {/* Inicialização Section */}
+          <div className="bg-white border border-slate-200 rounded-sm p-6 space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-slate-900 rounded-lg">
+                <Power size={24} className="text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Inicialização</h2>
+                <p className="text-sm text-slate-500">
+                  Mantenha o TickTask e o servidor MCP disponíveis desde o login
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div>
+                <label className="text-sm font-medium text-slate-700">
+                  Iniciar o TickTask com o sistema
+                </label>
+                <p className="text-xs mt-0.5 text-slate-500">
+                  {autostart
+                    ? 'Ativado — o app sobe na bandeja, sem abrir janela'
+                    : 'Desativado — o app só abre quando você mandar'}
+                </p>
+              </div>
+              <button
+                onClick={toggleAutostart}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  autostart ? 'bg-emerald-500' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    autostart ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 flex items-center gap-1">
+              <AlertCircle size={12} />
+              Fechar a janela esconde o app na bandeja; para encerrar, use “Sair” no ícone da
+              bandeja.
+            </p>
+          </div>
+
+          {/* MCP Server Section */}
+          <div className="bg-white border border-slate-200 rounded-sm p-6 space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-slate-900 rounded-lg">
+                <Server size={24} className="text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Servidor MCP</h2>
+                <p className="text-sm text-slate-500">
+                  Exponha o TickTask para assistentes como o Claude Code via MCP
+                </p>
+              </div>
+            </div>
+
+            {mcpStatus && (
+              <>
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <div>
+                    <label className="text-sm font-medium text-slate-700">Servidor MCP</label>
+                    <p
+                      className={`text-xs mt-0.5 ${
+                        !mcpStatus.enabled
+                          ? 'text-slate-500'
+                          : mcpStatus.running
+                            ? 'text-emerald-600'
+                            : 'text-red-600'
+                      }`}
+                    >
+                      {!mcpStatus.enabled
+                        ? 'Desligado'
+                        : mcpStatus.running
+                          ? `Rodando em 127.0.0.1:${mcpStatus.port}`
+                          : `Falha ao iniciar na porta ${mcpStatus.port} — verifique se ela já está em uso`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={toggleMcp}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      mcpStatus.enabled ? 'bg-emerald-500' : 'bg-slate-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        mcpStatus.enabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Comando para registrar no Claude Code
+                  </label>
+                  <div className="flex items-start gap-2">
+                    <pre className="flex-1 overflow-x-auto bg-slate-900 text-slate-100 text-xs rounded-lg p-3 whitespace-pre-wrap break-all">
+                      {mcpStatus.command}
+                    </pre>
+                    <Button onClick={copyMcpCommand} variant="outline" className="shrink-0">
+                      <Copy size={16} />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-500 flex items-center gap-1">
+                    <AlertCircle size={12} />
+                    Rode esse comando no terminal do Claude Code para registrar o servidor.
+                  </p>
+                </div>
+
+                <div className="pt-2">
+                  <Button
+                    onClick={regenerateMcpToken}
+                    disabled={isRegeneratingToken}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    {isRegeneratingToken ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <KeyRound size={16} />
+                    )}
+                    Regenerar Token
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+
           {/* Info Section */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+          <div className="bg-blue-50 border border-blue-200 rounded-sm p-4 text-sm text-blue-800">
             <h4 className="font-semibold mb-2">Como configurar a integração:</h4>
             <ol className="list-decimal list-inside space-y-1">
               <li>
@@ -469,7 +650,7 @@ export function SettingsPage(): React.JSX.Element {
           </div>
 
           {/* Warning Section */}
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+          <div className="bg-amber-50 border border-amber-200 rounded-sm p-4 text-sm text-amber-800">
             <h4 className="font-semibold mb-2">⚠️ Atenção</h4>
             <p>
               A integração só pode acessar páginas que foram explicitamente conectadas a ela. Se

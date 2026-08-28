@@ -3,9 +3,22 @@ import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import type { Task, Tag } from '@shared/types'
+import { drawingPreviewPath } from './drawingAssets'
+import {
+  collectImageAssetIds,
+  notesToNotionBlocks,
+  type ImageResolver,
+  type NotionBlock
+} from './notionBlocks'
+import { getNoteAsset, setNoteAssetUpload } from './database'
+import { uploadImageToNotion } from './notionFileUpload'
+import { getAssetFilePath } from './notesAssets'
 
 // Caminho do arquivo de configuração
 const configPath = path.join(app.getPath('userData'), 'notion-config.json')
+
+// O file_upload do Notion expira ~1h após a criação; renovamos com folga.
+const UPLOAD_TTL_MS = 55 * 60 * 1000
 
 // Interface de configuração do Notion
 export interface NotionConfig {
@@ -312,6 +325,16 @@ export async function createGTDDatabase(): Promise<string> {
             options: []
           }
         },
+        Contextos: {
+          multi_select: {
+            options: []
+          }
+        },
+        Projeto: {
+          select: {
+            options: []
+          }
+        },
         'Tempo Total (min)': {
           number: {
             format: 'number'
@@ -398,11 +421,44 @@ function formatSecondsToMinutes(seconds: number): number {
   return Math.round(seconds / 60)
 }
 
-function getNotionColorForTag(_tag: Tag): NotionColor {
-  // Retornar cor baseada no hash do nome da tag
+function getNotionColorForName(name: string): NotionColor {
   const colors: NotionColor[] = ['blue', 'green', 'orange', 'pink', 'purple', 'red', 'yellow']
-  const hash = _tag.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
   return colors[hash % colors.length]
+}
+
+function getNotionColorForTag(_tag: Tag): NotionColor {
+  return getNotionColorForName(_tag.name)
+}
+
+// Garante que o database tenha as propriedades Contextos, Projeto e Tarefa Pai.
+// Idempotente e com cache em memória; adiciona as que faltam (inclui databases já provisionados).
+let schemaEnsuredFor: string | null = null
+
+async function ensureNotionSchema(client: Client, databaseId: string): Promise<void> {
+  if (schemaEnsuredFor === databaseId) return
+  try {
+    const db = await client.databases.retrieve({ database_id: databaseId })
+    const props = (db as { properties?: Record<string, unknown> }).properties || {}
+    const toAdd: Record<string, unknown> = {}
+    if (!('Contextos' in props)) toAdd['Contextos'] = { multi_select: { options: [] } }
+    if (!('Projeto' in props)) toAdd['Projeto'] = { select: { options: [] } }
+    if (!('Tarefa Pai' in props)) {
+      toAdd['Tarefa Pai'] = {
+        relation: { database_id: databaseId, type: 'single_property', single_property: {} }
+      }
+    }
+    if (Object.keys(toAdd).length > 0) {
+      await client.databases.update({
+        database_id: databaseId,
+        properties: toAdd as Parameters<typeof client.databases.update>[0]['properties']
+      })
+      console.log('Schema do Notion atualizado (Contextos/Projeto/Tarefa Pai)')
+    }
+    schemaEnsuredFor = databaseId
+  } catch (error) {
+    console.error('Erro ao garantir schema do Notion:', error)
+  }
 }
 
 export async function syncTaskToNotion(task: Task): Promise<string> {
@@ -411,9 +467,19 @@ export async function syncTaskToNotion(task: Task): Promise<string> {
 
   try {
     const databaseId = await findOrCreateDatabase()
+    await ensureNotionSchema(client, databaseId)
 
     // Verificar se a tarefa já existe no Notion (pelo ID local)
     const existingPage = await findTaskInNotion(task.id)
+
+    // Relação com a tarefa pai (subtarefas). Requer a pai já sincronizada.
+    let parentRelation: Array<{ id: string }> = []
+    if (task.parent_task_id) {
+      const parentPageId = await findTaskInNotion(task.parent_task_id)
+      if (parentPageId) {
+        parentRelation = [{ id: parentPageId }]
+      }
+    }
 
     const properties = {
       Nome: {
@@ -454,6 +520,17 @@ export async function syncTaskToNotion(task: Task): Promise<string> {
             name: tag.name,
             color: getNotionColorForTag(tag)
           })) || []
+      },
+      Contextos: {
+        multi_select:
+          task.contexts?.map((ctx) => ({
+            name: ctx.name,
+            color: getNotionColorForName(ctx.name)
+          })) || []
+      },
+      Projeto: task.project_name ? { select: { name: task.project_name } } : { select: null },
+      'Tarefa Pai': {
+        relation: parentRelation
       },
       'Tempo Total (min)': {
         number: formatSecondsToMinutes(task.total_seconds)
@@ -522,6 +599,99 @@ export async function syncTaskToNotion(task: Task): Promise<string> {
       }
     }
     throw error
+  }
+}
+
+/**
+ * Reescreve o corpo da página do Notion da task com as notas ricas (Tiptap; aceita
+ * também o formato legado Editor.js via dispatcher). Imagens sobem via File Upload API.
+ * O Notion não tem "replace all children": listamos, deletamos e recriamos.
+ */
+async function buildDrawingBlock(client: Client, task: Task): Promise<NotionBlock | null> {
+  if (!task.drawing) return null
+
+  const filePath = drawingPreviewPath(task.id)
+  if (!fs.existsSync(filePath)) return null
+
+  try {
+    const id = await uploadImageToNotion(client, filePath, 'image/png', `desenho-${task.id}.png`)
+    return { object: 'block', type: 'image', image: { type: 'file_upload', file_upload: { id } } }
+  } catch (error) {
+    console.error('Falha ao subir o desenho para o Notion:', error)
+    return null
+  }
+}
+
+export async function syncTaskNotesToNotion(task: Task): Promise<void> {
+  const client = getClient() // lança se Notion não configurado
+
+  // Garante que a página existe e está com as properties atualizadas.
+  await syncTaskToNotion(task)
+  const pageId = await findTaskInNotion(task.id)
+  if (!pageId) throw new Error('Não foi possível localizar a página da tarefa no Notion')
+
+  // 1. Listar e deletar children atuais (paginando).
+  let cursor: string | undefined = undefined
+  const existingIds: string[] = []
+  do {
+    const res = await client.blocks.children.list({
+      block_id: pageId,
+      start_cursor: cursor,
+      page_size: 100
+    })
+    for (const block of res.results) existingIds.push(block.id)
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
+  } while (cursor)
+
+  for (const blockId of existingIds) {
+    try {
+      await client.blocks.delete({ block_id: blockId })
+    } catch (error) {
+      console.error('Erro ao deletar bloco do Notion:', error)
+    }
+  }
+
+  // 2a. Pré-passo: resolver imagens para file_upload ids (cache por asset, TTL ~1h).
+  const now = Date.now()
+  const assetIds = collectImageAssetIds(task.notes)
+  const imageMap = new Map<string, string>()
+  for (const assetId of assetIds) {
+    const asset = getNoteAsset(assetId)
+    if (!asset) continue
+    const cacheValid =
+      asset.notion_file_upload_id &&
+      asset.notion_uploaded_at &&
+      now - asset.notion_uploaded_at < UPLOAD_TTL_MS
+    if (cacheValid && asset.notion_file_upload_id) {
+      imageMap.set(assetId, asset.notion_file_upload_id)
+      continue
+    }
+    const filePath = getAssetFilePath(assetId)
+    if (!filePath) continue
+    try {
+      const fileUploadId = await uploadImageToNotion(client, filePath, asset.mime, asset.filename)
+      setNoteAssetUpload(assetId, fileUploadId, now)
+      imageMap.set(assetId, fileUploadId)
+    } catch (error) {
+      console.error('Falha ao subir imagem para o Notion:', error)
+    }
+  }
+  const resolveImage: ImageResolver = (id) => imageMap.get(id) ?? null
+
+  // 2b. Converter e adicionar os novos blocos (lotes de 100 — limite da API).
+  const blocks = notesToNotionBlocks(task.notes, resolveImage)
+
+  // O desenho entra ao final, como imagem. É reenviado a cada sync: o PNG é regravado a cada
+  // save e não há asset id para servir de chave de cache, como acontece com as imagens da nota.
+  const drawingBlock = await buildDrawingBlock(client, task)
+  if (drawingBlock) blocks.push(drawingBlock)
+
+  for (let i = 0; i < blocks.length; i += 100) {
+    const batch = blocks.slice(i, i + 100)
+    await client.blocks.children.append({
+      block_id: pageId,
+      children: batch as Parameters<typeof client.blocks.children.append>[0]['children']
+    })
   }
 }
 

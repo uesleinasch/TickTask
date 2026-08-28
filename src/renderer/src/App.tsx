@@ -9,9 +9,12 @@ import { SettingsPage } from './pages/SettingsPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { ContextsPage } from './pages/ContextsPage'
+import { TagsPage } from './pages/TagsPage'
 import { WeeklyReviewPage } from './pages/WeeklyReviewPage'
 import { QuickCapturePage } from './pages/QuickCapturePage'
 import { TodayPage } from './pages/TodayPage'
+import { HorizonsPage } from './pages/HorizonsPage'
+import { CalendarPage } from './pages/CalendarPage'
 import { TitleBar } from './components/TitleBar'
 import { FloatingTimer } from './components/FloatingTimer'
 import { SyncNotification } from './components/SyncNotification'
@@ -70,10 +73,13 @@ function AppContent(): React.JSX.Element {
     isDashboardPage ||
     location.pathname === '/projects' ||
     location.pathname === '/contexts' ||
+    location.pathname === '/tags' ||
     location.pathname === '/review' ||
     location.pathname === '/archived' ||
     location.pathname === '/settings' ||
-    location.pathname === '/today'
+    location.pathname === '/today' ||
+    location.pathname === '/horizons' ||
+    location.pathname === '/calendar'
 
   // Listener para eventos de sincronização do main process
   useEffect(() => {
@@ -100,8 +106,8 @@ function AppContent(): React.JSX.Element {
 
   // Listener para timer parado via float window
   useEffect(() => {
-    const unsubscribe = window.api.onTimerStopped(() => {
-      useTimerStore.getState().clearActiveTimer()
+    const unsubscribe = window.api.onTimerStopped((taskId) => {
+      useTimerStore.getState().removeTimer(taskId)
     })
     return unsubscribe
   }, [])
@@ -141,8 +147,11 @@ function AppContent(): React.JSX.Element {
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/project/:id" element={<ProjectDetailPage />} />
           <Route path="/contexts" element={<ContextsPage />} />
+          <Route path="/tags" element={<TagsPage />} />
           <Route path="/review" element={<WeeklyReviewPage />} />
           <Route path="/today" element={<TodayPage />} />
+          <Route path="/horizons" element={<HorizonsPage />} />
+          <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/float" element={<FloatTimerPage />} />
           <Route path="/quick-capture" element={<QuickCapturePage />} />
         </Routes>

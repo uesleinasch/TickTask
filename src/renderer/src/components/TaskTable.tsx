@@ -8,7 +8,6 @@ import {
   Activity,
   Clock,
   AlertCircle,
-  FolderKanban,
   Lock,
   ListChecks,
   CalendarDays,
@@ -96,7 +95,7 @@ export function TaskTable({
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+    <div className="bg-white border border-slate-200 rounded-sm overflow-hidden">
       <table className="w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">
@@ -173,22 +172,22 @@ export function TaskTable({
                 </td>
 
                 {/* Tarefa */}
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 max-w-0">
                   <div className="flex items-center gap-2">
                     {/* Expand toggle */}
-                    <div className="w-5 flex-shrink-0 flex items-center justify-center">
+                    <div className="w-7 flex-shrink-0 flex items-center justify-center">
                       {hasSubtasks ? (
                         <button
                           onClick={(e) => toggleExpand(task.id, e)}
                           title={expandedIds.has(task.id) ? 'Recolher subtarefas' : 'Expandir subtarefas'}
-                          className="text-slate-400 hover:text-slate-600 transition-colors"
+                          className="p-1.5 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
                         >
                           {expandedIds.has(task.id)
-                            ? <ChevronDown size={15} />
-                            : <ChevronRight size={15} />}
+                            ? <ChevronDown size={16} />
+                            : <ChevronRight size={16} />}
                         </button>
                       ) : (
-                        <span className="w-[15px]" />
+                        <span className="w-4" />
                       )}
                     </div>
 
@@ -208,25 +207,41 @@ export function TaskTable({
                       ) : null}
                     </div>
 
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 min-w-0">
                         <p
                           className={cn(
-                            'font-medium text-slate-900 truncate group-hover:text-slate-700',
+                            'font-medium text-slate-900 truncate min-w-0 group-hover:text-slate-700',
                             task.is_running && 'font-semibold'
                           )}
                         >
                           {task.name}
                         </p>
-                        {task.due_date && <DueDateBadge dueDate={task.due_date} />}
-                        {isScheduledToday && (
-                          <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
-                            <CalendarDays size={9} />
-                            Hoje
+                        {task.due_date && (
+                          <span className="shrink-0">
+                            <DueDateBadge dueDate={task.due_date} />
                           </span>
                         )}
+                        {onScheduleForToday && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onScheduleForToday(task.id)
+                            }}
+                            title={isScheduledToday ? 'Remover do plano de hoje' : 'Adicionar ao plano de hoje'}
+                            className={cn(
+                              'shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium border transition-all',
+                              isScheduledToday
+                                ? 'bg-blue-500 border-blue-500 text-white hover:bg-blue-600'
+                                : 'bg-white border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50'
+                            )}
+                          >
+                            <CalendarDays size={10} />
+                            {isScheduledToday ? 'Hoje ✓' : 'Hoje'}
+                          </button>
+                        )}
                         {hasSubtasks && (
-                          <span className="inline-flex items-center gap-0.5 text-xs text-slate-400">
+                          <span className="shrink-0 inline-flex items-center gap-0.5 text-xs text-slate-400">
                             <ListChecks size={11} />
                             {task.completed_subtask_count}/{task.subtask_count}
                           </span>
@@ -255,7 +270,10 @@ export function TaskTable({
                 <td className="px-4 py-3">
                   {task.project_name ? (
                     <span className="inline-flex items-center gap-1 text-xs text-slate-600">
-                      <FolderKanban size={12} className="text-slate-400" />
+                      <span
+                        className="h-2.5 w-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: task.project_color || '#6366f1' }}
+                      />
                       <span className="truncate max-w-[100px]">{task.project_name}</span>
                     </span>
                   ) : (
@@ -312,18 +330,6 @@ export function TaskTable({
                 {/* Limite */}
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-2">
-                    {onScheduleForToday && !isScheduledToday && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onScheduleForToday(task.id)
-                        }}
-                        title="Programar para hoje"
-                        className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-blue-600 transition-all text-xs"
-                      >
-                        📅
-                      </button>
-                    )}
                     {task.time_limit_seconds && task.time_limit_seconds > 0 ? (
                       <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
                         <AlertCircle size={12} />
@@ -345,9 +351,9 @@ export function TaskTable({
                     className="cursor-pointer bg-slate-50/70 hover:bg-slate-100/80 transition-colors"
                   >
                     <td />
-                    <td className="px-4 py-2 pl-16">
-                      <div className="flex items-center gap-2">
-                        <div className="w-px h-4 bg-slate-300 -ml-5 mr-3" />
+                    <td className="px-4 py-2 pl-16 max-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-px h-4 bg-slate-300 -ml-5 mr-3 shrink-0" />
                         {sub.status === 'finalizada' ? (
                           <CheckSquare size={13} className="text-purple-400 flex-shrink-0" />
                         ) : (
@@ -355,7 +361,7 @@ export function TaskTable({
                         )}
                         <span
                           className={cn(
-                            'text-sm text-slate-700',
+                            'text-sm text-slate-700 truncate min-w-0',
                             sub.status === 'finalizada' && 'line-through text-slate-400'
                           )}
                         >

@@ -1,5 +1,17 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Plus, Archive, BarChart3, Settings, FolderKanban, MapPin, ClipboardCheck, CalendarDays } from 'lucide-react'
+import {
+  Plus,
+  Archive,
+  BarChart3,
+  Settings,
+  FolderKanban,
+  MapPin,
+  ClipboardCheck,
+  CalendarDays,
+  Mountain,
+  Calendar,
+  Tag
+} from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 
 import appIcon from '../../../../resources/32.png'
@@ -36,6 +48,16 @@ export function TitleBar({ onNewTask }: TitleBarProps): React.JSX.Element {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => navigate('/calendar')}
+            className="h-9 border-slate-200 text-slate-700 hover:bg-slate-100"
+            title="Calendário"
+          >
+            <Calendar className="mr-2 h-4 w-4" />
+            Calendário
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => navigate('/today')}
             className="h-9 border-slate-200 text-slate-700 hover:bg-slate-100"
             title="Plano do Dia"
@@ -62,6 +84,26 @@ export function TitleBar({ onNewTask }: TitleBarProps): React.JSX.Element {
           >
             <MapPin className="mr-2 h-4 w-4" />
             Contextos
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/tags')}
+            className="h-9 border-slate-200 text-slate-700 hover:bg-slate-100"
+            title="Gerenciar tags"
+          >
+            <Tag className="mr-2 h-4 w-4" />
+            Tags
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/horizons')}
+            className="h-9 border-slate-200 text-slate-700 hover:bg-slate-100"
+            title="Visão de Horizonte GTD"
+          >
+            <Mountain className="mr-2 h-4 w-4" />
+            Horizontes
           </Button>
           <Button
             variant="outline"
@@ -94,7 +136,7 @@ export function TitleBar({ onNewTask }: TitleBarProps): React.JSX.Element {
             <Button
               size="sm"
               onClick={onNewTask}
-              className="h-9 bg-slate-900 text-white hover:bg-slate-800 shadow-sm"
+              className="h-9 bg-slate-900 text-white hover:bg-slate-800"
             >
               <Plus className="mr-2 h-4 w-4" />
               Nova Tarefa

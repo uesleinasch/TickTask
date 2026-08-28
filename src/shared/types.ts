@@ -1,8 +1,15 @@
 // ===================== STATUS & CATEGORY =====================
 
-export type TaskStatus = 'inbox' | 'aguardando' | 'proximas' | 'executando' | 'finalizada' | 'someday'
+export type TaskStatus =
+  | 'inbox'
+  | 'aguardando'
+  | 'proximas'
+  | 'executando'
+  | 'finalizada'
+  | 'someday'
 export type TaskCategory = 'urgente' | 'prioridade' | 'normal' | 'time_leak'
 export type ProjectStatus = 'active' | 'someday' | 'done' | 'archived'
+export type EnergyLevel = 'alto' | 'medio' | 'baixo'
 
 // ===================== TAG =====================
 
@@ -11,6 +18,15 @@ export interface Tag {
   name: string
   color: string
   created_at: string
+}
+
+export interface TagWithUsage extends Tag {
+  task_count: number
+}
+
+export interface UpdateTagInput {
+  name?: string
+  color?: string
 }
 
 // ===================== CONTEXT =====================
@@ -31,7 +47,10 @@ export interface Project {
   description?: string
   outcome?: string
   status: ProjectStatus
+  color: string
   due_date?: string
+  area_id?: number
+  area_name?: string
   created_at: string
   updated_at: string
   task_count?: number
@@ -44,7 +63,9 @@ export interface CreateProjectInput {
   description?: string
   outcome?: string
   status?: ProjectStatus
+  color?: string
   due_date?: string
+  area_id?: number
 }
 
 export interface UpdateProjectInput {
@@ -52,15 +73,69 @@ export interface UpdateProjectInput {
   description?: string
   outcome?: string
   status?: ProjectStatus
+  color?: string
   due_date?: string
+  area_id?: number | null
+}
+
+// ===================== AREA (GTD Horizonte 2) =====================
+
+export interface Area {
+  id: number
+  name: string
+  description?: string
+  icon: string
+  created_at: string
+  project_count?: number
+}
+
+export interface CreateAreaInput {
+  name: string
+  description?: string
+  icon?: string
+}
+
+export interface UpdateAreaInput {
+  name?: string
+  description?: string
+  icon?: string
+}
+
+// ===================== GOAL (GTD Horizontes 3-5) =====================
+
+export type GoalHorizon = 3 | 4 | 5
+
+export interface Goal {
+  id: number
+  name: string
+  description?: string
+  horizon: GoalHorizon
+  area_id?: number
+  area_name?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateGoalInput {
+  name: string
+  description?: string
+  horizon: GoalHorizon
+  area_id?: number
+}
+
+export interface UpdateGoalInput {
+  name?: string
+  description?: string
+  horizon?: GoalHorizon
+  area_id?: number | null
 }
 
 // ===================== RECURRENCE =====================
 
 export interface RecurrenceRule {
   type: 'daily' | 'weekly' | 'monthly'
-  dayOfWeek?: number   // 0–6 for weekly (0 = Sunday)
-  dayOfMonth?: number  // 1–31 for monthly
+  dayOfWeek?: number // 0–6 for weekly (0 = Sunday)
+  dayOfMonth?: number // 1–31 for monthly
 }
 
 // ===================== TASK DEPENDENCY =====================
@@ -85,20 +160,29 @@ export interface Task {
   is_archived: boolean
   project_id?: number
   project_name?: string
+  project_color?: string
   created_at: string
   updated_at: string
   tags?: Tag[]
   contexts?: Context[]
   // FASE 2 fields
-  scheduled_date?: string        // DATE string 'YYYY-MM-DD'
-  due_date?: string              // DATETIME string
-  recurrence_rule?: string       // JSON string of RecurrenceRule
-  parent_task_id?: number        // subtask relationship
-  recurrence_source_id?: number  // id of the task that spawned this recurrence instance
-  day_order?: number             // ordering within TodayPage
-  subtask_count?: number         // computed
+  scheduled_date?: string // DATE string 'YYYY-MM-DD'
+  due_date?: string // DATETIME string
+  recurrence_rule?: string // JSON string of RecurrenceRule
+  parent_task_id?: number // subtask relationship
+  recurrence_source_id?: number // id of the task that spawned this recurrence instance
+  day_order?: number // ordering within TodayPage
+  subtask_count?: number // computed
   completed_subtask_count?: number // computed
-  is_blocked?: boolean           // computed from dependencies
+  is_blocked?: boolean // computed from dependencies
+  // FASE 4.2: Energy Tracking
+  energy_level?: EnergyLevel
+  // FASE 5: Notas ricas (JSON serializado — ProseMirror/Tiptap; legado Editor.js)
+  notes?: string
+  // Tiptap: caminho do arquivo de exportação local (Markdown)
+  local_export_path?: string
+  // Desenho da task (JSON serializado do Excalidraw); o PNG derivado vive em userData/drawings
+  drawing?: string
 }
 
 export interface CreateTaskInput {
@@ -116,6 +200,8 @@ export interface CreateTaskInput {
   recurrence_rule?: string
   parent_task_id?: number
   recurrence_source_id?: number
+  // FASE 4.2
+  energy_level?: EnergyLevel
 }
 
 export interface UpdateTaskInput {
@@ -133,6 +219,8 @@ export interface UpdateTaskInput {
   due_date?: string | null
   recurrence_rule?: string | null
   day_order?: number | null
+  // FASE 4.2
+  energy_level?: EnergyLevel | null
 }
 
 export interface TimeEntry {
@@ -142,6 +230,30 @@ export interface TimeEntry {
   end_time: string | null
   duration_seconds: number | null
 }
+
+// ===================== TASK LIST FILTERS =====================
+
+export type TaskSort = 'updated' | 'due_date'
+
+export interface TaskListFilters {
+  archived?: boolean
+  status?: TaskStatus | 'all'
+  category?: TaskCategory | 'all'
+  projectId?: number | 'none' | null
+  tagId?: number | null
+  contextId?: number | null
+  search?: string
+  blockedOnly?: boolean
+  dueBefore?: string
+  dueAfter?: string
+  energy?: EnergyLevel
+  excludeStatus?: TaskStatus[]
+  sort?: TaskSort
+  limit?: number
+  offset?: number
+}
+
+export type TaskListItem = Pick<Task, 'id' | 'name' | 'status' | 'category' | 'project_id'>
 
 // ===================== WEEKLY REVIEW =====================
 
@@ -160,6 +272,68 @@ export interface ReviewHealthIndicators {
   staleWaitingTasks: number
   staleNextTasks: number
   somedayCount: number
+}
+
+// ===================== TIME BLOCK (GTD Time Blocking) =====================
+
+export interface TimeBlock {
+  id: number
+  task_id: number
+  task_name?: string
+  task_category?: TaskCategory
+  date: string // 'YYYY-MM-DD'
+  start_time: string // 'HH:MM'
+  end_time: string // 'HH:MM'
+  created_at: string
+}
+
+export interface CreateTimeBlockInput {
+  task_id: number
+  date: string
+  start_time: string
+  end_time: string
+}
+
+export interface UpdateTimeBlockInput {
+  task_id?: number
+  date?: string
+  start_time?: string
+  end_time?: string
+}
+
+// ===================== FASE 4.2: DASHBOARD AVANÇADO =====================
+
+export interface GtdMetrics {
+  inboxCompletionRate: number
+  avgProcessingTimeSeconds: number
+  staleProjects: Array<{ id: number; name: string; daysSinceActivity: number }>
+  staleWaitingTasks: Array<{ id: number; name: string; daysSinceUpdate: number }>
+  taskFlowCounts: Record<string, number>
+}
+
+export interface EnergyStats {
+  energy_level: EnergyLevel
+  totalSeconds: number
+  taskCount: number
+  avgSeconds: number
+}
+
+export const ENERGY_LABELS: Record<EnergyLevel, string> = {
+  alto: 'Alta Energia',
+  medio: 'Energia Média',
+  baixo: 'Baixa Energia'
+}
+
+export const ENERGY_COLORS: Record<EnergyLevel, string> = {
+  alto: '#22c55e',
+  medio: '#f59e0b',
+  baixo: '#94a3b8'
+}
+
+export const ENERGY_ICONS: Record<EnergyLevel, string> = {
+  alto: '⚡',
+  medio: '🔋',
+  baixo: '😴'
 }
 
 // ===================== LABELS & COLORS =====================
@@ -208,6 +382,16 @@ export const PROJECT_STATUS_COLORS: Record<ProjectStatus, string> = {
   someday: 'bg-teal-500',
   done: 'bg-purple-500',
   archived: 'bg-gray-500'
+}
+
+// ===================== MCP SERVER =====================
+
+export interface McpStatus {
+  enabled: boolean
+  running: boolean
+  port: number
+  token: string
+  command: string
 }
 
 // ===================== DEFAULT CONTEXTS =====================

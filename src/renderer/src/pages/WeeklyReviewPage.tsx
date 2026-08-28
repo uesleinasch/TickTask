@@ -162,7 +162,7 @@ export function WeeklyReviewPage(): React.JSX.Element {
           <Button
             size="sm"
             onClick={handleStartReview}
-            className="bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
+            className="bg-emerald-600 text-white hover:bg-emerald-700"
           >
             <Play className="mr-2 h-4 w-4" />
             Iniciar Revisão
@@ -179,7 +179,7 @@ export function WeeklyReviewPage(): React.JSX.Element {
           ) : currentReview ? (
             <>
               {/* Active Review */}
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-sm p-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-semibold text-emerald-800">
@@ -254,10 +254,10 @@ export function WeeklyReviewPage(): React.JSX.Element {
                       key={item.id}
                       onClick={() => toggleChecklistItem(item.id)}
                       className={cn(
-                        'w-full flex items-start gap-4 bg-white border rounded-xl p-4 text-left transition-all',
+                        'w-full flex items-start gap-4 bg-white border rounded-sm p-4 text-left transition-all',
                         checked
                           ? 'border-emerald-200 bg-emerald-50/50'
-                          : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
+                          : 'border-slate-200 hover:border-slate-300'
                       )}
                     >
                       <div className="mt-0.5">
@@ -290,7 +290,7 @@ export function WeeklyReviewPage(): React.JSX.Element {
               </div>
 
               {/* Notes & Complete */}
-              <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
+              <div className="bg-white border border-slate-200 rounded-sm p-4 space-y-3">
                 <h4 className="text-sm font-semibold text-slate-900">Notas da Revisão</h4>
                 <Textarea
                   value={notes}
@@ -319,7 +319,7 @@ export function WeeklyReviewPage(): React.JSX.Element {
           ) : (
             <>
               {/* No active review - show info and history */}
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
+              <div className="bg-blue-50 border border-blue-200 rounded-sm p-6 text-center">
                 <ClipboardCheck size={48} className="mx-auto text-blue-500 mb-3" />
                 <h2 className="text-lg font-bold text-blue-900 mb-2">Revisão Semanal GTD</h2>
                 <p className="text-sm text-blue-700 mb-4 max-w-md mx-auto">
@@ -436,7 +436,7 @@ function HealthCard({
   return (
     <div
       className={cn(
-        'bg-white border rounded-xl p-3 flex items-center gap-3',
+        'bg-white border rounded-sm p-3 flex items-center gap-3',
         warning ? 'border-amber-200 bg-amber-50' : 'border-slate-200'
       )}
     >

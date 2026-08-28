@@ -58,7 +58,7 @@ function SortableTaskRow({ task, onTaskClick }: SortableTaskRowProps): React.JSX
       ref={setNodeRef}
       style={style}
       className={cn(
-        'flex items-center gap-3 px-4 py-3 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer group',
+        'flex items-center gap-3 px-4 py-3 bg-white border border-slate-200 rounded-sm hover:shadow-md transition-all cursor-pointer group',
         isDragging && 'shadow-lg border-slate-300',
         task.is_blocked && 'border-l-4 border-l-orange-300'
       )}
@@ -104,7 +104,13 @@ function SortableTaskRow({ task, onTaskClick }: SortableTaskRowProps): React.JSX
           {task.due_date && <DueDateBadge dueDate={task.due_date} />}
         </div>
         {task.project_name && (
-          <p className="text-xs text-slate-400 mt-0.5">{task.project_name}</p>
+          <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
+            <span
+              className="h-2 w-2 rounded-full shrink-0"
+              style={{ backgroundColor: task.project_color || '#6366f1' }}
+            />
+            {task.project_name}
+          </p>
         )}
       </div>
 
@@ -142,7 +148,7 @@ function DayColumn({ date, tasks, isToday, onTaskClick }: DayColumnProps): React
   return (
     <div
       className={cn(
-        'flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden min-w-[160px] flex-1',
+        'flex flex-col bg-white border border-slate-200 rounded-sm overflow-hidden min-w-[160px] flex-1',
         isToday && 'border-blue-300 shadow-md'
       )}
     >
@@ -253,7 +259,7 @@ export function TodayPage(): React.JSX.Element {
   const completedCount = todayTasks.filter((t) => t.status === 'finalizada').length
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
+    <div className="flex flex-col h-full overflow-hidden bg-slate-50">
       {/* Header — mesmo padrão de SingleTaskPage */}
       <header className="shrink-0 px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between">
         <button
@@ -280,7 +286,7 @@ export function TodayPage(): React.JSX.Element {
 
         {/* Load indicator */}
         {tab === 'today' && totalLimitSeconds > 0 && (
-            <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm">
+            <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-sm px-4 py-3">
               <Clock size={16} className={isOverloaded ? 'text-red-500' : 'text-green-500'} />
               <div>
                 <div className="flex items-center gap-2">

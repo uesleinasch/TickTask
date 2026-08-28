@@ -1,163 +1,99 @@
 import { create } from 'zustand'
 import type { Task, TimeEntry } from '@shared/types'
+import { shouldBootstrapTimerStore } from './timerWindow'
 
-// Controle de notificações Time Leak
-let lastTimeLeakNotification = 0
+// Controle de notificações Time Leak, por task
+const lastTimeLeakNotification: Record<number, number> = {}
 
-interface ActiveTimerState {
-  // Estado do timer ativo
-  activeTask: Task | null
-  activeEntry: TimeEntry | null
+export interface ActiveTimer {
+  task: Task
+  entry: TimeEntry
   displaySeconds: number
-  isRunning: boolean
+}
 
-  // Referência para o intervalo
+interface TimerState {
+  timers: Record<number, ActiveTimer>
   intervalId: number | null
 
-  // Ações
-  setActiveTimer: (task: Task, entry: TimeEntry) => void
-  clearActiveTimer: () => void
-  updateDisplaySeconds: (seconds: number) => void
+  // Internas
   tick: () => void
   startInterval: () => void
   stopInterval: () => void
+  pushFloat: () => void
 
-  // Ações de timer
+  // Ações
   startTimer: (taskId: number) => Promise<void>
-  pauseTimer: (taskId: number) => Promise<void>
+  stopTimer: (taskId: number) => Promise<void>
+  stopAllTimers: () => Promise<void>
   resetTimer: (taskId: number) => Promise<void>
-
-  // Sincronização
-  syncWithDatabase: (task?: Task, entry?: TimeEntry | null) => void
+  removeTimer: (taskId: number) => void
+  syncWithDatabase: () => void
 }
 
-export const useTimerStore = create<ActiveTimerState>((set, get) => ({
-  activeTask: null,
-  activeEntry: null,
-  displaySeconds: 0,
-  isRunning: false,
+function computeSeconds(timer: ActiveTimer): number {
+  const startTime = new Date(timer.entry.start_time).getTime()
+  const elapsed = Math.floor((Date.now() - startTime) / 1000)
+  return timer.task.total_seconds + elapsed
+}
+
+export const useTimerStore = create<TimerState>((set, get) => ({
+  timers: {},
   intervalId: null,
 
-  setActiveTimer: (task, entry) => {
-    console.log('[TimerStore] setActiveTimer() para tarefa:', task.id, task.name)
-    
-    // Primeiro limpar qualquer interval existente
-    const { intervalId } = get()
-    if (intervalId !== null) {
-      console.log('[TimerStore] Limpando interval anterior:', intervalId)
-      window.clearInterval(intervalId)
-    }
-
-    const startTime = new Date(entry.start_time).getTime()
-    const now = Date.now()
-    const elapsed = Math.floor((now - startTime) / 1000)
-    const totalSeconds = task.total_seconds + elapsed
-
-    // Atualizar estado de forma atômica
-    set({
-      activeTask: task,
-      activeEntry: entry,
-      displaySeconds: totalSeconds,
-      isRunning: true,
-      intervalId: null // Será definido pelo startInterval
-    })
-
-    // Atualizar a janela flutuante
-    window.api.updateFloatTimer({
-      taskId: task.id,
-      taskName: task.name,
-      seconds: totalSeconds
-    })
-
-    // Iniciar o novo intervalo
-    get().startInterval()
-  },
-
-  clearActiveTimer: () => {
-    console.log('[TimerStore] clearActiveTimer() - Limpando estado completamente')
-    
-    // Primeiro parar o interval
-    const { intervalId } = get()
-    if (intervalId !== null) {
-      console.log('[TimerStore] Parando interval:', intervalId)
-      window.clearInterval(intervalId)
-    }
-
-    // Limpar a janela flutuante - CRÍTICO!
-    console.log('[TimerStore] Chamando window.api.clearFloatTimer()')
-    window.api
-      .clearFloatTimer()
-      .then(() => {
-        console.log('[TimerStore] clearFloatTimer() completado')
-      })
-      .catch((err) => {
+  pushFloat: () => {
+    const { timers } = get()
+    const list = Object.values(timers).map((t) => ({
+      taskId: t.task.id,
+      taskName: t.task.name,
+      seconds: t.displaySeconds
+    }))
+    if (list.length > 0) {
+      window.api.updateFloatTimer(list)
+    } else {
+      window.api.clearFloatTimer().catch((err) => {
         console.error('[TimerStore] Erro em clearFloatTimer():', err)
       })
-
-    // Resetar TODO o estado para valores iniciais
-    set({
-      activeTask: null,
-      activeEntry: null,
-      displaySeconds: 0,
-      isRunning: false,
-      intervalId: null
-    })
-
-    console.log('[TimerStore] Estado resetado para valores iniciais')
-  },
-
-  updateDisplaySeconds: (seconds) => {
-    set({ displaySeconds: seconds })
+    }
   },
 
   tick: () => {
-    const { activeTask, activeEntry, isRunning } = get()
-    // Verificar se ainda está rodando e se há dados válidos
-    if (!isRunning || !activeTask || !activeEntry) {
+    const { timers } = get()
+    const ids = Object.keys(timers)
+    if (ids.length === 0) {
+      get().stopInterval()
       return
     }
 
-    const startTime = new Date(activeEntry.start_time).getTime()
-    const now = Date.now()
-    const elapsed = Math.floor((now - startTime) / 1000)
-    const newSeconds = activeTask.total_seconds + elapsed
-    set({ displaySeconds: newSeconds })
+    const next: Record<number, ActiveTimer> = {}
+    for (const key of ids) {
+      const id = Number(key)
+      const timer = timers[id]
+      const seconds = computeSeconds(timer)
+      next[id] = { ...timer, displaySeconds: seconds }
 
-    // Atualizar a janela flutuante
-    window.api.updateFloatTimer({
-      taskId: activeTask.id,
-      taskName: activeTask.name,
-      seconds: newSeconds
-    })
-
-    // Time Leak: notificação a cada 5 minutos após 1 hora
-    if (activeTask.category === 'time_leak' && newSeconds >= 3600) {
-      const currentMinute = Math.floor(newSeconds / 60)
-      const lastNotifiedMinute = Math.floor(lastTimeLeakNotification / 60)
-
-      // Notificar a cada 5 minutos (60, 65, 70, 75, ...)
-      if (currentMinute >= 60 && currentMinute % 5 === 0 && currentMinute !== lastNotifiedMinute) {
-        lastTimeLeakNotification = newSeconds
-        const hours = Math.floor(newSeconds / 3600)
-        const minutes = Math.floor((newSeconds % 3600) / 60)
-        window.api.showNotification(
-          '⚠️ Time Leak Alert!',
-          `A tarefa "${activeTask.name}" já está em ${hours}h${minutes}min. Considere finalizá-la!`
-        )
+      // Time Leak: notificação a cada 5 minutos após 1 hora, por task
+      if (timer.task.category === 'time_leak' && seconds >= 3600) {
+        const currentMinute = Math.floor(seconds / 60)
+        const lastNotifiedMinute = Math.floor((lastTimeLeakNotification[id] ?? 0) / 60)
+        if (currentMinute % 5 === 0 && currentMinute !== lastNotifiedMinute) {
+          lastTimeLeakNotification[id] = seconds
+          const hours = Math.floor(seconds / 3600)
+          const minutes = Math.floor((seconds % 3600) / 60)
+          window.api.showNotification(
+            '⚠️ Time Leak Alert!',
+            `A tarefa "${timer.task.name}" já está em ${hours}h${minutes}min. Considere finalizá-la!`
+          )
+        }
       }
     }
+    set({ timers: next })
+    get().pushFloat()
   },
 
   startInterval: () => {
     const { intervalId } = get()
-    if (intervalId !== null) {
-      window.clearInterval(intervalId)
-    }
-
-    const id = window.setInterval(() => {
-      get().tick()
-    }, 1000)
-
+    if (intervalId !== null) return
+    const id = window.setInterval(() => get().tick(), 1000)
     set({ intervalId: id })
   },
 
@@ -170,143 +106,82 @@ export const useTimerStore = create<ActiveTimerState>((set, get) => ({
   },
 
   startTimer: async (taskId) => {
-    console.log('[TimerStore] startTimer() chamado para taskId:', taskId)
-    
-    // IMPORTANTE: Limpar COMPLETAMENTE qualquer estado anterior
-    // Isso garante que não haverá flicker ou conflitos
-    const { activeTask, isRunning, intervalId } = get()
-    
-    if (activeTask || isRunning || intervalId !== null) {
-      console.log('[TimerStore] Limpando estado anterior antes de iniciar nova tarefa')
-      
-      // Se há uma tarefa diferente rodando, parar no banco também
-      if (activeTask && activeTask.id !== taskId && isRunning) {
-        console.log('[TimerStore] Pausando tarefa anterior:', activeTask.id)
-        await window.api.stopTask(activeTask.id)
-      }
-      
-      // Limpar interval e estado
-      if (intervalId !== null) {
-        window.clearInterval(intervalId)
-      }
-      
-      // Resetar estado
-      set({
-        activeTask: null,
-        activeEntry: null,
-        displaySeconds: 0,
-        isRunning: false,
-        intervalId: null
-      })
-    }
-
-    // Agora iniciar a nova tarefa
+    // Não para outros timers — modo sempre paralelo.
     await window.api.startTask(taskId)
-
-    // Buscar dados atualizados
     const task = await window.api.getTask(taskId)
     const entry = await window.api.getActiveTimeEntry(taskId)
+    if (!task || !entry) return
 
-    if (task && entry) {
-      console.log('[TimerStore] Iniciando timer para tarefa:', task.name)
-      get().setActiveTimer(task, entry)
-    }
+    set((state) => ({
+      timers: {
+        ...state.timers,
+        [taskId]: { task, entry, displaySeconds: task.total_seconds }
+      }
+    }))
+    get().startInterval()
+    get().pushFloat()
   },
 
-  pauseTimer: async (taskId) => {
-    console.log('[TimerStore] pauseTimer() chamado para taskId:', taskId)
-    
-    // Primeiro, salvar os dados atuais no banco
+  stopTimer: async (taskId) => {
     await window.api.stopTask(taskId)
-    
-    // Depois, limpar COMPLETAMENTE o estado da store e do float
-    get().clearActiveTimer()
-    
-    console.log('[TimerStore] pauseTimer() - Estado limpo completamente')
+    get().removeTimer(taskId)
+  },
+
+  stopAllTimers: async () => {
+    const ids = Object.keys(get().timers).map(Number)
+    for (const id of ids) {
+      await window.api.stopTask(id)
+    }
+    get().stopInterval()
+    set({ timers: {} })
+    get().pushFloat()
   },
 
   resetTimer: async (taskId) => {
-    get().stopInterval()
     await window.api.resetTask(taskId)
-
-    set({
-      activeTask: null,
-      activeEntry: null,
-      displaySeconds: 0,
-      isRunning: false
-    })
+    get().removeTimer(taskId)
   },
 
-  syncWithDatabase: (task?: Task, entry?: TimeEntry | null) => {
-    const { activeTask: currentActiveTask, isRunning: currentIsRunning } = get()
-    
-    // Se recebeu task e entry, sincroniza diretamente
-    if (task && task.is_running && entry) {
-      // IMPORTANTE: Evitar reiniciar se já é a mesma tarefa rodando
-      if (currentActiveTask?.id === task.id && currentIsRunning) {
-        // Já está rodando a mesma tarefa, não fazer nada
-        return
-      }
-      get().setActiveTimer(task, entry)
-      return
-    }
-
-    // Se recebeu task mas não está rodando, apenas limpa o estado local
-    if (task && !task.is_running) {
-      // Parar interval se estava rodando
+  removeTimer: (taskId) => {
+    delete lastTimeLeakNotification[taskId]
+    set((state) => {
+      const next = { ...state.timers }
+      delete next[taskId]
+      return { timers: next }
+    })
+    if (Object.keys(get().timers).length === 0) {
       get().stopInterval()
-      // NÃO chamar clearFloatTimer aqui - deixar o main process decidir
-      set({
-        activeTask: null,
-        activeEntry: null,
-        displaySeconds: task.total_seconds,
-        isRunning: false
-      })
-      return
     }
+    get().pushFloat()
+  },
 
-    // Sem parâmetros, busca do banco
+  syncWithDatabase: () => {
     window.api
-      .listTasks(false)
-      .then((tasks) => {
-        const runningTask = tasks.find((t) => t.is_running)
-
-        if (runningTask) {
-          // Verificar se já é a mesma tarefa
-          if (currentActiveTask?.id === runningTask.id && currentIsRunning) {
-            return // Já está rodando, não precisa resincronizar
+      .listRunningTasks()
+      .then(async (running) => {
+        const next: Record<number, ActiveTimer> = {}
+        for (const task of running) {
+          const entry = await window.api.getActiveTimeEntry(task.id)
+          if (entry) {
+            next[task.id] = { task, entry, displaySeconds: task.total_seconds }
           }
-          
-          window.api.getActiveTimeEntry(runningTask.id).then((activeEntry) => {
-            if (activeEntry) {
-              get().setActiveTimer(runningTask, activeEntry)
-            }
-          })
+        }
+        set({ timers: next })
+        if (Object.keys(next).length > 0) {
+          get().startInterval()
+          get().tick()
         } else {
-          // Apenas limpar estado local, não destruir o float
-          // (pode não haver float criado ainda na inicialização)
-          const { intervalId } = get()
-          if (intervalId !== null) {
-            window.clearInterval(intervalId)
-          }
-          set({
-            activeTask: null,
-            activeEntry: null,
-            displaySeconds: 0,
-            isRunning: false,
-            intervalId: null
-          })
+          get().stopInterval()
         }
       })
       .catch((error) => {
-        console.error('Erro ao sincronizar timer:', error)
+        console.error('Erro ao sincronizar timers:', error)
       })
   }
 }))
 
 // Inicializar a store quando o app carrega
-if (typeof window !== 'undefined') {
-  // Aguardar um pouco para garantir que a API está disponível
+if (typeof window !== 'undefined' && shouldBootstrapTimerStore(window.location.hash)) {
   setTimeout(() => {
     useTimerStore.getState().syncWithDatabase()
   }, 100)

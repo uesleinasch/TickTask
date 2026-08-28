@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, Loader2, Lock } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
@@ -13,6 +14,7 @@ interface SubtaskListProps {
 }
 
 export function SubtaskList({ parentTaskId, isParentBlocked, onSubtaskChange }: SubtaskListProps): React.JSX.Element {
+  const navigate = useNavigate()
   const [subtasks, setSubtasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [newName, setNewName] = useState('')
@@ -116,14 +118,16 @@ export function SubtaskList({ parentTaskId, isParentBlocked, onSubtaskChange }: 
                   : 'cursor-pointer'
               )}
             />
-            <span
+            <button
+              onClick={() => navigate(`/task/${subtask.id}`)}
               className={cn(
-                'text-sm text-slate-700 flex-1',
+                'text-sm text-slate-700 flex-1 min-w-0 truncate text-left hover:text-slate-900 hover:underline',
                 subtask.status === 'finalizada' && 'line-through text-slate-400'
               )}
+              title="Abrir subtarefa"
             >
               {subtask.name}
-            </span>
+            </button>
           </div>
         ))}
       </div>

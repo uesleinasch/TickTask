@@ -14,7 +14,21 @@ import type {
   Context,
   WeeklyReview,
   ReviewHealthIndicators,
-  TaskDependency
+  TaskDependency,
+  Area,
+  CreateAreaInput,
+  UpdateAreaInput,
+  Goal,
+  CreateGoalInput,
+  UpdateGoalInput,
+  TimeBlock,
+  CreateTimeBlockInput,
+  UpdateTimeBlockInput,
+  TaskListFilters,
+  TaskListItem,
+  TagWithUsage,
+  UpdateTagInput,
+  McpStatus
 } from '../shared/types'
 
 // Custom APIs for renderer
@@ -26,10 +40,35 @@ const api = {
 
   // Task CRUD
   createTask: (data: CreateTaskInput): Promise<Task> => ipcRenderer.invoke('task:create', data),
-  listTasks: (archived?: boolean): Promise<Task[]> => ipcRenderer.invoke('task:list', archived),
+  listTasks: (filters?: TaskListFilters): Promise<Task[]> =>
+    ipcRenderer.invoke('task:list', filters),
+  countTasks: (filters?: TaskListFilters): Promise<number> =>
+    ipcRenderer.invoke('task:count', filters),
+  listActiveTasksLight: (): Promise<TaskListItem[]> => ipcRenderer.invoke('task:listActiveLight'),
+  listRunningTasks: (): Promise<Task[]> => ipcRenderer.invoke('task:listRunning'),
   getTask: (id: number): Promise<Task | undefined> => ipcRenderer.invoke('task:get', id),
   updateTask: (id: number, data: UpdateTaskInput): Promise<void> =>
     ipcRenderer.invoke('task:update', id, data),
+  updateTaskNotes: (id: number, notes: string | null): Promise<void> =>
+    ipcRenderer.invoke('task:updateNotes', id, notes),
+  saveDrawing: (id: number, drawing: string | null, preview: Uint8Array | null): Promise<void> =>
+    ipcRenderer.invoke('drawing:save', id, drawing, preview),
+  searchMentions: (
+    query: string
+  ): Promise<Array<{ id: number; label: string; type: 'task' | 'project' | 'context' }>> =>
+    ipcRenderer.invoke('notes:searchMentions', query),
+  saveNoteImage: (
+    taskId: number,
+    bytes: Uint8Array,
+    filename: string,
+    mime: string
+  ): Promise<{ assetId: string; src: string }> =>
+    ipcRenderer.invoke('notes:saveImage', taskId, bytes, filename, mime),
+  exportNotesLocalChoose: (taskId: number): Promise<string | null> =>
+    ipcRenderer.invoke('notes:exportLocalChoose', taskId),
+  exportNotesLocal: (taskId: number): Promise<boolean> =>
+    ipcRenderer.invoke('notes:exportLocal', taskId),
+  syncTaskNotes: (id: number): Promise<void> => ipcRenderer.invoke('notion:syncTaskNotes', id),
   deleteTask: (id: number): Promise<void> => ipcRenderer.invoke('task:delete', id),
   bulkDeleteTasks: (ids: number[]): Promise<void> => ipcRenderer.invoke('task:bulkDelete', ids),
   bulkUpdateStatus: (ids: number[], status: TaskStatus): Promise<void> =>
@@ -68,21 +107,23 @@ const api = {
   },
 
   // Float window controls
-  updateFloatTimer: (data: { taskId: number; taskName: string; seconds: number }): Promise<void> =>
-    ipcRenderer.invoke('float:updateTimer', data),
+  updateFloatTimer: (
+    timers: { taskId: number; taskName: string; seconds: number }[]
+  ): Promise<void> => ipcRenderer.invoke('float:updateTimer', timers),
   clearFloatTimer: (): Promise<void> => ipcRenderer.invoke('float:clearTimer'),
   restoreFromFloat: (): Promise<void> => ipcRenderer.invoke('float:restore'),
   stopFromFloat: (taskId: number): Promise<void> => ipcRenderer.invoke('float:stopTimer', taskId),
+  stopAllFromFloat: (): Promise<void> => ipcRenderer.invoke('float:stopAll'),
 
   // Float window events
   onFloatUpdate: (
-    callback: (data: { taskId: number; taskName: string; seconds: number }) => void
+    callback: (timers: { taskId: number; taskName: string; seconds: number }[]) => void
   ): (() => void) => {
     const handler = (
       _: Electron.IpcRendererEvent,
-      data: { taskId: number; taskName: string; seconds: number }
+      timers: { taskId: number; taskName: string; seconds: number }[]
     ): void => {
-      callback(data)
+      callback(timers)
     }
     ipcRenderer.on('float:update', handler)
     return () => ipcRenderer.removeListener('float:update', handler)
@@ -120,11 +161,20 @@ const api = {
   getCategoryStats: (): Promise<CategoryStats[]> => ipcRenderer.invoke('stats:category'),
   getHeatmapData: (): Promise<HeatmapData[]> => ipcRenderer.invoke('stats:heatmap'),
   getGeneralStats: (): Promise<GeneralStats> => ipcRenderer.invoke('stats:general'),
+  // FASE 4.2: Advanced stats
+  getGtdMetrics: () => ipcRenderer.invoke('stats:gtdMetrics'),
+  getEnergyStats: () => ipcRenderer.invoke('stats:energy'),
+  generateWeeklyPDF: () => ipcRenderer.invoke('report:weeklyPDF'),
 
   // Tags
   createTag: (name: string, color?: string): Promise<Tag> =>
     ipcRenderer.invoke('tag:create', name, color),
   listTags: (): Promise<Tag[]> => ipcRenderer.invoke('tag:list'),
+  listTagsWithUsage: (): Promise<TagWithUsage[]> => ipcRenderer.invoke('tag:listWithUsage'),
+  updateTag: (id: number, data: UpdateTagInput): Promise<void> =>
+    ipcRenderer.invoke('tag:update', id, data),
+  mergeTags: (sourceId: number, targetId: number): Promise<number> =>
+    ipcRenderer.invoke('tag:merge', sourceId, targetId),
   getOrCreateTag: (name: string): Promise<Tag> => ipcRenderer.invoke('tag:getOrCreate', name),
   deleteTag: (id: number): Promise<void> => ipcRenderer.invoke('tag:delete', id),
   getTaskTags: (taskId: number): Promise<Tag[]> => ipcRenderer.invoke('tag:getTaskTags', taskId),
@@ -134,8 +184,7 @@ const api = {
   // ===================== PROJECTS =====================
   createProject: (data: CreateProjectInput): Promise<Project> =>
     ipcRenderer.invoke('project:create', data),
-  getProject: (id: number): Promise<Project | undefined> =>
-    ipcRenderer.invoke('project:get', id),
+  getProject: (id: number): Promise<Project | undefined> => ipcRenderer.invoke('project:get', id),
   listProjects: (status?: ProjectStatus): Promise<Project[]> =>
     ipcRenderer.invoke('project:list', status),
   updateProject: (id: number, data: UpdateProjectInput): Promise<void> =>
@@ -227,6 +276,35 @@ const api = {
     ipcRenderer.invoke('notion:syncAllTasks'),
   notionCreateDatabase: (): Promise<string> => ipcRenderer.invoke('notion:createDatabase'),
 
+  // ===================== FASE 4.3: Blocos de Tempo =====================
+  createTimeBlock: (data: CreateTimeBlockInput): Promise<TimeBlock> =>
+    ipcRenderer.invoke('timeBlock:create', data),
+  getTimeBlocksForDate: (date: string): Promise<TimeBlock[]> =>
+    ipcRenderer.invoke('timeBlock:getForDate', date),
+  getTimeBlocksForWeek: (startDate: string): Promise<TimeBlock[]> =>
+    ipcRenderer.invoke('timeBlock:getForWeek', startDate),
+  getTimeBlocksForMonth: (yearMonth: string): Promise<TimeBlock[]> =>
+    ipcRenderer.invoke('timeBlock:getForMonth', yearMonth),
+  updateTimeBlock: (id: number, data: UpdateTimeBlockInput): Promise<void> =>
+    ipcRenderer.invoke('timeBlock:update', id, data),
+  deleteTimeBlock: (id: number): Promise<void> => ipcRenderer.invoke('timeBlock:delete', id),
+
+  // ===================== FASE 4: Áreas de Foco =====================
+  createArea: (data: CreateAreaInput): Promise<Area> => ipcRenderer.invoke('area:create', data),
+  getArea: (id: number): Promise<Area | undefined> => ipcRenderer.invoke('area:get', id),
+  listAreas: (): Promise<Area[]> => ipcRenderer.invoke('area:list'),
+  updateArea: (id: number, data: UpdateAreaInput): Promise<void> =>
+    ipcRenderer.invoke('area:update', id, data),
+  deleteArea: (id: number): Promise<void> => ipcRenderer.invoke('area:delete', id),
+
+  // ===================== FASE 4: Objetivos (Goals) =====================
+  createGoal: (data: CreateGoalInput): Promise<Goal> => ipcRenderer.invoke('goal:create', data),
+  getGoal: (id: number): Promise<Goal | undefined> => ipcRenderer.invoke('goal:get', id),
+  listGoals: (areaId?: number): Promise<Goal[]> => ipcRenderer.invoke('goal:list', areaId),
+  updateGoal: (id: number, data: UpdateGoalInput): Promise<void> =>
+    ipcRenderer.invoke('goal:update', id, data),
+  deleteGoal: (id: number): Promise<void> => ipcRenderer.invoke('goal:delete', id),
+
   // Sync notification events
   onSyncStart: (callback: (event: unknown, taskName?: string) => void): void => {
     ipcRenderer.on('notion:syncStart', callback)
@@ -245,7 +323,18 @@ const api = {
   },
   offSyncError: (callback: (event: unknown, error?: string) => void): void => {
     ipcRenderer.removeListener('notion:syncError', callback)
-  }
+  },
+
+  // ===================== INICIALIZAÇÃO =====================
+  appGetAutostart: (): Promise<boolean> => ipcRenderer.invoke('app:getAutostart'),
+  appSetAutostart: (enabled: boolean): Promise<boolean> =>
+    ipcRenderer.invoke('app:setAutostart', enabled),
+
+  // ===================== MCP SERVER =====================
+  mcpGetStatus: (): Promise<McpStatus> => ipcRenderer.invoke('mcp:getStatus'),
+  mcpSetEnabled: (enabled: boolean): Promise<McpStatus> =>
+    ipcRenderer.invoke('mcp:setEnabled', enabled),
+  mcpRegenerateToken: (): Promise<McpStatus> => ipcRenderer.invoke('mcp:regenerateToken')
 }
 
 // Types for statistics

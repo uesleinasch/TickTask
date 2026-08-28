@@ -14,7 +14,8 @@ import { SearchableSelect } from '@renderer/components/ui/searchable-select'
 import { CategorySelect } from './CategorySelect'
 import { TagInput } from './TagInput'
 import { RecurrenceSelect } from './RecurrenceSelect'
-import type { CreateTaskInput, TaskCategory, Tag, Project, Context } from '../../../shared/types'
+import type { CreateTaskInput, TaskCategory, Tag, Project, Context, EnergyLevel } from '../../../shared/types'
+import { ENERGY_LABELS, ENERGY_ICONS } from '../../../shared/types'
 
 interface TaskDialogProps {
   open: boolean
@@ -33,6 +34,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
   const [dueDate, setDueDate] = useState('')
   const [scheduledDate, setScheduledDate] = useState('')
   const [recurrenceRule, setRecurrenceRule] = useState<string | null>(null)
+  const [energyLevel, setEnergyLevel] = useState<EnergyLevel | undefined>(undefined)
   const [loading, setLoading] = useState(false)
 
   const [projects, setProjects] = useState<Project[]>([])
@@ -40,7 +42,10 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
 
   useEffect(() => {
     if (open) {
-      window.api.listProjects('active').then(setProjects).catch(console.error)
+      window.api
+        .listProjects()
+        .then((all) => setProjects(all.filter((p) => p.status === 'active' || p.status === 'someday')))
+        .catch(console.error)
       window.api.listContexts().then(setContexts).catch(console.error)
     }
   }, [open])
@@ -73,7 +78,8 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
         contextIds: selectedContextIds.length > 0 ? selectedContextIds : undefined,
         due_date: dueDate || undefined,
         scheduled_date: scheduledDate || undefined,
-        recurrence_rule: recurrenceRule || undefined
+        recurrence_rule: recurrenceRule || undefined,
+        energy_level: energyLevel
       })
 
       // Reset form
@@ -87,6 +93,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
       setDueDate('')
       setScheduledDate('')
       setRecurrenceRule(null)
+      setEnergyLevel(undefined)
       onOpenChange(false)
     } finally {
       setLoading(false)
@@ -106,7 +113,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-white rounded-xl shadow-2xl border-slate-200 max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-white rounded-sm shadow-2xl border-slate-200 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-slate-900">Nova Tarefa</DialogTitle>
           <DialogDescription className="text-slate-500">
@@ -224,7 +231,7 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
                         inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border
                         ${
                           isSelected
-                            ? 'text-white shadow-sm'
+                            ? 'text-white'
                             : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
                         }
                       `}
@@ -238,6 +245,32 @@ export function TaskDialog({ open, onOpenChange, onSubmit }: TaskDialogProps): R
               </div>
             </div>
           )}
+
+          {/* Nível de Energia */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Nível de Energia</label>
+            <div className="flex gap-2">
+              {(['alto', 'medio', 'baixo'] as EnergyLevel[]).map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  onClick={() => setEnergyLevel(energyLevel === level ? undefined : level)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    energyLevel === level
+                      ? level === 'alto'
+                        ? 'bg-green-100 border-green-500 text-green-700'
+                        : level === 'medio'
+                          ? 'bg-amber-100 border-amber-500 text-amber-700'
+                          : 'bg-slate-100 border-slate-400 text-slate-600'
+                      : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
+                  }`}
+                >
+                  <span>{ENERGY_ICONS[level]}</span>
+                  {ENERGY_LABELS[level]}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">Fontes / Tags</label>

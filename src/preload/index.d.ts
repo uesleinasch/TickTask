@@ -13,7 +13,23 @@ import type {
   Context,
   WeeklyReview,
   ReviewHealthIndicators,
-  TaskDependency
+  TaskDependency,
+  Area,
+  CreateAreaInput,
+  UpdateAreaInput,
+  Goal,
+  CreateGoalInput,
+  UpdateGoalInput,
+  TimeBlock,
+  CreateTimeBlockInput,
+  UpdateTimeBlockInput,
+  GtdMetrics,
+  EnergyStats,
+  TaskListFilters,
+  TaskListItem,
+  TagWithUsage,
+  UpdateTagInput,
+  McpStatus
 } from '../shared/types'
 
 interface FloatTimerData {
@@ -74,9 +90,26 @@ interface API {
 
   // Task CRUD
   createTask: (data: CreateTaskInput) => Promise<Task>
-  listTasks: (archived?: boolean) => Promise<Task[]>
+  listTasks: (filters?: TaskListFilters) => Promise<Task[]>
+  countTasks: (filters?: TaskListFilters) => Promise<number>
+  listActiveTasksLight: () => Promise<TaskListItem[]>
+  listRunningTasks: () => Promise<Task[]>
   getTask: (id: number) => Promise<Task | undefined>
   updateTask: (id: number, data: UpdateTaskInput) => Promise<void>
+  updateTaskNotes: (id: number, notes: string | null) => Promise<void>
+  saveDrawing: (id: number, drawing: string | null, preview: Uint8Array | null) => Promise<void>
+  searchMentions: (
+    query: string
+  ) => Promise<Array<{ id: number; label: string; type: 'task' | 'project' | 'context' }>>
+  saveNoteImage: (
+    taskId: number,
+    bytes: Uint8Array,
+    filename: string,
+    mime: string
+  ) => Promise<{ assetId: string; src: string }>
+  exportNotesLocalChoose: (taskId: number) => Promise<string | null>
+  exportNotesLocal: (taskId: number) => Promise<boolean>
+  syncTaskNotes: (id: number) => Promise<void>
   deleteTask: (id: number) => Promise<void>
   bulkDeleteTasks: (ids: number[]) => Promise<void>
   bulkUpdateStatus: (ids: number[], status: TaskStatus) => Promise<void>
@@ -95,11 +128,12 @@ interface API {
   showNotification: (title: string, body: string) => void
 
   // Float window controls
-  updateFloatTimer: (data: FloatTimerData) => Promise<void>
+  updateFloatTimer: (timers: FloatTimerData[]) => Promise<void>
   clearFloatTimer: () => Promise<void>
   restoreFromFloat: () => Promise<void>
   stopFromFloat: (taskId: number) => Promise<void>
-  onFloatUpdate: (callback: (data: FloatTimerData) => void) => () => void
+  stopAllFromFloat: () => Promise<void>
+  onFloatUpdate: (callback: (timers: FloatTimerData[]) => void) => () => void
   onFloatClear: (callback: () => void) => () => void
   onTimerStopped: (callback: (taskId: number) => void) => () => void
 
@@ -113,10 +147,17 @@ interface API {
   getCategoryStats: () => Promise<CategoryStats[]>
   getHeatmapData: () => Promise<HeatmapData[]>
   getGeneralStats: () => Promise<GeneralStats>
+  // FASE 4.2: Advanced stats
+  getGtdMetrics: () => Promise<GtdMetrics>
+  getEnergyStats: () => Promise<EnergyStats[]>
+  generateWeeklyPDF: () => Promise<void>
 
   // Tags
   createTag: (name: string, color?: string) => Promise<Tag>
   listTags: () => Promise<Tag[]>
+  listTagsWithUsage: () => Promise<TagWithUsage[]>
+  updateTag: (id: number, data: UpdateTagInput) => Promise<void>
+  mergeTags: (sourceId: number, targetId: number) => Promise<number>
   getOrCreateTag: (name: string) => Promise<Tag>
   deleteTag: (id: number) => Promise<void>
   getTaskTags: (taskId: number) => Promise<Tag[]>
@@ -133,7 +174,10 @@ interface API {
   // Contexts
   createContext: (name: string, icon?: string, color?: string) => Promise<Context>
   listContexts: () => Promise<Context[]>
-  updateContext: (id: number, data: { name?: string; icon?: string; color?: string }) => Promise<void>
+  updateContext: (
+    id: number,
+    data: { name?: string; icon?: string; color?: string }
+  ) => Promise<void>
   deleteContext: (id: number) => Promise<void>
   getTaskContexts: (taskId: number) => Promise<Context[]>
   setTaskContexts: (taskId: number, contextIds: number[]) => Promise<void>
@@ -186,6 +230,28 @@ interface API {
   notionSyncAllTasks: () => Promise<{ success: number; failed: number }>
   notionCreateDatabase: () => Promise<string>
 
+  // FASE 4.3: Blocos de Tempo
+  createTimeBlock: (data: CreateTimeBlockInput) => Promise<TimeBlock>
+  getTimeBlocksForDate: (date: string) => Promise<TimeBlock[]>
+  getTimeBlocksForWeek: (startDate: string) => Promise<TimeBlock[]>
+  getTimeBlocksForMonth: (yearMonth: string) => Promise<TimeBlock[]>
+  updateTimeBlock: (id: number, data: UpdateTimeBlockInput) => Promise<void>
+  deleteTimeBlock: (id: number) => Promise<void>
+
+  // FASE 4: Áreas de Foco
+  createArea: (data: CreateAreaInput) => Promise<Area>
+  getArea: (id: number) => Promise<Area | undefined>
+  listAreas: () => Promise<Area[]>
+  updateArea: (id: number, data: UpdateAreaInput) => Promise<void>
+  deleteArea: (id: number) => Promise<void>
+
+  // FASE 4: Objetivos (Goals)
+  createGoal: (data: CreateGoalInput) => Promise<Goal>
+  getGoal: (id: number) => Promise<Goal | undefined>
+  listGoals: (areaId?: number) => Promise<Goal[]>
+  updateGoal: (id: number, data: UpdateGoalInput) => Promise<void>
+  deleteGoal: (id: number) => Promise<void>
+
   // Sync notification events
   onSyncStart?: (callback: (event: unknown, taskName?: string) => void) => void
   offSyncStart?: (callback: (event: unknown, taskName?: string) => void) => void
@@ -193,6 +259,15 @@ interface API {
   offSyncSuccess?: (callback: (event: unknown, taskName?: string) => void) => void
   onSyncError?: (callback: (event: unknown, error?: string) => void) => void
   offSyncError?: (callback: (event: unknown, error?: string) => void) => void
+
+  // Inicialização
+  appGetAutostart: () => Promise<boolean>
+  appSetAutostart: (enabled: boolean) => Promise<boolean>
+
+  // MCP Server
+  mcpGetStatus: () => Promise<McpStatus>
+  mcpSetEnabled: (enabled: boolean) => Promise<McpStatus>
+  mcpRegenerateToken: () => Promise<McpStatus>
 }
 
 declare global {
