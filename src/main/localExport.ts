@@ -5,6 +5,7 @@ import { collectImageAssetIds } from './notionBlocks'
 import { prosemirrorToMarkdown, type MarkdownImageResolver } from './notesMarkdown'
 import { getNoteAsset } from './database'
 import { getAssetFilePath } from './notesAssets'
+import { drawingPreviewPath } from './drawingAssets'
 
 function yaml(value: string | number | undefined | null): string {
   if (value === undefined || value === null || value === '') return '""'
@@ -50,6 +51,23 @@ async function copyAssets(
   return map
 }
 
+// Além do PNG referenciado no Markdown, grava o .excalidraw: é o formato editável, o único
+// que permite reabrir o desenho fora do app.
+async function exportDrawing(task: Task, destDir: string): Promise<string | null> {
+  if (!task.drawing) return null
+
+  const srcPng = drawingPreviewPath(task.id)
+  if (!existsSync(srcPng)) return null
+
+  const assetsDir = path.join(destDir, 'assets')
+  if (!existsSync(assetsDir)) mkdirSync(assetsDir, { recursive: true })
+
+  const pngName = `desenho-${task.id}.png`
+  await fs.copyFile(srcPng, path.join(assetsDir, pngName))
+  await fs.writeFile(path.join(assetsDir, `desenho-${task.id}.excalidraw`), task.drawing, 'utf8')
+  return `assets/${pngName}`
+}
+
 /** Escreve a task (metadados + notas) como Markdown em filePath, copiando as imagens. */
 export async function exportTaskToLocal(task: Task, filePath: string): Promise<void> {
   const destDir = path.dirname(filePath)
@@ -57,6 +75,8 @@ export async function exportTaskToLocal(task: Task, filePath: string): Promise<v
   const assetMap = await copyAssets(task.notes, destDir)
   const resolveImage: MarkdownImageResolver = (id) => assetMap[id] ?? `assets/${id}`
   const body = prosemirrorToMarkdown(task.notes, resolveImage)
-  const content = `${buildFrontmatter(task)}\n\n# ${task.name}\n\n${body}\n`
+  const drawingRef = await exportDrawing(task, destDir)
+  const drawingSection = drawingRef ? `\n\n## Desenho\n\n![Desenho](${drawingRef})\n` : ''
+  const content = `${buildFrontmatter(task)}\n\n# ${task.name}\n\n${body}\n${drawingSection}`
   await fs.writeFile(filePath, content, 'utf8')
 }

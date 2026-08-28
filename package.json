@@ -1,6 +1,6 @@
 {
   "name": "ticktask",
-  "version": "3.7.0",
+  "version": "3.8.0",
   "description": "A simple and efficient task and time tracking application built with Electron, React, and Vite.",
   "main": "./out/main/index.js",
   "author": "https://ueslei.pro/",
@@ -29,6 +29,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "@excalidraw/excalidraw": "^0.18.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@notionhq/client": "^4.0.2",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -47,6 +48,7 @@
     "@tiptap/extension-list": "^3.28.0",
     "@tiptap/extension-mention": "^3.28.0",
     "@tiptap/extension-table": "^3.28.0",
+    "@tiptap/extension-text-style": "3.28.0",
     "@tiptap/extensions": "^3.28.0",
     "@tiptap/pm": "^3.28.0",
     "@tiptap/react": "^3.28.0",

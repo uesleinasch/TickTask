@@ -1,7 +1,16 @@
 import { Extension } from '@tiptap/core'
 import Suggestion from '@tiptap/suggestion'
 import { createSuggestionRenderer } from '../suggestionPopup'
+import { pickImageFile, uploadAndInsert } from '../imageUpload'
 import { SlashMenu, type SlashItem } from './SlashMenu'
+
+export interface SlashCommandOptions {
+  taskId: number
+}
+
+// Precisa acompanhar o número de itens: um limite menor que a lista esconde os últimos
+// comandos de quem abre o menu sem digitar nada.
+const MAX_VISIBLE_ITEMS = 12
 
 const ITEMS: SlashItem[] = [
   {
@@ -60,16 +69,39 @@ const ITEMS: SlashItem[] = [
   }
 ]
 
-export const SlashCommand = Extension.create({
+function itemsFor(taskId: number): SlashItem[] {
+  return [
+    ...ITEMS,
+    {
+      title: 'Imagem',
+      command: ({ editor, range }) => {
+        // O range do "/" precisa sair antes do seletor: o diálogo nativo rouba o foco e a
+        // posição registrada aqui não sobrevive ao retorno.
+        editor.chain().focus().deleteRange(range).run()
+        void pickImageFile().then((file) => {
+          if (file) void uploadAndInsert(editor, taskId, file)
+        })
+      }
+    }
+  ]
+}
+
+export const SlashCommand = Extension.create<SlashCommandOptions>({
   name: 'slashCommand',
+  addOptions() {
+    return { taskId: 0 }
+  },
   addProseMirrorPlugins() {
+    const items = itemsFor(this.options.taskId)
     return [
       Suggestion<SlashItem>({
         editor: this.editor,
         char: '/',
         startOfLine: false,
         items: ({ query }) =>
-          ITEMS.filter((i) => i.title.toLowerCase().includes(query.toLowerCase())).slice(0, 10),
+          items
+            .filter((i) => i.title.toLowerCase().includes(query.toLowerCase()))
+            .slice(0, MAX_VISIBLE_ITEMS),
         command: ({ editor, range, props }) => props.command({ editor, range }),
         render: createSuggestionRenderer<SlashItem>(SlashMenu)
       })

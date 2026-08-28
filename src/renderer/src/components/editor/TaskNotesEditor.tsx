@@ -14,7 +14,7 @@ export interface TaskNotesEditorHandle {
 interface TaskNotesEditorProps {
   taskId: number
   initialContent: JSONContent
-  onSaved?: () => void
+  onSaved?: (notes: string) => void
   onChange?: () => void
 }
 
@@ -39,9 +39,10 @@ export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditor
           onChangeRef.current?.()
           if (debounceRef.current) clearTimeout(debounceRef.current)
           debounceRef.current = setTimeout(() => {
+            const notes = JSON.stringify(editor.getJSON())
             window.api
-              .updateTaskNotes(taskId, JSON.stringify(editor.getJSON()))
-              .then(() => onSavedRef.current?.())
+              .updateTaskNotes(taskId, notes)
+              .then(() => onSavedRef.current?.(notes))
               .catch((e) => console.error('Falha ao salvar notas:', e))
           }, DEBOUNCE_MS)
         }
@@ -51,8 +52,9 @@ export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditor
 
     const persist = useCallback(async (): Promise<void> => {
       if (!editor) return
-      await window.api.updateTaskNotes(taskId, JSON.stringify(editor.getJSON()))
-      onSavedRef.current?.()
+      const notes = JSON.stringify(editor.getJSON())
+      await window.api.updateTaskNotes(taskId, notes)
+      onSavedRef.current?.(notes)
     }, [editor, taskId])
 
     useImperativeHandle(

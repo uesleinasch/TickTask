@@ -97,6 +97,7 @@ interface API {
   getTask: (id: number) => Promise<Task | undefined>
   updateTask: (id: number, data: UpdateTaskInput) => Promise<void>
   updateTaskNotes: (id: number, notes: string | null) => Promise<void>
+  saveDrawing: (id: number, drawing: string | null, preview: Uint8Array | null) => Promise<void>
   searchMentions: (
     query: string
   ) => Promise<Array<{ id: number; label: string; type: 'task' | 'project' | 'context' }>>

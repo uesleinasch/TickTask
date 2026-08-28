@@ -4,9 +4,12 @@
     <meta charset="UTF-8" />
     <title>TickTask App</title>
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <!-- img-src precisa listar o ASSET_SCHEME de src/main/notesAssets.ts: o esquema é
+         privilegiado, mas não tem bypassCSP, então sem isso as imagens das notas são
+         bloqueadas e renderizam como imagem quebrada. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: ticktask-asset:; font-src 'self' ticktask-asset:"
     />
   </head>
 

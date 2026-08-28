@@ -105,6 +105,18 @@ module scope, `registerAssetProtocol()` after `app.whenReady`). Pushing the same
 re-uploads those bytes via `notionFileUpload.ts`; `@notionhq/client` is pinned to v4 because the
 upload API differs across majors.
 
+## Desenho por task (Excalidraw)
+
+Cada task tem um desenho, na aba **Desenho** do mesmo painel das notas. O JSON do Excalidraw vive
+na coluna `drawing` de `tasks`; o PNG derivado vai para `userData/drawings/<taskId>.png`, gravado
+no mesmo IPC (`drawing:save`) que grava o JSON — MCP, Notion e export local leem esse PNG, então
+as duas escritas não podem divergir. O editor (`components/editor/TaskDrawingEditor.tsx`) é
+carregado com `React.lazy`: o pacote é grande e só a aba de desenho paga por ele.
+
+As fontes do Excalidraw são servidas pelo protocolo `ticktask-asset://` (host `excalidraw`), não
+por `file://` — o renderer roda em origem opaca em produção e o Chromium recusa carregar fontes
+dali. A CSP em `src/renderer/index.html` precisa listar o esquema em `font-src` e `img-src`.
+
 ## Notion sync (src/main/notion.ts)
 
 Config (API key, target page/database id, auto-sync flag) is persisted to `app.getPath('userData')/notion-config.json`, not the DB. On first sync the app provisions a "GTD APP" Notion database and maps local task fields to Notion properties (names are Portuguese: Nome, Status, etc.), translating the local status union to Notion status options. Sync progress is surfaced to the UI through the `notion:sync*` events above.
