@@ -320,3 +320,9 @@ body.float-window #root {
 .notes-editor-content .tableWrapper {
   overflow-x: auto;
 }
+
+/* Excalidraw — a biblioteca de formas prontas não faz parte do fluxo do app e o pacote não
+   expõe flag para escondê-la; .sidebar-trigger é o botão que abre esse painel. */
+.excalidraw .sidebar-trigger {
+  display: none !important;
+}

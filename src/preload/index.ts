@@ -51,6 +51,8 @@ const api = {
     ipcRenderer.invoke('task:update', id, data),
   updateTaskNotes: (id: number, notes: string | null): Promise<void> =>
     ipcRenderer.invoke('task:updateNotes', id, notes),
+  saveDrawing: (id: number, drawing: string | null, preview: Uint8Array | null): Promise<void> =>
+    ipcRenderer.invoke('drawing:save', id, drawing, preview),
   searchMentions: (
     query: string
   ): Promise<Array<{ id: number; label: string; type: 'task' | 'project' | 'context' }>> =>
