@@ -10,7 +10,7 @@ interface NotesPanelProps {
   initialContent: JSONContent
   editorRef: Ref<TaskNotesEditorHandle>
   onChange: () => void
-  onSaved: () => void
+  onSaved: (notes: string) => void
   viewMode: NotesViewMode
   onMaximize: () => void
   onZen: () => void
