@@ -20,3 +20,6 @@ copilot-instructions.md
 
 # Artefatos do fluxo de especificação: nunca versionados.
 docs/superpowers/
+
+# Grafo de conhecimento gerado pelo graphify: local, não versionado.
+graphify-out/
