@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Check, ChevronDown, ChevronRight } from 'lucide-react'
 import { usePersistedState } from '@renderer/hooks/usePersistedState'
 import { cn } from '@renderer/lib/utils'
-import { resolveSteps, toggleStepDone } from './setupSteps'
+import { resolveSteps, toggleStepDone } from './stepProgress'
 
 export interface SetupStep {
   id: string
