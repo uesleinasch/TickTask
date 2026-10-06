@@ -1,5 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { createConfirmStore } from './confirmGuard'
+import type { ConfirmStore } from './confirmGuard'
 import { ok } from './reply'
 import { registerDrawingTools } from './tools/drawing'
 import { registerNotesTools } from './tools/notes'
@@ -8,12 +8,9 @@ import { registerStructureTools } from './tools/structure'
 import { registerTaskTools } from './tools/tasks'
 import { registerTimerTools } from './tools/timer'
 
-export function createMcpServer(bulkThreshold: number): McpServer {
+export function createMcpServer(bulkThreshold: number, confirmStore: ConfirmStore): McpServer {
   const server = new McpServer({ name: 'ticktask', version: '1.0.0' })
-  const ctx = {
-    confirmStore: createConfirmStore(),
-    bulkThreshold
-  }
+  const ctx = { confirmStore, bulkThreshold }
 
   server.registerTool(
     'server_info',
