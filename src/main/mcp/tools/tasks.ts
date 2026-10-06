@@ -7,6 +7,7 @@ import {
   countTimeBlocksForTask,
   createTask,
   deleteTasks,
+  filterGcalSyncedIds,
   getChildTaskIds,
   getGtdMetrics,
   getReviewHealthIndicators,
@@ -25,7 +26,7 @@ import {
 } from '../../database'
 import { prosemirrorToMarkdown } from '../../notesMarkdown'
 import { needsConfirmation } from '../confirmGuard'
-import { afterTaskWrite, broadcastRefresh } from '../effects'
+import { afterCalendarChange, afterTaskWrite, broadcastRefresh } from '../effects'
 import { fail, ok } from '../reply'
 import { resolveByName } from '../resolve'
 import type { ToolContext } from '../toolContext'
@@ -414,10 +415,12 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
       const consumed = ctx.confirmStore.consume(args.confirm_token, operation)
       if (!consumed.ok) return fail(consumed.code, consumed.message)
 
+      const calendarIds = filterGcalSyncedIds([...ids, ...ids.flatMap((id) => getChildTaskIds(id))])
       deleteTasks(ids)
       // deleteTasks também apaga as subtarefas em cascata; a task pai deixou de existir,
       // então sincronizar no Notion não faz sentido — só avisamos a janela para recarregar.
       broadcastRefresh()
+      afterCalendarChange(calendarIds)
       return ok({ deleted: ids })
     }
   )

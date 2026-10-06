@@ -4,6 +4,7 @@ import {
   createTimeBlock,
   createWeeklyReview,
   deleteTimeBlock,
+  filterGcalSyncedIds,
   getLastWeeklyReview,
   getReviewHealthIndicators,
   getTask,
@@ -20,7 +21,7 @@ import {
   updateWeeklyReview
 } from '../../database'
 import { needsConfirmation } from '../confirmGuard'
-import { afterTaskWrite, broadcastRefresh } from '../effects'
+import { afterCalendarChange, afterTaskWrite, broadcastRefresh } from '../effects'
 import { fail, ok } from '../reply'
 import type { ToolContext } from '../toolContext'
 
@@ -161,8 +162,12 @@ export function registerPlanningTools(server: McpServer, ctx: ToolContext): void
           end_time: block.end_time
         })
       )
+      const removedOwners = removals.flatMap((id) => getTimeBlock(id)?.task_id ?? [])
       removals.forEach((id) => deleteTimeBlock(id))
       if (blocks.length > 0 || removals.length > 0) broadcastRefresh()
+      afterCalendarChange(
+        filterGcalSyncedIds([...blocks.map((block) => block.task_id), ...removedOwners])
+      )
 
       return ok({
         scheduled: scheduleItems.map((item) => item.task_id),
