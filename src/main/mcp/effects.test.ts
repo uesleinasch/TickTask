@@ -58,4 +58,21 @@ describe('efeitos de escrita (MCP)', () => {
     expect(() => broadcastRefresh()).not.toThrow()
     expect(send).not.toHaveBeenCalled()
   })
+
+  it('afterCalendarChange repassa as tasks únicas ao sync da agenda e ignora lista vazia', async () => {
+    const { registerWriteEffects, afterCalendarChange } = await loadEffects()
+    const syncCalendar = vi.fn()
+    registerWriteEffects({
+      getMainWindow: () => null,
+      autoSync: vi.fn(),
+      syncTagChange: vi.fn(),
+      syncCalendar
+    })
+
+    afterCalendarChange([])
+    expect(syncCalendar).not.toHaveBeenCalled()
+
+    afterCalendarChange([3, 5, 3])
+    expect(syncCalendar).toHaveBeenCalledWith([3, 5])
+  })
 })

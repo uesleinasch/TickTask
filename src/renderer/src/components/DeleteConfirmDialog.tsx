@@ -15,6 +15,7 @@ interface DeleteConfirmDialogProps {
   onConfirm: () => void
   title?: string
   description?: string
+  confirmLabel?: string
 }
 
 export function DeleteConfirmDialog({
@@ -22,7 +23,8 @@ export function DeleteConfirmDialog({
   onOpenChange,
   onConfirm,
   title = 'Tem certeza?',
-  description = 'Esta ação não pode ser desfeita. Isso irá deletar permanentemente a tarefa.'
+  description = 'Esta ação não pode ser desfeita. Isso irá deletar permanentemente a tarefa.',
+  confirmLabel = 'Deletar'
 }: DeleteConfirmDialogProps): React.JSX.Element {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -37,7 +39,7 @@ export function DeleteConfirmDialog({
             onClick={onConfirm}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            Deletar
+            {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

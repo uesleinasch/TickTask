@@ -9,6 +9,17 @@ import {
 const COLUMNS = 't.id, t.name'
 
 describe('buildTaskListWhere', () => {
+  it('overdueAt considera prazos de dias anteriores e de hoje com hora passada', () => {
+    const { clause, params } = buildTaskListWhere({
+      overdueAt: { date: '2026-10-06', time: '14:30' }
+    })
+
+    expect(clause).toContain(
+      't.due_date IS NOT NULL AND (substr(t.due_date, 1, 10) < ? OR (substr(t.due_date, 1, 10) = ? AND t.due_time IS NOT NULL AND t.due_time < ?))'
+    )
+    expect(params).toEqual([0, '2026-10-06', '2026-10-06', '14:30'])
+  })
+
   it('sempre restringe a tarefas raiz e parametriza o arquivamento', () => {
     const { clause, params } = buildTaskListWhere({})
 

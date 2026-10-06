@@ -117,8 +117,22 @@ import {
   updateDayOrder,
   createNextRecurrence,
   deleteNextRecurrence,
-  getTasksDueForNotification
+  getTasksDueForNotification,
+  getTimeBlock,
+  filterGcalSyncedIds,
+  getNextRecurrenceIds
 } from './database'
+import {
+  connectGcal,
+  disconnectGcal,
+  getGcalStatus,
+  isGcalAutoSyncOn,
+  isGcalConnected,
+  saveGcalCredentials,
+  setGcalAutoSync,
+  syncAllToGoogle,
+  syncTaskToGoogle
+} from './googleCalendar'
 import {
   // Notion
   getNotionConfig,
@@ -135,6 +149,8 @@ import {
 import { saveNoteImage, registerAssetProtocol, ASSET_SCHEME } from './notesAssets'
 import { deleteDrawingPreview, saveDrawingPreview } from './drawingAssets'
 import { exportTaskToLocal } from './localExport'
+import { pickDueNotifications } from './dueNotifications'
+import { localDateString } from '../shared/dueState'
 import { readMcpConfig, writeMcpConfig } from './mcp/store'
 import { isMcpRunning, startMcpServer, stopMcpServer } from './mcp/transport'
 import { generateToken } from './mcp/config'
@@ -148,7 +164,9 @@ import type {
   CreateProjectInput,
   UpdateProjectInput,
   ProjectStatus,
-  McpStatus
+  McpStatus,
+  CreateTimeBlockInput,
+  UpdateTimeBlockInput
 } from '../shared/types'
 
 // Protocolo custom para servir imagens locais das notas ao renderer.
@@ -218,6 +236,40 @@ async function autoSyncToNotion(taskId: number): Promise<void> {
       mainWindow?.webContents.send('notion:syncError', errorMessage)
     }
   }
+}
+
+async function runGoogleSync(taskId: number): Promise<void> {
+  const label = getTask(taskId)?.name ?? `Tarefa #${taskId}`
+  mainWindow?.webContents.send('gcal:syncStart', label)
+  try {
+    await syncTaskToGoogle(taskId)
+    mainWindow?.webContents.send('gcal:syncSuccess', label)
+  } catch (error) {
+    console.error('[gcal] erro na sincronização:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+    mainWindow?.webContents.send('gcal:syncError', errorMessage)
+    throw error
+  }
+}
+
+// Recebe só ids já filtrados por gcal_sync: depois de uma exclusão a task não existe mais para
+// consultar, e o sync com a task ausente é justamente o que apaga os eventos dela. Exclusões vão
+// mesmo com o auto-sync desligado — nenhum "Ressincronizar" alcança uma task que não existe mais.
+function pushToGoogle(taskIds: number[]): void {
+  if (taskIds.length === 0 || !isGcalConnected()) return
+  const autoSync = isGcalAutoSyncOn()
+  for (const id of taskIds) {
+    if (autoSync || !getTask(id)) runGoogleSync(id).catch(() => undefined)
+  }
+}
+
+function autoSyncToGoogle(...taskIds: number[]): void {
+  pushToGoogle(filterGcalSyncedIds(taskIds))
+}
+
+function autoSyncTask(taskId: number): Promise<void> {
+  autoSyncToGoogle(taskId)
+  return autoSyncToNotion(taskId)
 }
 
 // Renomear, mesclar ou excluir uma tag muda o multi_select das tarefas no Notion, que só é
@@ -528,7 +580,7 @@ function setupIpcHandlers(): void {
   // Task CRUD
   ipcMain.handle('task:create', (_, data: CreateTaskInput) => {
     const task = createTask(data)
-    autoSyncToNotion(task.id)
+    autoSyncTask(task.id)
     return task
   })
   ipcMain.handle('task:list', (_, filters?: TaskListFilters) => listTasks(filters))
@@ -538,7 +590,7 @@ function setupIpcHandlers(): void {
   ipcMain.handle('task:get', (_, id: number) => getTask(id))
   ipcMain.handle('task:update', (_, id: number, data: UpdateTaskInput) => {
     updateTask(id, data)
-    autoSyncToNotion(id)
+    autoSyncTask(id)
   })
   ipcMain.handle('task:updateNotes', (_, id: number, notes: string | null) => {
     updateTaskNotes(id, notes)
@@ -586,6 +638,7 @@ function setupIpcHandlers(): void {
     return true
   })
   ipcMain.handle('task:delete', (_, id: number) => {
+    const calendarIds = filterGcalSyncedIds([id, ...getChildTaskIds(id)])
     const config = getNotionConfig()
     if (config?.autoSync && config.databaseId) {
       // Excluir também as subtarefas do Notion
@@ -599,11 +652,16 @@ function setupIpcHandlers(): void {
       })
     }
     deleteTask(id)
+    pushToGoogle(calendarIds)
   })
   ipcMain.handle('task:bulkDelete', async (_, ids: number[]) => {
     const taskIds = normalizeTaskIds(ids)
     if (taskIds.length === 0) return
 
+    const calendarIds = filterGcalSyncedIds([
+      ...taskIds,
+      ...taskIds.flatMap((id) => getChildTaskIds(id))
+    ])
     const config = getNotionConfig()
     if (config?.autoSync && config.databaseId) {
       // Incluir as subtarefas de cada tarefa para excluí-las também do Notion
@@ -620,6 +678,7 @@ function setupIpcHandlers(): void {
     }
 
     deleteTasks(taskIds)
+    pushToGoogle(calendarIds)
   })
   ipcMain.handle('task:bulkUpdateStatus', (_, ids: number[], status: TaskStatus) => {
     const taskIds = normalizeTaskIds(ids)
@@ -627,7 +686,7 @@ function setupIpcHandlers(): void {
 
     updateTasksStatus(taskIds, status)
     for (const id of taskIds) {
-      autoSyncToNotion(id)
+      autoSyncTask(id)
     }
   })
   ipcMain.handle('task:bulkMoveToProject', (_, ids: number[], projectId: number | null) => {
@@ -636,18 +695,18 @@ function setupIpcHandlers(): void {
 
     moveTasksToProject(taskIds, projectId)
     for (const id of taskIds) {
-      autoSyncToNotion(id)
+      autoSyncTask(id)
     }
   })
 
   // Archive
   ipcMain.handle('task:archive', (_, id: number) => {
     archiveTask(id)
-    autoSyncToNotion(id)
+    autoSyncTask(id)
   })
   ipcMain.handle('task:unarchive', (_, id: number) => {
     unarchiveTask(id)
-    autoSyncToNotion(id)
+    autoSyncTask(id)
   })
 
   // Timer
@@ -660,21 +719,21 @@ function setupIpcHandlers(): void {
   })
   ipcMain.handle('task:stop', (_, id: number) => {
     const result = stopTask(id)
-    autoSyncToNotion(id)
+    autoSyncTask(id)
     return result
   })
   ipcMain.handle('task:updateTimer', (_, id: number, seconds: number) => updateTimer(id, seconds))
   ipcMain.handle('task:reset', (_, id: number) => {
     resetTaskTimer(id)
-    autoSyncToNotion(id)
+    autoSyncTask(id)
   })
   ipcMain.handle('task:addManualTime', (_, id: number, seconds: number) => {
     addManualTimeEntry(id, seconds)
-    autoSyncToNotion(id)
+    autoSyncTask(id)
   })
   ipcMain.handle('task:setTotalTime', (_, id: number, seconds: number) => {
     setTaskTotalTime(id, seconds)
-    autoSyncToNotion(id)
+    autoSyncTask(id)
   })
 
   // Status
@@ -701,12 +760,13 @@ function setupIpcHandlers(): void {
     if (status === 'finalizada') {
       // Recurrence: create next instance for top-level recurring tasks
       if (task.recurrence_rule && !task.parent_task_id) {
-        createNextRecurrence(id)
+        const next = createNextRecurrence(id)
+        if (next) autoSyncToGoogle(next.id)
       }
 
       // Subtask: check if parent should auto-complete
-      if (task.parent_task_id) {
-        completeSubtasksCheck(task.parent_task_id)
+      if (task.parent_task_id && completeSubtasksCheck(task.parent_task_id)) {
+        autoSyncToGoogle(task.parent_task_id)
       }
 
       // Notify dependents that a dependency was resolved
@@ -720,11 +780,13 @@ function setupIpcHandlers(): void {
     } else if (previousStatus === 'finalizada') {
       // Undo completion: delete auto-created recurrence instance
       if (task.recurrence_rule && !task.parent_task_id) {
+        const calendarIds = filterGcalSyncedIds(getNextRecurrenceIds(id))
         deleteNextRecurrence(id)
+        pushToGoogle(calendarIds)
       }
     }
 
-    autoSyncToNotion(id)
+    autoSyncTask(id)
   })
 
   // Time Entries
@@ -753,7 +815,7 @@ function setupIpcHandlers(): void {
   })
   ipcMain.handle('float:stopTimer', async (_, taskId: number) => {
     const result = await stopTask(taskId)
-    autoSyncToNotion(taskId)
+    autoSyncTask(taskId)
     mainWindow?.webContents.send('timer:stopped', taskId)
     return result
   })
@@ -761,7 +823,7 @@ function setupIpcHandlers(): void {
     const ids = currentTimers.map((t) => t.taskId)
     for (const id of ids) {
       await stopTask(id)
-      autoSyncToNotion(id)
+      autoSyncTask(id)
       mainWindow?.webContents.send('timer:stopped', id)
     }
   })
@@ -815,7 +877,7 @@ function setupIpcHandlers(): void {
   ipcMain.handle('tag:getTaskTags', (_, taskId: number) => getTaskTags(taskId))
   ipcMain.handle('tag:setTaskTags', (_, taskId: number, tagIds: number[]) => {
     setTaskTags(taskId, tagIds)
-    autoSyncToNotion(taskId)
+    autoSyncTask(taskId)
   })
 
   // ===================== PROJECTS =====================
@@ -924,8 +986,8 @@ function setupIpcHandlers(): void {
     const task = createTask({ name: data.name, parent_task_id: data.parent_task_id })
     // Sincroniza a pai primeiro (garante a página no Notion) e depois a subtarefa,
     // para que a relação "Tarefa Pai" encontre a página da pai.
-    await autoSyncToNotion(data.parent_task_id)
-    autoSyncToNotion(task.id)
+    await autoSyncTask(data.parent_task_id)
+    autoSyncTask(task.id)
     return task
   })
 
@@ -946,17 +1008,56 @@ function setupIpcHandlers(): void {
   )
   ipcMain.handle('task:scheduleForDate', (_, taskId: number, date: string | null) => {
     updateTask(taskId, { scheduled_date: date })
+    autoSyncToGoogle(taskId)
   })
 
   // ===================== FASE 4.3: Blocos de Tempo =====================
-  ipcMain.handle('timeBlock:create', (_, data) => createTimeBlock(data))
+  ipcMain.handle('timeBlock:create', (_, data: CreateTimeBlockInput) => {
+    const block = createTimeBlock(data)
+    autoSyncToGoogle(block.task_id)
+    return block
+  })
   ipcMain.handle('timeBlock:getForDate', (_, date: string) => getTimeBlocksForDate(date))
   ipcMain.handle('timeBlock:getForWeek', (_, startDate: string) => getTimeBlocksForWeek(startDate))
   ipcMain.handle('timeBlock:getForMonth', (_, yearMonth: string) =>
     getTimeBlocksForMonth(yearMonth)
   )
-  ipcMain.handle('timeBlock:update', (_, id: number, data) => updateTimeBlock(id, data))
-  ipcMain.handle('timeBlock:delete', (_, id: number) => deleteTimeBlock(id))
+  ipcMain.handle('timeBlock:update', (_, id: number, data: UpdateTimeBlockInput) => {
+    const before = getTimeBlock(id)
+    updateTimeBlock(id, data)
+    if (before) autoSyncToGoogle(before.task_id, data.task_id ?? before.task_id)
+  })
+  ipcMain.handle('timeBlock:delete', (_, id: number) => {
+    const before = getTimeBlock(id)
+    deleteTimeBlock(id)
+    if (before) autoSyncToGoogle(before.task_id)
+  })
+
+  // Google Calendar
+  ipcMain.handle('gcal:getStatus', () => getGcalStatus())
+  ipcMain.handle('gcal:saveCredentials', (_, clientId: string, clientSecret: string) =>
+    saveGcalCredentials(clientId, clientSecret)
+  )
+  ipcMain.handle('gcal:connect', () => connectGcal())
+  ipcMain.handle('gcal:disconnect', () => disconnectGcal())
+  ipcMain.handle('gcal:setAutoSync', (_, enabled: boolean) => setGcalAutoSync(enabled))
+  ipcMain.handle('gcal:setTaskSync', async (_, taskId: number, enabled: boolean) => {
+    updateTask(taskId, { gcal_sync: enabled })
+    await runGoogleSync(taskId)
+  })
+  ipcMain.handle('gcal:syncTask', (_, taskId: number) => runGoogleSync(taskId))
+  ipcMain.handle('gcal:syncAll', async () => {
+    mainWindow?.webContents.send('gcal:syncStart')
+    try {
+      const result = await syncAllToGoogle()
+      mainWindow?.webContents.send('gcal:syncSuccess')
+      return result
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+      mainWindow?.webContents.send('gcal:syncError', errorMessage)
+      throw error
+    }
+  })
 
   // ===================== FASE 4: Áreas de Foco =====================
   ipcMain.handle('area:create', (_, data) => createArea(data))
@@ -973,6 +1074,7 @@ function setupIpcHandlers(): void {
   ipcMain.handle('goal:delete', (_, id: number) => deleteGoal(id))
 
   // ===================== INICIALIZAÇÃO =====================
+  ipcMain.handle('app:getVersion', () => app.getVersion())
   ipcMain.handle('app:getAutostart', () => isAutostartEnabled())
   ipcMain.handle('app:setAutostart', (_, enabled: boolean) => setAutostartEnabled(enabled))
 
@@ -1010,48 +1112,25 @@ let notificationInterval: NodeJS.Timeout | null = null
 
 function checkDueDateNotifications(): void {
   const now = new Date()
-  const todayStr = now.toISOString().split('T')[0]
-  const tomorrow = new Date(now)
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowStr = tomorrow.toISOString().split('T')[0]
-
-  // Reset daily notification set at midnight
-  const dayKey = `day-${todayStr}`
+  const dayKey = `day-${localDateString(now)}`
   if (!notifiedToday.has(dayKey)) {
     notifiedToday.clear()
     notifiedToday.add(dayKey)
   }
 
-  const tasks = getTasksDueForNotification()
-  for (const task of tasks) {
-    if (!task.due_date) continue
-    const dueDate = task.due_date.split('T')[0]
-
-    if (dueDate === todayStr && now.getHours() >= 9) {
-      const key = `${task.id}-today`
-      if (!notifiedToday.has(key)) {
-        notifiedToday.add(key)
-        new Notification({
-          title: '⏰ Prazo hoje!',
-          body: `"${task.name}" vence hoje.`
-        }).show()
-      }
-    } else if (dueDate === tomorrowStr) {
-      const key = `${task.id}-tomorrow`
-      if (!notifiedToday.has(key)) {
-        notifiedToday.add(key)
-        new Notification({
-          title: '📅 Prazo amanhã',
-          body: `"${task.name}" vence amanhã.`
-        }).show()
-      }
-    }
+  for (const notification of pickDueNotifications(
+    getTasksDueForNotification(),
+    now,
+    notifiedToday
+  )) {
+    notifiedToday.add(notification.key)
+    new Notification({ title: notification.title, body: notification.body }).show()
   }
 }
 
 function startNotificationScheduler(): void {
   checkDueDateNotifications()
-  notificationInterval = setInterval(checkDueDateNotifications, 60 * 60 * 1000) // a cada hora
+  notificationInterval = setInterval(checkDueDateNotifications, 60 * 1000)
 }
 
 app.whenReady().then(() => {
@@ -1061,8 +1140,9 @@ app.whenReady().then(() => {
 
   registerWriteEffects({
     getMainWindow: () => mainWindow,
-    autoSync: (id) => autoSyncToNotion(id),
-    syncTagChange: (ids) => syncTasksAfterTagChange(ids)
+    autoSync: (id) => autoSyncTask(id),
+    syncTagChange: (ids) => syncTasksAfterTagChange(ids),
+    syncCalendar: (ids) => pushToGoogle(ids)
   })
 
   // Nenhuma falha do MCP pode impedir createWindow(): esta promise não tem .catch.

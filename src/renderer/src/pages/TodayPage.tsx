@@ -18,6 +18,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
+import { formatTimeRange } from '@shared/taskTime'
 import { DueDateBadge } from '@renderer/components/DueDateBadge'
 import { StatusBadge } from '@renderer/components/StatusBadge'
 import { formatTime } from '@renderer/lib/utils'
@@ -43,8 +44,10 @@ interface SortableTaskRowProps {
 }
 
 function SortableTaskRow({ task, onTaskClick }: SortableTaskRowProps): React.JSX.Element {
+  const timeRange = formatTimeRange(task.scheduled_time, task.scheduled_end_time)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: task.id
+    id: task.id,
+    disabled: !!timeRange
   })
 
   const style = {
@@ -63,15 +66,23 @@ function SortableTaskRow({ task, onTaskClick }: SortableTaskRowProps): React.JSX
         task.is_blocked && 'border-l-4 border-l-orange-300'
       )}
     >
-      {/* Drag handle */}
-      <button
-        {...attributes}
-        {...listeners}
-        className="flex-shrink-0 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <GripVertical size={16} />
-      </button>
+      {timeRange ? (
+        <span
+          title="Com horário: a posição segue a hora"
+          className="flex-shrink-0 w-[4.5rem] text-xs font-semibold text-blue-700 tabular-nums"
+        >
+          {timeRange}
+        </span>
+      ) : (
+        <button
+          {...attributes}
+          {...listeners}
+          className="flex-shrink-0 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical size={16} />
+        </button>
+      )}
 
       {/* Status indicator */}
       <div className="flex-shrink-0">
@@ -101,7 +112,7 @@ function SortableTaskRow({ task, onTaskClick }: SortableTaskRowProps): React.JSX
             {task.name}
           </span>
           <StatusBadge status={task.status} />
-          {task.due_date && <DueDateBadge dueDate={task.due_date} />}
+          {task.due_date && <DueDateBadge dueDate={task.due_date} dueTime={task.due_time} />}
         </div>
         {task.project_name && (
           <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
@@ -186,7 +197,9 @@ function DayColumn({ date, tasks, isToday, onTaskClick }: DayColumnProps): React
               )}
             >
               <span className="truncate block text-slate-700">{task.name}</span>
-              {task.due_date && <DueDateBadge dueDate={task.due_date} className="mt-0.5" />}
+              {task.due_date && (
+                <DueDateBadge dueDate={task.due_date} dueTime={task.due_time} className="mt-0.5" />
+              )}
             </button>
           ))
         )}
@@ -238,6 +251,7 @@ export function TodayPage(): React.JSX.Element {
 
       const oldIndex = todayTasks.findIndex((t) => t.id === active.id)
       const newIndex = todayTasks.findIndex((t) => t.id === over.id)
+      if (todayTasks[newIndex]?.scheduled_time) return
       const reordered = arrayMove(todayTasks, oldIndex, newIndex)
 
       setTodayTasks(reordered)

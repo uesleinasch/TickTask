@@ -47,7 +47,9 @@ com borda inferior:
 ## Aba "Hoje"
 
 Lista vertical em `max-w-2xl` com `space-y-2`, reordenável por arraste (`@dnd-kit`, sensores de
-ponteiro e teclado).
+ponteiro e teclado). Tasks **com horário** vêm primeiro, ordenadas pela hora (no SQL de
+`getTasksForDate`), e não são arrastáveis; soltar outra task sobre uma delas é ignorado. As sem
+horário seguem a ordem manual (`day_order`).
 
 ### Linha de tarefa (`SortableTaskRow`)
 
@@ -58,7 +60,7 @@ ponteiro e teclado).
 
 | Elemento | Detalhe |
 | --- | --- |
-| Alça de arraste | `GripVertical` cinza-claro, `cursor-grab` / `active:cursor-grabbing`. Só ela inicia o arraste |
+| Alça de arraste | `GripVertical` cinza-claro, `cursor-grab` / `active:cursor-grabbing`. Só ela inicia o arraste. Em task com horário, no lugar dela aparece a faixa `09:00–10:00` em azul |
 | Indicador de estado | `CheckSquare` roxo se finalizada · `Activity` esmeralda pulsante se rodando · `Lock` laranja se bloqueada · círculo vazio caso contrário |
 | Nome | `font-medium`, riscado e cinza quando finalizada |
 | `StatusBadge` | sempre |

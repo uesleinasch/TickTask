@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { StatusBadge } from './StatusBadge'
 import { CategoryBadge } from './CategoryBadge'
 import { DueDateBadge } from './DueDateBadge'
+import { ScheduledTimeBadge } from './ScheduledTimeBadge'
 import { formatTime } from '@renderer/lib/utils'
 import type { Task } from '../../../shared/types'
 import {
@@ -55,7 +56,7 @@ export function TaskCard({
   const showTimer = task.is_running || task.total_seconds > 0
   const hasTagsOrContexts =
     (task.tags && task.tags.length > 0) || (task.contexts && task.contexts.length > 0)
-  const hasMetaRow = !!task.due_date || hasTimeLimit || hasSubtasks
+  const hasMetaRow = !!task.due_date || !!task.scheduled_time || hasTimeLimit || hasSubtasks
 
   const [expanded, setExpanded] = useState(false)
   const [subtasks, setSubtasks] = useState<Task[]>([])
@@ -146,7 +147,12 @@ export function TaskCard({
         {/* Chips: due date, limite, subtarefas */}
         {hasMetaRow && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-500">
-            {task.due_date && <DueDateBadge dueDate={task.due_date} />}
+            <ScheduledTimeBadge
+              date={task.scheduled_date}
+              start={task.scheduled_time}
+              end={task.scheduled_end_time}
+            />
+            {task.due_date && <DueDateBadge dueDate={task.due_date} dueTime={task.due_time} />}
             {hasTimeLimit && (
               <span className="inline-flex items-center gap-1">
                 <Clock size={12} />

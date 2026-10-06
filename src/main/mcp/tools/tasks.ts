@@ -7,6 +7,7 @@ import {
   countTimeBlocksForTask,
   createTask,
   deleteTasks,
+  filterGcalSyncedIds,
   getChildTaskIds,
   getGtdMetrics,
   getReviewHealthIndicators,
@@ -23,9 +24,11 @@ import {
   updateTask,
   updateTasksStatus
 } from '../../database'
+import { currentTime, localDateString } from '@shared/dueState'
+import { mergeTaskTimes, taskTimeError } from '@shared/taskTime'
 import { prosemirrorToMarkdown } from '../../notesMarkdown'
 import { needsConfirmation } from '../confirmGuard'
-import { afterTaskWrite, broadcastRefresh } from '../effects'
+import { afterCalendarChange, afterTaskWrite, broadcastRefresh } from '../effects'
 import { fail, ok } from '../reply'
 import { resolveByName } from '../resolve'
 import type { ToolContext } from '../toolContext'
@@ -34,6 +37,7 @@ const STATUS = z.enum(['inbox', 'aguardando', 'proximas', 'executando', 'finaliz
 const CATEGORY = z.enum(['urgente', 'prioridade', 'normal', 'time_leak'])
 const ENERGY = z.enum(['alto', 'medio', 'baixo'])
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use o formato AAAA-MM-DD.')
+const TIME = z.string().regex(/^\d{2}:\d{2}$/, 'Use o formato HH:MM.')
 
 type Resolution = { ok: true; id: number } | { ok: false; response: ReturnType<typeof fail> }
 
@@ -185,7 +189,12 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
         contexts: z.array(z.union([z.string(), z.number()])).optional(),
         tags: z.array(z.string()).optional(),
         due_date: DATE.optional(),
+        due_time: TIME.optional().describe('Hora limite do prazo (exige due_date).'),
         scheduled_date: DATE.optional(),
+        scheduled_time: TIME.optional().describe('Início do agendamento (exige scheduled_date).'),
+        scheduled_end_time: TIME.optional().describe(
+          'Fim do agendamento (exige scheduled_time). Sem fim, o Google Calendar usa o limite de tempo da task ou 1h.'
+        ),
         parent_task_id: z.number().int().positive().optional()
       }
     },
@@ -193,6 +202,8 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
       if (args.parent_task_id !== undefined && !getTask(args.parent_task_id)) {
         return fail('not_found', `Task pai ${args.parent_task_id} não existe.`)
       }
+      const timeError = taskTimeError(args)
+      if (timeError) return fail('validation', timeError)
 
       const input: CreateTaskInput = {
         name: args.name,
@@ -200,7 +211,10 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
         category: args.category,
         energy_level: args.energy,
         due_date: args.due_date,
+        due_time: args.due_time,
         scheduled_date: args.scheduled_date,
+        scheduled_time: args.scheduled_time,
+        scheduled_end_time: args.scheduled_end_time,
         parent_task_id: args.parent_task_id
       }
 
@@ -253,11 +267,23 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
         contexts: z.array(z.union([z.string(), z.number()])).optional(),
         tags: z.array(z.string()).optional(),
         due_date: z.union([DATE, z.null()]).optional(),
-        scheduled_date: z.union([DATE, z.null()]).optional()
+        due_time: z
+          .union([TIME, z.null()])
+          .optional()
+          .describe('Hora limite do prazo; null remove. Limpar due_date também remove a hora.'),
+        scheduled_date: z.union([DATE, z.null()]).optional(),
+        scheduled_time: z
+          .union([TIME, z.null()])
+          .optional()
+          .describe('Início do agendamento; null remove (e remove o fim).'),
+        scheduled_end_time: z.union([TIME, z.null()]).optional().describe('Fim do agendamento.')
       }
     },
     async (args) => {
-      if (!getTask(args.id)) return fail('not_found', `Task ${args.id} não existe.`)
+      const current = getTask(args.id)
+      if (!current) return fail('not_found', `Task ${args.id} não existe.`)
+      const timeError = taskTimeError(mergeTaskTimes(current, args))
+      if (timeError) return fail('validation', timeError)
 
       const patch: UpdateTaskInput = {}
       if (args.name !== undefined) patch.name = args.name
@@ -267,6 +293,9 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
       if (args.energy !== undefined) patch.energy_level = args.energy
       if (args.due_date !== undefined) patch.due_date = args.due_date
       if (args.scheduled_date !== undefined) patch.scheduled_date = args.scheduled_date
+      if (args.due_time !== undefined) patch.due_time = args.due_time
+      if (args.scheduled_time !== undefined) patch.scheduled_time = args.scheduled_time
+      if (args.scheduled_end_time !== undefined) patch.scheduled_end_time = args.scheduled_end_time
 
       if (args.project !== undefined) {
         if (args.project === null) {
@@ -414,10 +443,12 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
       const consumed = ctx.confirmStore.consume(args.confirm_token, operation)
       if (!consumed.ok) return fail(consumed.code, consumed.message)
 
+      const calendarIds = filterGcalSyncedIds([...ids, ...ids.flatMap((id) => getChildTaskIds(id))])
       deleteTasks(ids)
       // deleteTasks também apaga as subtarefas em cascata; a task pai deixou de existir,
       // então sincronizar no Notion não faz sentido — só avisamos a janela para recarregar.
       broadcastRefresh()
+      afterCalendarChange(calendarIds)
       return ok({ deleted: ids })
     }
   )
@@ -440,7 +471,14 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
 
       const inboxFilters: TaskListFilters = { status: 'inbox' }
       const withoutProjectFilters: TaskListFilters = { projectId: 'none' }
-      const overdueFilters: TaskListFilters = { dueBefore: today, excludeStatus: ['finalizada'] }
+      const now = new Date()
+      const overdueFilters: TaskListFilters = {
+        overdueAt: {
+          date: today,
+          time: today === localDateString(now) ? currentTime(now) : '00:00'
+        },
+        excludeStatus: ['finalizada']
+      }
       const blockedFilters: TaskListFilters = { blockedOnly: true, excludeStatus: ['finalizada'] }
       const somedayFilters: TaskListFilters = { status: 'someday' }
 
