@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { StatusBadge } from './StatusBadge'
 import { CategoryBadge } from './CategoryBadge'
 import { DueDateBadge } from './DueDateBadge'
+import { ScheduledTimeBadge } from './ScheduledTimeBadge'
 import { formatTime } from '@renderer/lib/utils'
 import type { Task } from '../../../shared/types'
 import {
@@ -217,9 +218,15 @@ export function TaskTable({
                         >
                           {task.name}
                         </p>
+                        <ScheduledTimeBadge
+                          className="shrink-0"
+                          date={task.scheduled_date}
+                          start={task.scheduled_time}
+                          end={task.scheduled_end_time}
+                        />
                         {task.due_date && (
                           <span className="shrink-0">
-                            <DueDateBadge dueDate={task.due_date} />
+                            <DueDateBadge dueDate={task.due_date} dueTime={task.due_time} />
                           </span>
                         )}
                         {onScheduleForToday && (

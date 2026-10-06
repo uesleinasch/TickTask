@@ -4,6 +4,7 @@ import {
   createTimeBlock,
   createWeeklyReview,
   deleteTimeBlock,
+  filterGcalSyncedIds,
   getLastWeeklyReview,
   getReviewHealthIndicators,
   getTask,
@@ -19,8 +20,9 @@ import {
   updateTask,
   updateWeeklyReview
 } from '../../database'
+import { mergeTaskTimes, taskTimeError } from '@shared/taskTime'
 import { needsConfirmation } from '../confirmGuard'
-import { afterTaskWrite, broadcastRefresh } from '../effects'
+import { afterCalendarChange, afterTaskWrite, broadcastRefresh } from '../effects'
 import { fail, ok } from '../reply'
 import type { ToolContext } from '../toolContext'
 
@@ -67,6 +69,8 @@ export function registerPlanningTools(server: McpServer, ctx: ToolContext): void
             z.object({
               task_id: z.number().int().positive(),
               date: z.union([DATE, z.null()]),
+              start_time: TIME.optional().describe('Hora de início na task (scheduled_time).'),
+              end_time: TIME.optional().describe('Hora de fim na task (exige start_time).'),
               order: z.number().int().min(0).optional()
             })
           )
@@ -94,6 +98,18 @@ export function registerPlanningTools(server: McpServer, ctx: ToolContext): void
 
       if (scheduleItems.length === 0 && blocks.length === 0 && removals.length === 0) {
         return fail('validation', 'Informe schedule, create_blocks ou delete_block_ids.')
+      }
+      for (const item of scheduleItems) {
+        const current = getTask(item.task_id)
+        if (!current) return fail('not_found', `Task ${item.task_id} não existe.`)
+        const timeError = taskTimeError(
+          mergeTaskTimes(current, {
+            scheduled_date: item.date,
+            scheduled_time: item.start_time,
+            scheduled_end_time: item.end_time
+          })
+        )
+        if (timeError) return fail('validation', `Task ${item.task_id}: ${timeError}`)
       }
 
       const referencedTaskIds = [
@@ -148,7 +164,11 @@ export function registerPlanningTools(server: McpServer, ctx: ToolContext): void
       }
 
       for (const item of scheduleItems) {
-        updateTask(item.task_id, { scheduled_date: item.date })
+        updateTask(item.task_id, {
+          scheduled_date: item.date,
+          ...(item.start_time !== undefined && { scheduled_time: item.start_time }),
+          ...(item.end_time !== undefined && { scheduled_end_time: item.end_time })
+        })
         if (item.order !== undefined) updateDayOrder(item.task_id, item.order)
         afterTaskWrite(item.task_id)
       }
@@ -161,8 +181,12 @@ export function registerPlanningTools(server: McpServer, ctx: ToolContext): void
           end_time: block.end_time
         })
       )
+      const removedOwners = removals.flatMap((id) => getTimeBlock(id)?.task_id ?? [])
       removals.forEach((id) => deleteTimeBlock(id))
       if (blocks.length > 0 || removals.length > 0) broadcastRefresh()
+      afterCalendarChange(
+        filterGcalSyncedIds([...blocks.map((block) => block.task_id), ...removedOwners])
+      )
 
       return ok({
         scheduled: scheduleItems.map((item) => item.task_id),

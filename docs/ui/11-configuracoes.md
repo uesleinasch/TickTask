@@ -1,136 +1,108 @@
 # Configurações — `/settings`
 
-`src/renderer/src/pages/SettingsPage.tsx` (~665 linhas)
+`src/renderer/src/pages/SettingsPage.tsx` (shell, ~170 linhas) + uma seção por arquivo em
+`src/renderer/src/components/settings/`.
 
 ## Função
 
-Três integrações independentes numa página só: **Notion**, **inicialização com o sistema** e
-**servidor MCP**. Não há nenhuma preferência de interface, idioma, tema ou comportamento do app.
+Preferências do app e as três integrações (Notion, Google Calendar, servidor MCP). Acessível só pelo
+botão-ícone de engrenagem no `TitleBar`.
 
-Acessível apenas pelo botão-ícone de engrenagem no `TitleBar` (o primeiro da direita, `variant=ghost`,
-sem rótulo).
+## Estrutura
 
-## Cabeçalho
+```
+┌──────────────────────────────────────────────────────────────┐
+│ ← Voltar              ⚙ Configurações                        │
+├──────────────┬───────────────────────────────────────────────┤
+│ APLICATIVO   │  ┌─────────────────────────────────────────┐  │
+│ ⚙ Geral      │  │ [ícone] Título  (pílula de estado)      │  │
+│ ⓘ Sobre      │  │ descrição                               │  │
+│ INTEGRAÇÕES  │  │ ─────────────────────────────────────── │  │
+│ 📖 Notion  ● │  │ conteúdo da seção                       │  │
+│ 📅 Google  ● │  │                                         │  │
+│ 🖥 MCP     ● │  └─────────────────────────────────────────┘  │
+└──────────────┴───────────────────────────────────────────────┘
+```
 
-`← Voltar` · centro: `Settings` + "Configurações" · direita: um `<div class="w-20" />` vazio, usado
-só para equilibrar o `justify-between`. Corpo em `max-w-2xl mx-auto` com `space-y-6`.
+- **Barra lateral** de 224px (`w-56`), branca, em dois grupos. O item ativo fica `bg-slate-900
+  text-white`. Integrações levam um ponto de estado à direita: esmeralda (conectado / rodando),
+  slate-300 (desligado / não configurado), vermelho (MCP ligado mas falhou ao iniciar); o rótulo
+  completo vai no `title`.
+- A seção aberta persiste em `localStorage` (`settings.section`, via `usePersistedState`).
+- **Painel**: `max-w-2xl`, um único cartão branco `rounded-sm` com a seção. Enquanto os estados
+  carregam (`notionGetConfig`, `gcalGetStatus`, `mcpGetStatus`, `appGetAutostart` em paralelo), o
+  painel mostra um `Loader2`; a barra lateral já aparece.
+- A página é dona dos estados e os repassa às seções com um callback de mudança. Por isso o ponto
+  na barra lateral muda no mesmo instante em que a seção conecta ou desliga algo.
 
-Enquanto carrega a configuração salva, a tela inteira é um `Loader2` girando.
+## Peças compartilhadas (`components/settings/`)
 
----
+| Peça | Papel |
+| --- | --- |
+| `SectionHeader` | quadrado `bg-slate-900` com ícone, título, `StatusPill` opcional, descrição e borda inferior |
+| `ToggleRow` / `Switch` | linha `bg-slate-50` com rótulo, texto de estado e o switch (`role="switch"`) |
+| `StatusPill` | pílula com ponto: esmeralda / slate / vermelho |
+| `SetupSteps` | linha do tempo vertical de configuração (abaixo) |
+| `OutLink`, `Callout` | link externo (`↗`, abre no navegador do sistema) e aviso âmbar/azul |
+| `settingsStatus.ts` | puro e testado: estado de cada integração, tipo `NotionConfig`, `errorMessage` (tira o prefixo `Error invoking remote method…`) |
 
-## Seção 1 — Integração com Notion
+### `SetupSteps`
 
-Cabeçalho da seção: quadrado `bg-slate-900` com o logotipo do Notion em SVG inline + título e
-subtítulo ("Sincronize suas tarefas com o banco de dados GTD APP no Notion").
+Lista numerada vertical. Cada passo é **manual** (você marca "Marcar como feito"; os ids ficam no
+`localStorage` sob a chave da seção) ou **automático** (`autoDone`, derivado do estado real — ex.:
+credenciais salvas, conta conectada). O **primeiro passo não feito** é o atual (número em
+`bg-slate-900`); feitos ficam com check esmeralda e recolhidos, e o título vira um botão para
+reabrir. Lógica em `setupSteps.ts` (pura, testada).
 
-### Elementos, na ordem
+## Seções
 
-| Elemento | Quando aparece | Detalhe |
-| --- | --- | --- |
-| **Faixa de status da conexão** | após testar | verde com `Check` e "Conectado ao Notion com sucesso!" ou vermelha com `X` e "Falha na conexão. Verifique suas credenciais." |
-| **API Key do Notion** | sempre | `input[type=password]`, placeholder `ntn_xxxxxxxxxxxx`, com link para `notion.so/my-integrations` abaixo |
-| **Banco configurado** | com `databaseId` | faixa verde: `Database` + "Banco de dados GTD APP configurado:" + os 8 primeiros caracteres do id em `<code>` |
-| **Página TickTask** | com `pageId` | faixa cinza equivalente |
-| **Última sincronização** | com `lastSync` | linha em `text-xs text-slate-500`, data/hora `pt-BR` |
-| **Sincronização Automática** | com `databaseId` | linha `bg-slate-50` com rótulo, explicação e **toggle** de 44×24px (esmeralda quando ligado). Salva imediatamente e emite toast |
+### Geral
 
-### Botões de ação
+- `ToggleRow` **Iniciar o TickTask com o sistema** (texto muda com o estado). Se o sistema recusar,
+  toast vermelho.
+- Bloco "Fechar a janela não encerra o app" — explica a bandeja e o "Sair".
+- Bloco "Captura rápida" com o atalho em `<kbd>` (`Ctrl` ou `⌘` conforme a plataforma) — só
+  informativo, não editável.
 
-- **Testar Conexão** (contorno, `Link2`) — salva a configuração antes de testar.
-- **Criar Banco GTD APP** (`bg-slate-900`, `Database`) — só quando ainda **não** há `databaseId`;
-  provisiona o banco no Notion e recarrega a configuração.
-- **Sincronizar Todas as Tarefas** (`bg-emerald-600`, `RefreshCw`) — só quando **há** `databaseId`;
-  o toast final informa `N sucesso, M falhas`.
+### Notion
 
-Todos trocam o ícone por `Loader2` girando durante a operação.
+- **Sem banco criado** → `SetupSteps` (`settings.notion.steps`):
+  1. Criar a integração (link para `notion.so/my-integrations`).
+  2. API Key + **Testar conexão** (salva antes de testar). Automático: feito quando há chave salva e
+     o teste passou ou o banco já existe.
+  3. Conectar a integração a uma página (⋯ → Conexões → Adicionar conexões) + aviso de que ela só
+     enxerga páginas conectadas.
+  4. Page ID opcional + **Criar banco GTD APP**. Automático: feito quando há `databaseId`.
+- **Com banco** → id do banco e última sincronização; `ToggleRow` de auto-sync (salva na hora);
+  **Sincronizar todas as tarefas**; **Limpar configurações** (com confirmação — só apaga o
+  `notion-config.json`, nada no Notion); e o recolhível "Ver guia de configuração e trocar a API
+  Key" com os mesmos passos.
+- Os antigos blocos azul/âmbar de ajuda no pé da página viraram o passo 3.
 
-### Configurações Avançadas
+### Google Calendar
 
-Bloco recolhível (`ChevronDown`/`ChevronUp`) com um único campo: **Page ID (opcional)**, com a nota
-*"Se não informado, uma página 'TickTask' será criada automaticamente."*
+- **Não conectado** → `SetupSteps` (`settings.gcal.steps`) com o guia do Google Cloud embutido:
+  1. Criar projeto · 2. Ativar a Calendar API · 3. Branding (com aviso: **não enviar logo**, exige
+  verificação) · 4. Audience → Publish app (aviso: em Testing o acesso expira em 7 dias) ·
+  5. Client "Desktop app" — os campos **Client ID** e **Client Secret** ficam dentro deste passo,
+  com "Salvar credenciais" quando editados (automático: credenciais salvas) · 6. **Conectar com o
+  Google** (automático: conectado), com a instrução Avançado → Acessar TickTask.
+- **Conectado** → `ToggleRow` de auto-sync, **Ressincronizar todas**, **Desconectar** (a agenda
+  "TickTask" continua no Google) e o recolhível "Ver guia de configuração e trocar credenciais".
+- O secret nunca volta ao renderer: o campo mostra `•••••••• (salvo)`.
 
-### Rodapé da seção
+### Servidor MCP
 
-**Limpar Configurações** (ghost vermelho, à esquerda) e **Salvar Alterações**
-(`bg-blue-600`, à direita) — este só aparece quando há mudanças pendentes.
+- `ToggleRow` com o estado: "Desligado", `Rodando em 127.0.0.1:{porta}` (esmeralda) ou falha na
+  porta (vermelho).
+- Comando de registro num `<pre>` escuro + copiar; nota de que ele contém o token.
+- **Regenerar token** pede confirmação (`DeleteConfirmDialog` com `confirmLabel="Regenerar"`)
+  explicando que clientes registrados param de funcionar.
 
-O botão de salvar é azul aqui, enquanto o resto da tela usa `bg-slate-900` e `bg-emerald-600`. Três
-cores de ação primária numa página só.
+### Sobre
 
----
-
-## Seção 2 — Inicialização
-
-Quadrado `bg-slate-900` com `Power` + título "Inicialização" e subtítulo "Mantenha o TickTask e o
-servidor MCP disponíveis desde o login".
-
-Uma linha `bg-slate-50` com toggle:
-
-- **Iniciar o TickTask com o sistema**
-- texto de estado que muda com o valor:
-  - ligado: *"Ativado — o app sobe na bandeja, sem abrir janela"*
-  - desligado: *"Desativado — o app só abre quando você mandar"*
-
-Se o sistema recusar a alteração, um toast vermelho avisa: "Não foi possível alterar a inicialização
-automática".
-
-Abaixo, nota em `text-xs` com `AlertCircle`:
-
-> Fechar a janela esconde o app na bandeja; para encerrar, use "Sair" no ícone da bandeja.
-
-Essa é a **única explicação em toda a interface** de por que fechar a janela não fecha o app — e ela
-vive escondida numa tela que o usuário talvez nunca abra.
-
----
-
-## Seção 3 — Servidor MCP
-
-Quadrado `bg-slate-900` com `Server` + título "Servidor MCP" e subtítulo "Exponha o TickTask para
-assistentes como o Claude Code via MCP".
-
-### Toggle do servidor
-
-Linha `bg-slate-50` com o rótulo "Servidor MCP" e um texto de estado em três variantes:
-
-| Estado | Texto | Cor |
-| --- | --- | --- |
-| Desligado | "Desligado" | `text-slate-500` |
-| Ligado e rodando | `Rodando em 127.0.0.1:{porta}` | `text-emerald-600` |
-| Ligado com falha | `Falha ao iniciar na porta {porta} — verifique se ela já está em uso` | `text-red-600` |
-
-### Comando de registro
-
-Rótulo "Comando para registrar no Claude Code". Bloco `<pre>` escuro (`bg-slate-900 text-slate-100`,
-`whitespace-pre-wrap break-all`) com o comando completo — que **inclui o token de acesso em texto
-plano** — e um botão de copiar (`Copy`) ao lado.
-
-Nota abaixo: *"Rode esse comando no terminal do Claude Code para registrar o servidor."*
-
-### Regenerar Token
-
-Botão de contorno com `KeyRound`. Invalida o token atual — o comando exibido muda e qualquer cliente
-já registrado precisa ser reconfigurado. **Não há confirmação nem aviso sobre essa consequência.**
-
----
-
-## Blocos informativos finais
-
-### "Como configurar a integração" (`bg-blue-50`)
-
-Lista numerada de 5 passos com uma sub-lista aninhada, explicando como criar a integração no Notion e
-— o ponto crítico, marcado com `IMPORTANTE` em negrito — como **conectar a integração a uma página**
-pelo menu ⋯ → Conexões → Adicionar conexões.
-
-### "⚠️ Atenção" (`bg-amber-50`)
-
-Parágrafo explicando que a integração só enxerga páginas explicitamente conectadas, e que erros de
-"página não encontrada" vêm daí.
-
-Os dois blocos somam quase um terço da altura da página e repetem parte da informação. São
-documentação inline num lugar onde um link ou um passo-a-passo progressivo resolveria melhor.
-
----
+Versões em lista: TickTask (`app:getVersion`), Electron, Chromium e Node
+(`window.electron.process.versions`).
 
 ## O que falta
 
@@ -138,7 +110,5 @@ documentação inline num lugar onde um link ou um passo-a-passo progressivo res
   definir a paleta `.dark` completa.
 - Nenhuma configuração de **comportamento**: jornada de trabalho (fixa em 8h no plano do dia),
   limiares de time leak (1h/30min/0), janela da grade do calendário (07:00–22:00), intervalo do
-  auto-sync de notas (60s), atalho global (fixo em `Ctrl+Shift+Space`).
+  auto-sync de notas (60s), atalho global (fixo).
 - Nenhuma gestão de **dados**: exportar/importar o banco, localizar o arquivo, fazer backup.
-- Nenhuma informação de **versão** do app (existe um componente `Versions.tsx` no repositório, mas
-  não é usado em lugar nenhum).

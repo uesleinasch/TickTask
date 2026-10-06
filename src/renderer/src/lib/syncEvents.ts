@@ -19,21 +19,25 @@ export const syncEvents = {
 }
 
 // Funções para disparar eventos de sync
-export function notifySyncStart(taskName?: string): void {
+export function notifySyncStart(taskName?: string, target = 'Notion'): void {
   syncEvents.emit({
     isActive: true,
     taskName,
     status: 'syncing',
-    message: taskName ? `Sincronizando "${taskName}"...` : 'Sincronizando com Notion...'
+    message: taskName
+      ? `Sincronizando "${taskName}"${target === 'Notion' ? '' : ` com ${target}`}...`
+      : `Sincronizando com ${target}...`
   })
 }
 
-export function notifySyncSuccess(taskName?: string): void {
+export function notifySyncSuccess(taskName?: string, target = 'Notion'): void {
   syncEvents.emit({
     isActive: true,
     taskName,
     status: 'success',
-    message: taskName ? `"${taskName}" sincronizada!` : 'Sincronização concluída!'
+    message: taskName
+      ? `"${taskName}" sincronizada${target === 'Notion' ? '' : ` com ${target}`}!`
+      : 'Sincronização concluída!'
   })
 
   // Auto-hide após 2 segundos

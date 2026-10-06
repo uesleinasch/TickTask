@@ -70,6 +70,13 @@ export function buildTaskListWhere(filters: TaskListFilters): {
     params.push(filters.dueBefore)
   }
 
+  if (filters.overdueAt) {
+    conditions.push(
+      't.due_date IS NOT NULL AND (substr(t.due_date, 1, 10) < ? OR (substr(t.due_date, 1, 10) = ? AND t.due_time IS NOT NULL AND t.due_time < ?))'
+    )
+    params.push(filters.overdueAt.date, filters.overdueAt.date, filters.overdueAt.time)
+  }
+
   if (filters.energy) {
     conditions.push('t.energy_level = ?')
     params.push(filters.energy)

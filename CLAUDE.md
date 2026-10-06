@@ -138,6 +138,26 @@ dali. A CSP em `src/renderer/index.html` precisa listar o esquema em `font-src` 
 
 Config (API key, target page/database id, auto-sync flag) is persisted to `app.getPath('userData')/notion-config.json`, not the DB. On first sync the app provisions a "GTD APP" Notion database and maps local task fields to Notion properties (names are Portuguese: Nome, Status, etc.), translating the local status union to Notion status options. Sync progress is surfaced to the UI through the `notion:sync*` events above.
 
+## Google Calendar sync
+
+Opt-in por task (`tasks.gcal_sync`), só TickTask → Google, numa agenda secundária "TickTask" criada
+pelo app com o escopo `calendar.app.created`. Time blocks viram eventos com hora; `scheduled_date` e
+`due_date` viram eventos de dia inteiro; task finalizada ganha `✓ ` no título.
+
+Não há tabela de vínculo: cada evento tem ID determinístico (`tick{taskId}b{blockId}`,
+`tick{taskId}s`, `tick{taskId}d`) e `extendedProperties.private.taskId`. Com horário na task
+(`scheduled_time`/`scheduled_end_time`, `due_time` — colunas `HH:MM` separadas das datas, regras em
+`src/shared/taskTime.ts`), `s` e `d` viram eventos com hora em vez de dia inteiro. Sincronizar uma task é
+recalcular o conjunto desejado (`gcalPlan.ts`, puro), listar o que existe no Google por essa
+propriedade e aplicar a diferença (`googleCalendarApi.ts`, `fetch` injetado). Task apagada ou
+desmarcada = conjunto vazio = eventos apagados. `gcalSyncQueue.ts` serializa por task.
+
+`googleCalendar.ts` é o lado Electron: `userData/gcal-config.json` (refresh token via
+`safeStorage`), OAuth loopback + PKCE (`googleOAuth.ts`). Em `index.ts`, `autoSyncTask(id)` dispara
+Notion e Google; o Google só age em tasks com `gcal_sync = 1`, então **caminhos de exclusão filtram
+os ids com `filterGcalSyncedIds` antes de apagar** e chamam `pushToGoogle` depois. Handlers de time
+block também sincronizam. No MCP, use `afterCalendarChange(ids)`.
+
 ## MCP server
 
 Lives in `src/main/mcp/`, embedded in the main process. It speaks MCP over HTTP on loopback
@@ -154,7 +174,7 @@ confirmation guard in `confirmGuard.ts` (preview + `confirm_token`, then repeat 
 The float is driven by `mainWindow` events, not by the renderer: `minimize` **and `close`** show it
 **only when a timer is running**, `restore` and `focus` hide it. Its size is derived from the timer
 count (`FLOAT_WIDTH = 300`, 44px per row, max 5 rows) and only re-set when that count changes.
-A due-date notification sweep (`startNotificationScheduler`) also runs hourly from the main process.
+A due-date notification sweep (`startNotificationScheduler`) runs every minute from the main process; which notices fire (day-of, eve, 15 min before and at `due_time`) is decided by the pure `dueNotifications.ts`.
 
 Closing the main window **hides** it — the app lives on in a tray icon (`src/main/tray.ts`: Abrir
 TickTask / Captura rápida / Sair); only "Sair" actually quits. Autostart is toggled from Settings

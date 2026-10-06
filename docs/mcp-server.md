@@ -63,11 +63,11 @@ Ao subir a ponte com `ELECTRON_RUN_AS_NODE=1`, essa variável é removida do amb
 | `server_info` | Confirma que o TickTask está aberto e respondendo. |
 | `search_tasks` | Lista tasks com filtros (status, categoria, energia, projeto, contexto, busca, datas). Não inclui subtarefas. |
 | `get_task` | Detalhe completo de uma task: campos, notas em Markdown, subtarefas, dependências, registros de tempo. |
-| `create_task` | Cria uma task; projeto/contexto por nome ou id, tags criadas se não existirem. |
-| `update_task` | Altera campos de uma task; passar `tags`/`contexts` substitui a lista inteira. |
+| `create_task` | Cria uma task; projeto/contexto por nome ou id, tags criadas se não existirem. Aceita `scheduled_time`/`scheduled_end_time` (exigem `scheduled_date`) e `due_time` (exige `due_date`), em `HH:MM`. |
+| `update_task` | Altera campos de uma task; passar `tags`/`contexts` substitui a lista inteira. Horários em `HH:MM`, `null` remove; limpar a data remove a hora dela, limpar o início remove o fim. Fim ≤ início ou hora sem data → erro `validation`. |
 | `bulk_update_tasks` | Altera status/projeto/arquivamento de várias tasks; acima do `bulkThreshold` exige `confirm_token`. |
 | `delete_tasks` | Deleta tasks permanentemente, incluindo subtarefas em cascata; sempre exige `confirm_token`. |
-| `organize_overview` | Retrato GTD: inbox, sem projeto, atrasadas, bloqueadas, someday, métricas. |
+| `organize_overview` | Retrato GTD: inbox, sem projeto, atrasadas, bloqueadas, someday, métricas. Atrasada = prazo antes de `today`, ou em `today` com `due_time` já passado. |
 | `list_structure` | Projetos, contextos, tags (com uso), áreas e metas num só payload. |
 | `manage_structure` | Cria/atualiza/remove projeto, contexto, tag, área ou meta; remover e mesclar tag exigem `confirm_token`. |
 | `timer` | Inicia, para, consulta status ou lança tempo manual numa task. |
@@ -76,7 +76,7 @@ Ao subir a ponte com `ELECTRON_RUN_AS_NODE=1`, essa variável é removida do amb
 | `read_drawing` | Devolve o desenho (Excalidraw) de uma task como imagem PNG, com um resumo dos elementos e dos textos contidos. |
 | `write_notes` | Grava Markdown nas notas; `mode=append` (recomendado) ou `mode=replace` sobre nota não vazia, que exige `confirm_token`. |
 | `agenda` | Tasks agendadas e blocos de tempo de um dia, semana ou mês. |
-| `plan_day` | Agenda tasks numa data, ordena o dia, cria/remove blocos de tempo; acima do `bulkThreshold` exige `confirm_token`. |
+| `plan_day` | Agenda tasks numa data (itens de `schedule` aceitam `start_time`/`end_time`, gravados como horário da task), ordena o dia, cria/remove blocos de tempo; acima do `bulkThreshold` exige `confirm_token`. |
 | `weekly_review` | Lê revisões anteriores e indicadores de saúde, ou registra uma nova revisão. |
 
 ## Guard de confirmação
