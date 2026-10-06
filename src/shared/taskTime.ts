@@ -48,6 +48,28 @@ export function taskTimeError(fields: TaskTimeFields): string | null {
   return null
 }
 
+const TIME_KEYS = [
+  'scheduled_date',
+  'scheduled_time',
+  'scheduled_end_time',
+  'due_date',
+  'due_time'
+] as const
+
+export function mergeTaskTimes(current: TaskTimeFields, patch: TaskTimeFields): TaskTimeFields {
+  const merged: TaskTimeFields = {}
+  for (const key of TIME_KEYS) merged[key] = patch[key] !== undefined ? patch[key] : current[key]
+  if (patch.scheduled_date === null) {
+    if (patch.scheduled_time === undefined) merged.scheduled_time = null
+    if (patch.scheduled_end_time === undefined) merged.scheduled_end_time = null
+  }
+  if (patch.scheduled_time === null && patch.scheduled_end_time === undefined) {
+    merged.scheduled_end_time = null
+  }
+  if (patch.due_date === null && patch.due_time === undefined) merged.due_time = null
+  return merged
+}
+
 export function addMinutes(
   date: string,
   time: string,

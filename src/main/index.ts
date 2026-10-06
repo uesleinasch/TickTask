@@ -149,6 +149,8 @@ import {
 import { saveNoteImage, registerAssetProtocol, ASSET_SCHEME } from './notesAssets'
 import { deleteDrawingPreview, saveDrawingPreview } from './drawingAssets'
 import { exportTaskToLocal } from './localExport'
+import { pickDueNotifications } from './dueNotifications'
+import { localDateString } from '../shared/dueState'
 import { readMcpConfig, writeMcpConfig } from './mcp/store'
 import { isMcpRunning, startMcpServer, stopMcpServer } from './mcp/transport'
 import { generateToken } from './mcp/config'
@@ -1110,48 +1112,25 @@ let notificationInterval: NodeJS.Timeout | null = null
 
 function checkDueDateNotifications(): void {
   const now = new Date()
-  const todayStr = now.toISOString().split('T')[0]
-  const tomorrow = new Date(now)
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowStr = tomorrow.toISOString().split('T')[0]
-
-  // Reset daily notification set at midnight
-  const dayKey = `day-${todayStr}`
+  const dayKey = `day-${localDateString(now)}`
   if (!notifiedToday.has(dayKey)) {
     notifiedToday.clear()
     notifiedToday.add(dayKey)
   }
 
-  const tasks = getTasksDueForNotification()
-  for (const task of tasks) {
-    if (!task.due_date) continue
-    const dueDate = task.due_date.split('T')[0]
-
-    if (dueDate === todayStr && now.getHours() >= 9) {
-      const key = `${task.id}-today`
-      if (!notifiedToday.has(key)) {
-        notifiedToday.add(key)
-        new Notification({
-          title: '⏰ Prazo hoje!',
-          body: `"${task.name}" vence hoje.`
-        }).show()
-      }
-    } else if (dueDate === tomorrowStr) {
-      const key = `${task.id}-tomorrow`
-      if (!notifiedToday.has(key)) {
-        notifiedToday.add(key)
-        new Notification({
-          title: '📅 Prazo amanhã',
-          body: `"${task.name}" vence amanhã.`
-        }).show()
-      }
-    }
+  for (const notification of pickDueNotifications(
+    getTasksDueForNotification(),
+    now,
+    notifiedToday
+  )) {
+    notifiedToday.add(notification.key)
+    new Notification({ title: notification.title, body: notification.body }).show()
   }
 }
 
 function startNotificationScheduler(): void {
   checkDueDateNotifications()
-  notificationInterval = setInterval(checkDueDateNotifications, 60 * 60 * 1000) // a cada hora
+  notificationInterval = setInterval(checkDueDateNotifications, 60 * 1000)
 }
 
 app.whenReady().then(() => {

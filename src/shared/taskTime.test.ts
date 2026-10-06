@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { addMinutes, formatTimeRange, normalizeTaskTimes, taskTimeError } from './taskTime'
+import {
+  addMinutes,
+  formatTimeRange,
+  mergeTaskTimes,
+  normalizeTaskTimes,
+  taskTimeError
+} from './taskTime'
 
 describe('normalizeTaskTimes', () => {
   it('mantém horários válidos', () => {
@@ -79,5 +85,36 @@ describe('formatTimeRange', () => {
     expect(formatTimeRange('09:00', '10:00')).toBe('09:00–10:00')
     expect(formatTimeRange('09:00', null)).toBe('09:00')
     expect(formatTimeRange(null, '10:00')).toBe('')
+  })
+})
+
+describe('mergeTaskTimes', () => {
+  const current = {
+    scheduled_date: '2026-10-06',
+    scheduled_time: '09:00',
+    scheduled_end_time: '10:00',
+    due_date: '2026-10-07',
+    due_time: '18:00'
+  }
+
+  it('aplica só o que veio no patch', () => {
+    expect(mergeTaskTimes(current, { scheduled_time: '11:00' })).toMatchObject({
+      scheduled_time: '11:00',
+      scheduled_end_time: '10:00'
+    })
+  })
+
+  it('limpar a data limpa as horas dela; limpar o início limpa o fim', () => {
+    expect(mergeTaskTimes(current, { scheduled_date: null })).toMatchObject({
+      scheduled_time: null,
+      scheduled_end_time: null,
+      due_time: '18:00'
+    })
+    expect(mergeTaskTimes(current, { due_date: null }).due_time).toBe(null)
+    expect(mergeTaskTimes(current, { scheduled_time: null }).scheduled_end_time).toBe(null)
+  })
+
+  it('o resultado da limpeza não gera erro de validação', () => {
+    expect(taskTimeError(mergeTaskTimes(current, { scheduled_date: null }))).toBe(null)
   })
 })

@@ -264,6 +264,10 @@ function toPlanInput(task: Task): GcalTaskInput {
     project_name: task.project_name,
     scheduled_date: task.scheduled_date,
     due_date: task.due_date,
+    scheduled_time: task.scheduled_time,
+    scheduled_end_time: task.scheduled_end_time,
+    due_time: task.due_time,
+    time_limit_seconds: task.time_limit_seconds,
     gcal_sync: Boolean(task.gcal_sync)
   }
 }

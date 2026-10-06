@@ -184,6 +184,9 @@ export interface Task {
   // Desenho da task (JSON serializado do Excalidraw); o PNG derivado vive em userData/drawings
   drawing?: string
   gcal_sync?: boolean
+  scheduled_time?: string | null
+  scheduled_end_time?: string | null
+  due_time?: string | null
 }
 
 export interface CreateTaskInput {
@@ -204,6 +207,9 @@ export interface CreateTaskInput {
   // FASE 4.2
   energy_level?: EnergyLevel
   gcal_sync?: boolean
+  scheduled_time?: string | null
+  scheduled_end_time?: string | null
+  due_time?: string | null
 }
 
 export interface UpdateTaskInput {
@@ -224,6 +230,9 @@ export interface UpdateTaskInput {
   // FASE 4.2
   energy_level?: EnergyLevel | null
   gcal_sync?: boolean
+  scheduled_time?: string | null
+  scheduled_end_time?: string | null
+  due_time?: string | null
 }
 
 export interface GcalStatus {

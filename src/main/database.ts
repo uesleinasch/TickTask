@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'path'
+import { mergeTaskTimes, normalizeTaskTimes, type TaskTimeFields } from '@shared/taskTime'
 import type {
   Task,
   TimeEntry,
@@ -309,6 +310,14 @@ export function initDatabase(): void {
     db.exec('ALTER TABLE tasks ADD COLUMN gcal_sync INTEGER NOT NULL DEFAULT 0')
   } catch {
     /* já existe */
+  }
+
+  for (const column of ['scheduled_time', 'scheduled_end_time', 'due_time']) {
+    try {
+      db.exec(`ALTER TABLE tasks ADD COLUMN ${column} TEXT`)
+    } catch {
+      /* já existe */
+    }
   }
 
   // ===================== FASE 4.3: Blocos de Tempo =====================
@@ -744,12 +753,13 @@ export function getProjectTasks(projectId: number): Task[] {
 // ===================== TASKS =====================
 
 export function createTask(data: CreateTaskInput): Task {
+  const times = normalizeTaskTimes(data)
   const transaction = db.transaction(() => {
     const stmt = db.prepare(`
       INSERT INTO tasks (name, description, time_limit_seconds, category, project_id,
                          scheduled_date, due_date, recurrence_rule, parent_task_id, recurrence_source_id,
-                         energy_level, gcal_sync)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         energy_level, gcal_sync, scheduled_time, scheduled_end_time, due_time)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const result = stmt.run(
       data.name,
@@ -763,7 +773,10 @@ export function createTask(data: CreateTaskInput): Task {
       data.parent_task_id || null,
       data.recurrence_source_id || null,
       data.energy_level || null,
-      data.gcal_sync ? 1 : 0
+      data.gcal_sync ? 1 : 0,
+      times.scheduled_time,
+      times.scheduled_end_time,
+      times.due_time
     )
     const taskId = result.lastInsertRowid as number
 
@@ -803,7 +816,8 @@ const TASK_LIST_COLUMNS = `
   t.time_limit_seconds, t.status, t.category, t.is_running, t.is_archived,
   t.project_id, t.created_at, t.updated_at, t.scheduled_date, t.due_date,
   t.recurrence_rule, t.parent_task_id, t.recurrence_source_id, t.day_order,
-  t.energy_level, p.name as project_name, p.color as project_color
+  t.energy_level, t.scheduled_time, t.scheduled_end_time, t.due_time,
+  p.name as project_name, p.color as project_color
 `
 
 function enrichTasks(rows: (Task & { project_name?: string })[]): Task[] {
@@ -1016,6 +1030,20 @@ export function updateTask(id: number, data: UpdateTaskInput): void {
     if (data.gcal_sync !== undefined) {
       updates.push('gcal_sync = ?')
       values.push(data.gcal_sync ? 1 : 0)
+    }
+    const touchesTime = (
+      ['scheduled_date', 'scheduled_time', 'scheduled_end_time', 'due_date', 'due_time'] as const
+    ).some((key) => data[key] !== undefined)
+    if (touchesTime) {
+      const current = db
+        .prepare(
+          'SELECT scheduled_date, scheduled_time, scheduled_end_time, due_date, due_time FROM tasks WHERE id = ?'
+        )
+        .get(id) as TaskTimeFields | undefined
+      const merged = mergeTaskTimes(current ?? {}, data)
+      const times = normalizeTaskTimes(merged)
+      updates.push('scheduled_time = ?', 'scheduled_end_time = ?', 'due_time = ?')
+      values.push(times.scheduled_time, times.scheduled_end_time, times.due_time)
     }
 
     if (updates.length > 0) {
@@ -1851,7 +1879,8 @@ export function getTasksForDate(date: string): Task[] {
     FROM tasks t
     LEFT JOIN projects p ON t.project_id = p.id
     WHERE t.scheduled_date = ? AND t.is_archived = 0 AND t.parent_task_id IS NULL
-    ORDER BY COALESCE(t.day_order, 999999), t.created_at ASC
+    ORDER BY t.scheduled_time IS NULL, t.scheduled_time, COALESCE(t.day_order, 999999),
+      t.created_at ASC
   `)
   const rows = stmt.all(date) as (Task & { project_name?: string })[]
   return enrichTasks(rows)
@@ -1925,7 +1954,9 @@ export function createNextRecurrence(sourceTaskId: number): Task | null {
     recurrence_source_id: sourceTaskId,
     tagIds: tags.map((t) => t.id),
     contextIds: ctxs.map((c) => c.id),
-    gcal_sync: Boolean(source.gcal_sync)
+    gcal_sync: Boolean(source.gcal_sync),
+    scheduled_time: source.scheduled_time,
+    scheduled_end_time: source.scheduled_end_time
   })
 }
 
