@@ -108,6 +108,62 @@ describe('buildDesiredEvents', () => {
   })
 })
 
+describe('buildDesiredEvents com horário', () => {
+  it('programado com início e fim vira evento com hora', () => {
+    const [event] = buildDesiredEvents(
+      task({ scheduled_date: '2026-10-06', scheduled_time: '14:00', scheduled_end_time: '15:30' }),
+      [],
+      TZ
+    )
+    expect(event).toMatchObject({
+      id: 'tick464s',
+      start: { dateTime: '2026-10-06T14:00:00', timeZone: TZ },
+      end: { dateTime: '2026-10-06T15:30:00', timeZone: TZ }
+    })
+  })
+
+  it('sem fim usa o limite de tempo da task ou 1h, virando o dia se preciso', () => {
+    const [comLimite] = buildDesiredEvents(
+      task({ scheduled_date: '2026-10-06', scheduled_time: '09:00', time_limit_seconds: 1800 }),
+      [],
+      TZ
+    )
+    expect(comLimite.end).toEqual({ dateTime: '2026-10-06T09:30:00', timeZone: TZ })
+
+    const [tarde] = buildDesiredEvents(
+      task({ scheduled_date: '2026-12-31', scheduled_time: '23:30' }),
+      [],
+      TZ
+    )
+    expect(tarde.end).toEqual({ dateTime: '2027-01-01T00:30:00', timeZone: TZ })
+  })
+
+  it('prazo com hora vira evento de 15 minutos', () => {
+    const [event] = buildDesiredEvents(task({ due_date: '2026-10-07', due_time: '18:00' }), [], TZ)
+    expect(event).toMatchObject({
+      id: 'tick464d',
+      summary: 'Prazo: Revisar contrato',
+      start: { dateTime: '2026-10-07T18:00:00', timeZone: TZ },
+      end: { dateTime: '2026-10-07T18:15:00', timeZone: TZ }
+    })
+  })
+
+  it('perder a hora volta a dia inteiro e gera update do mesmo id', () => {
+    const timed = buildDesiredEvents(
+      task({ scheduled_date: '2026-10-06', scheduled_time: '09:00' }),
+      [],
+      TZ
+    )
+    const allDay = buildDesiredEvents(task({ scheduled_date: '2026-10-06' }), [], TZ)
+    expect(
+      planOps(
+        allDay,
+        timed.map((e) => asExisting(e))
+      )
+    ).toEqual([{ kind: 'update', event: allDay[0] }])
+  })
+})
+
 describe('planOps', () => {
   const desired = buildDesiredEvents(task({ scheduled_date: '2026-10-06' }), [block], TZ)
 

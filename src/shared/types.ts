@@ -256,6 +256,7 @@ export interface TaskListFilters {
   blockedOnly?: boolean
   dueBefore?: string
   dueAfter?: string
+  overdueAt?: { date: string; time: string }
   energy?: EnergyLevel
   excludeStatus?: TaskStatus[]
   sort?: TaskSort

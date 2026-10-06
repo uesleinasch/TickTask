@@ -1,4 +1,5 @@
 import type { TaskStatus } from '@shared/types'
+import { addMinutes, normalizeTaskTimes } from '@shared/taskTime'
 
 export interface GcalTaskInput {
   id: number
@@ -8,6 +9,10 @@ export interface GcalTaskInput {
   project_name?: string | null
   scheduled_date?: string | null
   due_date?: string | null
+  scheduled_time?: string | null
+  scheduled_end_time?: string | null
+  due_time?: string | null
+  time_limit_seconds?: number | null
   gcal_sync: boolean
 }
 
@@ -54,6 +59,21 @@ function allDay(date: string): Pick<DesiredEvent, 'start' | 'end'> {
   return { start: { date }, end: { date: nextDay(date) } }
 }
 
+const DEFAULT_SCHEDULED_MINUTES = 60
+const DUE_EVENT_MINUTES = 15
+
+function timed(
+  date: string,
+  start: string,
+  end: { date: string; time: string },
+  timeZone: string
+): Pick<DesiredEvent, 'start' | 'end'> {
+  return {
+    start: { dateTime: `${date}T${start}:00`, timeZone },
+    end: { dateTime: `${end.date}T${end.time}:00`, timeZone }
+  }
+}
+
 function describeTask(task: GcalTaskInput): string {
   const footer = task.project_name
     ? `TickTask #${task.id} · ${task.project_name}`
@@ -84,21 +104,39 @@ export function buildDesiredEvents(
     })
   }
 
+  const times = normalizeTaskTimes(task)
+
   if (task.scheduled_date && DATE_PREFIX.test(task.scheduled_date)) {
+    const date = task.scheduled_date.slice(0, 10)
+    const minutes = task.time_limit_seconds
+      ? Math.max(1, Math.round(task.time_limit_seconds / 60))
+      : DEFAULT_SCHEDULED_MINUTES
     events.push({
       id: `tick${task.id}s`,
       summary: `${prefix}${task.name}`,
       description,
-      ...allDay(task.scheduled_date.slice(0, 10))
+      ...(times.scheduled_time
+        ? timed(
+            date,
+            times.scheduled_time,
+            times.scheduled_end_time
+              ? { date, time: times.scheduled_end_time }
+              : addMinutes(date, times.scheduled_time, minutes),
+            timeZone
+          )
+        : allDay(date))
     })
   }
 
   if (task.due_date && DATE_PREFIX.test(task.due_date)) {
+    const date = task.due_date.slice(0, 10)
     events.push({
       id: `tick${task.id}d`,
       summary: `${prefix}Prazo: ${task.name}`,
       description,
-      ...allDay(task.due_date.slice(0, 10))
+      ...(times.due_time
+        ? timed(date, times.due_time, addMinutes(date, times.due_time, DUE_EVENT_MINUTES), timeZone)
+        : allDay(date))
     })
   }
 
