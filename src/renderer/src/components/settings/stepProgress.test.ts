@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveSteps, toggleStepDone } from './setupSteps'
+import { resolveSteps, toggleStepDone } from './stepProgress'
 
 describe('resolveSteps', () => {
   it('marca como feitos os passos manuais salvos e os automáticos verdadeiros', () => {

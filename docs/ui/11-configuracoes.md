@@ -52,7 +52,7 @@ Lista numerada vertical. Cada passo é **manual** (você marca "Marcar como feit
 `localStorage` sob a chave da seção) ou **automático** (`autoDone`, derivado do estado real — ex.:
 credenciais salvas, conta conectada). O **primeiro passo não feito** é o atual (número em
 `bg-slate-900`); feitos ficam com check esmeralda e recolhidos, e o título vira um botão para
-reabrir. Lógica em `setupSteps.ts` (pura, testada).
+reabrir. Lógica em `stepProgress.ts` (pura, testada).
 
 ## Seções
 
