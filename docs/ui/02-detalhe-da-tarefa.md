@@ -119,9 +119,15 @@ editada.
 #### ── AGENDA (`CalendarDays`)
 
 - **Programado para** e **Prazo** — dois `input[type=date]` de 32px lado a lado, `bg-slate-50`.
+  Com a data preenchida, aparecem campos de hora (`TimeInput`, `input[type=time]` com `×` para
+  limpar): **Início** e, depois dele, **Fim** sob "Programado para"; **Hora** sob "Prazo". Fim ≤
+  início é descartado pelo main (`normalizeTaskTimes`) e o campo volta vazio.
 - **Recorrência** — `RecurrenceSelect`.
 - **Nível de energia** — três botões de largura igual (`flex-1 h-8`) com emoji + rótulo. O ativo
   ganha fundo e borda coloridos (esmeralda / âmbar / slate). Clicar no ativo desmarca.
+- **Google Calendar** — `GoogleCalendarTaskToggle`, só renderizado com o Google conectado: switch
+  que grava `gcal_sync` e sincroniza na hora (desligar apaga os eventos da task), mais um botão
+  `RefreshCw` de ressincronizar quando ligado.
 
 #### ── SUBTAREFAS (`ListChecks`)
 

@@ -104,6 +104,16 @@ function AppContent(): React.JSX.Element {
     }
   }, [])
 
+  useEffect(
+    () =>
+      window.api.onGcalSync((status, detail) => {
+        if (status === 'syncing') notifySyncStart(detail, 'Google Calendar')
+        else if (status === 'success') notifySyncSuccess(detail, 'Google Calendar')
+        else notifySyncError(`Google Calendar: ${detail ?? 'erro na sincronização'}`)
+      }),
+    []
+  )
+
   // Listener para timer parado via float window
   useEffect(() => {
     const unsubscribe = window.api.onTimerStopped((taskId) => {
