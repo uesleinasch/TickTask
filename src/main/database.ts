@@ -305,6 +305,12 @@ export function initDatabase(): void {
     /* já existe */
   }
 
+  try {
+    db.exec('ALTER TABLE tasks ADD COLUMN gcal_sync INTEGER NOT NULL DEFAULT 0')
+  } catch {
+    /* já existe */
+  }
+
   // ===================== FASE 4.3: Blocos de Tempo =====================
 
   db.exec(`
@@ -742,8 +748,8 @@ export function createTask(data: CreateTaskInput): Task {
     const stmt = db.prepare(`
       INSERT INTO tasks (name, description, time_limit_seconds, category, project_id,
                          scheduled_date, due_date, recurrence_rule, parent_task_id, recurrence_source_id,
-                         energy_level)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         energy_level, gcal_sync)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const result = stmt.run(
       data.name,
@@ -756,7 +762,8 @@ export function createTask(data: CreateTaskInput): Task {
       data.recurrence_rule || null,
       data.parent_task_id || null,
       data.recurrence_source_id || null,
-      data.energy_level || null
+      data.energy_level || null,
+      data.gcal_sync ? 1 : 0
     )
     const taskId = result.lastInsertRowid as number
 
@@ -1005,6 +1012,10 @@ export function updateTask(id: number, data: UpdateTaskInput): void {
     if (data.energy_level !== undefined) {
       updates.push('energy_level = ?')
       values.push(data.energy_level)
+    }
+    if (data.gcal_sync !== undefined) {
+      updates.push('gcal_sync = ?')
+      values.push(data.gcal_sync ? 1 : 0)
     }
 
     if (updates.length > 0) {
@@ -1911,7 +1922,8 @@ export function createNextRecurrence(sourceTaskId: number): Task | null {
     recurrence_rule: source.recurrence_rule,
     recurrence_source_id: sourceTaskId,
     tagIds: tags.map((t) => t.id),
-    contextIds: ctxs.map((c) => c.id)
+    contextIds: ctxs.map((c) => c.id),
+    gcal_sync: Boolean(source.gcal_sync)
   })
 }
 
@@ -2160,6 +2172,26 @@ export function updateTimeBlock(id: number, data: UpdateTimeBlockInput): void {
 
 export function deleteTimeBlock(id: number): void {
   db.prepare('DELETE FROM time_blocks WHERE id = ?').run(id)
+}
+
+export function getTimeBlocksForTask(taskId: number): TimeBlock[] {
+  return db
+    .prepare('SELECT * FROM time_blocks WHERE task_id = ? ORDER BY date, start_time')
+    .all(taskId) as TimeBlock[]
+}
+
+export function filterGcalSyncedIds(ids: number[]): number[] {
+  if (ids.length === 0) return []
+  const placeholders = ids.map(() => '?').join(', ')
+  const rows = db
+    .prepare(`SELECT id FROM tasks WHERE gcal_sync = 1 AND id IN (${placeholders})`)
+    .all(...ids) as { id: number }[]
+  return rows.map((row) => row.id)
+}
+
+export function listGcalSyncedTaskIds(): number[] {
+  const rows = db.prepare('SELECT id FROM tasks WHERE gcal_sync = 1').all() as { id: number }[]
+  return rows.map((row) => row.id)
 }
 
 export function countTimeBlocksForTask(taskId: number): number {
