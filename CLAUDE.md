@@ -145,7 +145,9 @@ pelo app com o escopo `calendar.app.created`. Time blocks viram eventos com hora
 `due_date` viram eventos de dia inteiro; task finalizada ganha `✓ ` no título.
 
 Não há tabela de vínculo: cada evento tem ID determinístico (`tick{taskId}b{blockId}`,
-`tick{taskId}s`, `tick{taskId}d`) e `extendedProperties.private.taskId`. Sincronizar uma task é
+`tick{taskId}s`, `tick{taskId}d`) e `extendedProperties.private.taskId`. Com horário na task
+(`scheduled_time`/`scheduled_end_time`, `due_time` — colunas `HH:MM` separadas das datas, regras em
+`src/shared/taskTime.ts`), `s` e `d` viram eventos com hora em vez de dia inteiro. Sincronizar uma task é
 recalcular o conjunto desejado (`gcalPlan.ts`, puro), listar o que existe no Google por essa
 propriedade e aplicar a diferença (`googleCalendarApi.ts`, `fetch` injetado). Task apagada ou
 desmarcada = conjunto vazio = eventos apagados. `gcalSyncQueue.ts` serializa por task.
@@ -172,7 +174,7 @@ confirmation guard in `confirmGuard.ts` (preview + `confirm_token`, then repeat 
 The float is driven by `mainWindow` events, not by the renderer: `minimize` **and `close`** show it
 **only when a timer is running**, `restore` and `focus` hide it. Its size is derived from the timer
 count (`FLOAT_WIDTH = 300`, 44px per row, max 5 rows) and only re-set when that count changes.
-A due-date notification sweep (`startNotificationScheduler`) also runs hourly from the main process.
+A due-date notification sweep (`startNotificationScheduler`) runs every minute from the main process; which notices fire (day-of, eve, 15 min before and at `due_time`) is decided by the pure `dueNotifications.ts`.
 
 Closing the main window **hides** it — the app lives on in a tray icon (`src/main/tray.ts`: Abrir
 TickTask / Captura rápida / Sair); only "Sair" actually quits. Autostart is toggled from Settings
