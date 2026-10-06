@@ -60,7 +60,27 @@ cores de ação primária numa página só.
 
 ---
 
-## Seção 2 — Inicialização
+## Seção 2 — Google Calendar
+
+Componente próprio, `components/GoogleCalendarSettings.tsx`, montado entre o Notion e a
+Inicialização. Quadrado `bg-slate-900` com `CalendarDays` + "Google Calendar".
+
+- Faixa verde "Conectado…" quando há refresh token salvo.
+- **Client ID** (texto) e **Client Secret** (senha). O secret nunca volta para o renderer: o campo
+  fica vazio com o placeholder `•••••••• (salvo)`; deixá-lo vazio mantém o secret gravado.
+- `<details>` "Como obter as credenciais": ativar a Calendar API, tela de consentimento "Externo",
+  OAuth client **App para computador**, e publicar o app **Em produção** — em "Teste" o Google
+  expira o refresh token em 7 dias.
+- Toggle **Sincronização Automática** (só conectado), salvo na hora.
+- Botões: **Conectar** (`bg-slate-900`; aparece desconectado ou com credenciais editadas — abre o
+  navegador do sistema e espera o retorno em `127.0.0.1`), **Ressincronizar todas** e
+  **Desconectar** (revoga o token; a agenda "TickTask" continua no Google).
+
+A config vive em `userData/gcal-config.json`, com o refresh token cifrado por `safeStorage`.
+
+---
+
+## Seção 3 — Inicialização
 
 Quadrado `bg-slate-900` com `Power` + título "Inicialização" e subtítulo "Mantenha o TickTask e o
 servidor MCP disponíveis desde o login".
@@ -84,7 +104,7 @@ vive escondida numa tela que o usuário talvez nunca abra.
 
 ---
 
-## Seção 3 — Servidor MCP
+## Seção 4 — Servidor MCP
 
 Quadrado `bg-slate-900` com `Server` + título "Servidor MCP" e subtítulo "Exponha o TickTask para
 assistentes como o Claude Code via MCP".

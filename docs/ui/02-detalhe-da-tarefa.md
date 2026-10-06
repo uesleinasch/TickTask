@@ -122,6 +122,9 @@ editada.
 - **Recorrência** — `RecurrenceSelect`.
 - **Nível de energia** — três botões de largura igual (`flex-1 h-8`) com emoji + rótulo. O ativo
   ganha fundo e borda coloridos (esmeralda / âmbar / slate). Clicar no ativo desmarca.
+- **Google Calendar** — `GoogleCalendarTaskToggle`, só renderizado com o Google conectado: switch
+  que grava `gcal_sync` e sincroniza na hora (desligar apaga os eventos da task), mais um botão
+  `RefreshCw` de ressincronizar quando ligado.
 
 #### ── SUBTAREFAS (`ListChecks`)
 
