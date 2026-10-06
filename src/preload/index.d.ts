@@ -1,5 +1,6 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type {
+  GcalStatus,
   Task,
   TimeEntry,
   CreateTaskInput,
@@ -229,6 +230,19 @@ interface API {
   notionSyncTask: (taskId: number) => Promise<string>
   notionSyncAllTasks: () => Promise<{ success: number; failed: number }>
   notionCreateDatabase: () => Promise<string>
+
+  // Google Calendar
+  gcalGetStatus: () => Promise<GcalStatus>
+  gcalSaveCredentials: (clientId: string, clientSecret: string) => Promise<GcalStatus>
+  gcalConnect: () => Promise<GcalStatus>
+  gcalDisconnect: () => Promise<GcalStatus>
+  gcalSetAutoSync: (enabled: boolean) => Promise<GcalStatus>
+  gcalSetTaskSync: (taskId: number, enabled: boolean) => Promise<void>
+  gcalSyncTask: (taskId: number) => Promise<void>
+  gcalSyncAll: () => Promise<{ success: number; failed: number }>
+  onGcalSync: (
+    callback: (status: 'syncing' | 'success' | 'error', detail?: string) => void
+  ) => () => void
 
   // FASE 4.3: Blocos de Tempo
   createTimeBlock: (data: CreateTimeBlockInput) => Promise<TimeBlock>

@@ -131,7 +131,8 @@ export function createCalendarApi(deps: CalendarApiDeps): CalendarApi {
       try {
         await request('DELETE', `${eventsPath(calendarId)}/${encodeURIComponent(eventId)}`)
       } catch (error) {
-        if (error instanceof GoogleApiError && (error.status === 404 || error.status === 410)) return
+        if (error instanceof GoogleApiError && (error.status === 404 || error.status === 410))
+          return
         throw error
       }
     }

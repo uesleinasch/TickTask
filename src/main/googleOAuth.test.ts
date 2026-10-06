@@ -102,7 +102,10 @@ describe('refreshAccessToken', () => {
 
   it('outros erros mantêm a mensagem do Google', async () => {
     const fetchFn = vi.fn(async () =>
-      jsonResponse(401, { error: 'invalid_client', error_description: 'The OAuth client was not found.' })
+      jsonResponse(401, {
+        error: 'invalid_client',
+        error_description: 'The OAuth client was not found.'
+      })
     )
     await expect(refreshAccessToken(fetchFn, { ...client, refreshToken: 'rt' }, 0)).rejects.toThrow(
       'The OAuth client was not found.'

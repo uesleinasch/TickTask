@@ -116,7 +116,12 @@ describe('planOps', () => {
   })
 
   it('não faz nada quando o Google já está igual, mesmo com offset no dateTime', () => {
-    expect(planOps(desired, desired.map((e) => asExisting(e)))).toEqual([])
+    expect(
+      planOps(
+        desired,
+        desired.map((e) => asExisting(e))
+      )
+    ).toEqual([])
   })
 
   it('atualiza evento que mudou', () => {

@@ -10,6 +10,7 @@ import { TagInput } from '@renderer/components/TagInput'
 import { SubtaskList } from '@renderer/components/SubtaskList'
 import { DependencySelector } from '@renderer/components/DependencySelector'
 import { RecurrenceSelect } from '@renderer/components/RecurrenceSelect'
+import { GoogleCalendarTaskToggle } from '@renderer/components/GoogleCalendarTaskToggle'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -753,6 +754,12 @@ export function SingleTaskPage(): React.JSX.Element {
                   ))}
                 </div>
               </div>
+
+              <GoogleCalendarTaskToggle
+                taskId={task.id}
+                enabled={Boolean(task.gcal_sync)}
+                onChange={refreshTask}
+              />
             </div>
           </div>
 

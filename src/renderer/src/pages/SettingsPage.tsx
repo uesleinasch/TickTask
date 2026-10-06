@@ -22,6 +22,7 @@ import {
   Power
 } from 'lucide-react'
 import { toast } from '@renderer/components/ui/sonner'
+import { GoogleCalendarSettings } from '@renderer/components/GoogleCalendarSettings'
 import type { McpStatus } from '@shared/types'
 
 interface NotionConfig {
@@ -485,6 +486,8 @@ export function SettingsPage(): React.JSX.Element {
               )}
             </div>
           </div>
+
+          <GoogleCalendarSettings />
 
           {/* Inicialização Section */}
           <div className="bg-white border border-slate-200 rounded-sm p-6 space-y-6">

@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
+  GcalStatus,
   Task,
   TimeEntry,
   CreateTaskInput,
@@ -275,6 +276,35 @@ const api = {
   notionSyncAllTasks: (): Promise<{ success: number; failed: number }> =>
     ipcRenderer.invoke('notion:syncAllTasks'),
   notionCreateDatabase: (): Promise<string> => ipcRenderer.invoke('notion:createDatabase'),
+
+  // Google Calendar
+  gcalGetStatus: (): Promise<GcalStatus> => ipcRenderer.invoke('gcal:getStatus'),
+  gcalSaveCredentials: (clientId: string, clientSecret: string): Promise<GcalStatus> =>
+    ipcRenderer.invoke('gcal:saveCredentials', clientId, clientSecret),
+  gcalConnect: (): Promise<GcalStatus> => ipcRenderer.invoke('gcal:connect'),
+  gcalDisconnect: (): Promise<GcalStatus> => ipcRenderer.invoke('gcal:disconnect'),
+  gcalSetAutoSync: (enabled: boolean): Promise<GcalStatus> =>
+    ipcRenderer.invoke('gcal:setAutoSync', enabled),
+  gcalSetTaskSync: (taskId: number, enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke('gcal:setTaskSync', taskId, enabled),
+  gcalSyncTask: (taskId: number): Promise<void> => ipcRenderer.invoke('gcal:syncTask', taskId),
+  gcalSyncAll: (): Promise<{ success: number; failed: number }> =>
+    ipcRenderer.invoke('gcal:syncAll'),
+  onGcalSync: (
+    callback: (status: 'syncing' | 'success' | 'error', detail?: string) => void
+  ): (() => void) => {
+    const start = (_: unknown, detail?: string): void => callback('syncing', detail)
+    const success = (_: unknown, detail?: string): void => callback('success', detail)
+    const error = (_: unknown, detail?: string): void => callback('error', detail)
+    ipcRenderer.on('gcal:syncStart', start)
+    ipcRenderer.on('gcal:syncSuccess', success)
+    ipcRenderer.on('gcal:syncError', error)
+    return () => {
+      ipcRenderer.removeListener('gcal:syncStart', start)
+      ipcRenderer.removeListener('gcal:syncSuccess', success)
+      ipcRenderer.removeListener('gcal:syncError', error)
+    }
+  },
 
   // ===================== FASE 4.3: Blocos de Tempo =====================
   createTimeBlock: (data: CreateTimeBlockInput): Promise<TimeBlock> =>

@@ -1036,10 +1036,10 @@ function setupIpcHandlers(): void {
   })
   ipcMain.handle('gcal:syncTask', (_, taskId: number) => runGoogleSync(taskId))
   ipcMain.handle('gcal:syncAll', async () => {
-    mainWindow?.webContents.send('gcal:syncStart', 'todas as tarefas marcadas')
+    mainWindow?.webContents.send('gcal:syncStart')
     try {
       const result = await syncAllToGoogle()
-      mainWindow?.webContents.send('gcal:syncSuccess', `${result.success} tarefas`)
+      mainWindow?.webContents.send('gcal:syncSuccess')
       return result
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'

@@ -75,7 +75,10 @@ describe('createCalendarApi', () => {
   })
 
   it('5xx e falha de rede ganham uma nova tentativa; a segunda falha propaga', async () => {
-    const { fetch, calls } = fakeFetch(() => ({ status: 503, body: { error: { message: 'busy' } } }))
+    const { fetch, calls } = fakeFetch(() => ({
+      status: 503,
+      body: { error: { message: 'busy' } }
+    }))
     const sleep = vi.fn(noSleep)
     const api = createCalendarApi({ fetch, getAccessToken: async () => 't', sleep })
 

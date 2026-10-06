@@ -171,9 +171,7 @@ function waitForAuthCode(
         return
       }
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-      res.end(
-        '<p style="font-family:sans-serif">Pode fechar esta aba e voltar ao TickTask.</p>'
-      )
+      res.end('<p style="font-family:sans-serif">Pode fechar esta aba e voltar ao TickTask.</p>')
       if (error) settle.reject(new Error(`O Google recusou a autorização: ${error}`))
       else if (url.searchParams.get('state') !== state)
         settle.reject(new Error('Resposta de autorização inválida.'))
