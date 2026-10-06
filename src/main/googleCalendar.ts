@@ -57,14 +57,21 @@ function sealToken(token: string): Pick<StoredConfig, 'refreshToken' | 'tokenEnc
   return { refreshToken: safeStorage.encryptString(token).toString('base64'), tokenEncrypted: true }
 }
 
+let openedToken: { sealed: string; token: string | null } | null = null
+
 function openToken(config: StoredConfig): string | null {
   if (!config.refreshToken) return null
   if (!config.tokenEncrypted) return config.refreshToken
-  try {
-    return safeStorage.decryptString(Buffer.from(config.refreshToken, 'base64'))
-  } catch {
-    return null
+  if (openedToken?.sealed !== config.refreshToken) {
+    let token: string | null
+    try {
+      token = safeStorage.decryptString(Buffer.from(config.refreshToken, 'base64'))
+    } catch {
+      token = null
+    }
+    openedToken = { sealed: config.refreshToken, token }
   }
+  return openedToken.token
 }
 
 function systemTimeZone(): string {
@@ -72,7 +79,11 @@ function systemTimeZone(): string {
 }
 
 function isConnected(config: StoredConfig): boolean {
-  return Boolean(config.clientId && config.clientSecret && config.refreshToken)
+  return Boolean(config.clientId && config.clientSecret && openToken(config))
+}
+
+export function isGcalConnected(): boolean {
+  return isConnected(readConfig())
 }
 
 export function getGcalStatus(): GcalStatus {
@@ -166,15 +177,15 @@ function waitForAuthCode(
       const url = new URL(req.url ?? '/', 'http://127.0.0.1')
       const error = url.searchParams.get('error')
       const received = url.searchParams.get('code')
-      if (!error && !received) {
-        res.writeHead(404).end()
+      // Só a resposta com o state desta tentativa conta; qualquer outra requisição local que
+      // chegue na porta não pode encerrar o login.
+      if ((!error && !received) || url.searchParams.get('state') !== state) {
+        res.writeHead(400).end()
         return
       }
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
       res.end('<p style="font-family:sans-serif">Pode fechar esta aba e voltar ao TickTask.</p>')
       if (error) settle.reject(new Error(`O Google recusou a autorização: ${error}`))
-      else if (url.searchParams.get('state') !== state)
-        settle.reject(new Error('Resposta de autorização inválida.'))
       else settle.resolve(received!)
     })
 
@@ -240,7 +251,7 @@ export async function disconnectGcal(): Promise<GcalStatus> {
   const token = openToken(config)
   if (token) await revokeToken(fetch, token).catch(() => undefined)
   accessToken = null
-  updateConfig({ refreshToken: undefined, tokenEncrypted: undefined, calendarId: undefined })
+  updateConfig({ refreshToken: undefined, tokenEncrypted: undefined })
   return getGcalStatus()
 }
 

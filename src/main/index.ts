@@ -119,13 +119,15 @@ import {
   deleteNextRecurrence,
   getTasksDueForNotification,
   getTimeBlock,
-  filterGcalSyncedIds
+  filterGcalSyncedIds,
+  getNextRecurrenceIds
 } from './database'
 import {
   connectGcal,
   disconnectGcal,
   getGcalStatus,
   isGcalAutoSyncOn,
+  isGcalConnected,
   saveGcalCredentials,
   setGcalAutoSync,
   syncAllToGoogle,
@@ -249,10 +251,14 @@ async function runGoogleSync(taskId: number): Promise<void> {
 }
 
 // Recebe só ids já filtrados por gcal_sync: depois de uma exclusão a task não existe mais para
-// consultar, e o sync com a task ausente é justamente o que apaga os eventos dela.
+// consultar, e o sync com a task ausente é justamente o que apaga os eventos dela. Exclusões vão
+// mesmo com o auto-sync desligado — nenhum "Ressincronizar" alcança uma task que não existe mais.
 function pushToGoogle(taskIds: number[]): void {
-  if (taskIds.length === 0 || !isGcalAutoSyncOn()) return
-  for (const id of taskIds) runGoogleSync(id).catch(() => undefined)
+  if (taskIds.length === 0 || !isGcalConnected()) return
+  const autoSync = isGcalAutoSyncOn()
+  for (const id of taskIds) {
+    if (autoSync || !getTask(id)) runGoogleSync(id).catch(() => undefined)
+  }
 }
 
 function autoSyncToGoogle(...taskIds: number[]): void {
@@ -757,8 +763,8 @@ function setupIpcHandlers(): void {
       }
 
       // Subtask: check if parent should auto-complete
-      if (task.parent_task_id) {
-        completeSubtasksCheck(task.parent_task_id)
+      if (task.parent_task_id && completeSubtasksCheck(task.parent_task_id)) {
+        autoSyncToGoogle(task.parent_task_id)
       }
 
       // Notify dependents that a dependency was resolved
@@ -772,7 +778,9 @@ function setupIpcHandlers(): void {
     } else if (previousStatus === 'finalizada') {
       // Undo completion: delete auto-created recurrence instance
       if (task.recurrence_rule && !task.parent_task_id) {
+        const calendarIds = filterGcalSyncedIds(getNextRecurrenceIds(id))
         deleteNextRecurrence(id)
+        pushToGoogle(calendarIds)
       }
     }
 

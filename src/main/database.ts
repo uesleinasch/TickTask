@@ -1790,7 +1790,7 @@ export function getSubtasks(parentId: number): Task[] {
   }))
 }
 
-export function completeSubtasksCheck(parentId: number): void {
+export function completeSubtasksCheck(parentId: number): boolean {
   const stats = db
     .prepare(
       `
@@ -1806,7 +1806,9 @@ export function completeSubtasksCheck(parentId: number): void {
     db.prepare(
       "UPDATE tasks SET status = 'finalizada', updated_at = CURRENT_TIMESTAMP WHERE id = ?"
     ).run(parentId)
+    return true
   }
+  return false
 }
 
 // ===================== FASE 2: DEPENDÊNCIAS =====================
@@ -1925,6 +1927,13 @@ export function createNextRecurrence(sourceTaskId: number): Task | null {
     contextIds: ctxs.map((c) => c.id),
     gcal_sync: Boolean(source.gcal_sync)
   })
+}
+
+export function getNextRecurrenceIds(sourceTaskId: number): number[] {
+  const rows = db
+    .prepare("SELECT id FROM tasks WHERE recurrence_source_id = ? AND status != 'finalizada'")
+    .all(sourceTaskId) as { id: number }[]
+  return rows.map((row) => row.id)
 }
 
 export function deleteNextRecurrence(sourceTaskId: number): void {
