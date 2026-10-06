@@ -1,37 +1,28 @@
 import { Calendar } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
+import { dueState, type DueKind } from '@shared/dueState'
 
 interface DueDateBadgeProps {
   dueDate: string
+  dueTime?: string | null
   className?: string
 }
 
-function getDueDateInfo(dueDate: string): { label: string; colorClass: string } {
-  const now = new Date()
-  const due = new Date(dueDate)
-  const diffMs = due.getTime() - now.getTime()
-  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
-
-  if (diffDays < 0) {
-    return { label: 'Atrasada', colorClass: 'bg-red-100 text-red-700 border-red-200' }
-  }
-  if (diffDays === 0) {
-    return { label: 'Hoje', colorClass: 'bg-red-100 text-red-700 border-red-200' }
-  }
-  if (diffDays <= 3) {
-    return {
-      label: diffDays === 1 ? 'Amanhã' : `${diffDays}d`,
-      colorClass: 'bg-yellow-100 text-yellow-700 border-yellow-200'
-    }
-  }
-  return {
-    label: due.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-    colorClass: 'bg-green-100 text-green-700 border-green-200'
-  }
+const KIND_CLASSES: Record<DueKind, string> = {
+  overdue: 'bg-red-100 text-red-700 border-red-200',
+  today: 'bg-red-100 text-red-700 border-red-200',
+  tomorrow: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+  soon: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+  later: 'bg-green-100 text-green-700 border-green-200'
 }
 
-export function DueDateBadge({ dueDate, className }: DueDateBadgeProps): React.JSX.Element {
-  const { label, colorClass } = getDueDateInfo(dueDate)
+export function DueDateBadge({
+  dueDate,
+  dueTime,
+  className
+}: DueDateBadgeProps): React.JSX.Element {
+  const { kind, label } = dueState(dueDate, dueTime, new Date())
+  const colorClass = KIND_CLASSES[kind]
 
   return (
     <span

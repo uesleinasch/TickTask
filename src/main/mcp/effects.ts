@@ -4,6 +4,7 @@ interface WriteEffectDeps {
   getMainWindow: () => BrowserWindow | null
   autoSync: (id: number) => void
   syncTagChange: (taskIds: number[]) => void
+  syncCalendar: (taskIds: number[]) => void
 }
 
 // Injetado no boot em vez de importado direto: as tools de escrita (ainda a criar) vão importar
@@ -45,4 +46,13 @@ export function afterTagChange(taskIds: number[]): void {
   }
   if (taskIds.length === 0) return
   deps.syncTagChange(taskIds)
+}
+
+export function afterCalendarChange(taskIds: number[]): void {
+  if (!deps) {
+    warnDepsMissing('o sync da agenda do Google')
+    return
+  }
+  if (taskIds.length === 0) return
+  deps.syncCalendar([...new Set(taskIds)])
 }
