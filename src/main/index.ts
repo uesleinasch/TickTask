@@ -752,7 +752,8 @@ function setupIpcHandlers(): void {
     if (status === 'finalizada') {
       // Recurrence: create next instance for top-level recurring tasks
       if (task.recurrence_rule && !task.parent_task_id) {
-        createNextRecurrence(id)
+        const next = createNextRecurrence(id)
+        if (next) autoSyncToGoogle(next.id)
       }
 
       // Subtask: check if parent should auto-complete
