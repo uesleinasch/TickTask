@@ -275,6 +275,7 @@ interface API {
   offSyncError?: (callback: (event: unknown, error?: string) => void) => void
 
   // Inicialização
+  appGetVersion: () => Promise<string>
   appGetAutostart: () => Promise<boolean>
   appSetAutostart: (enabled: boolean) => Promise<boolean>
 

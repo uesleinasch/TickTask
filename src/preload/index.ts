@@ -356,6 +356,7 @@ const api = {
   },
 
   // ===================== INICIALIZAÇÃO =====================
+  appGetVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
   appGetAutostart: (): Promise<boolean> => ipcRenderer.invoke('app:getAutostart'),
   appSetAutostart: (enabled: boolean): Promise<boolean> =>
     ipcRenderer.invoke('app:setAutostart', enabled),

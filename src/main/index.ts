@@ -1072,6 +1072,7 @@ function setupIpcHandlers(): void {
   ipcMain.handle('goal:delete', (_, id: number) => deleteGoal(id))
 
   // ===================== INICIALIZAÇÃO =====================
+  ipcMain.handle('app:getVersion', () => app.getVersion())
   ipcMain.handle('app:getAutostart', () => isAutostartEnabled())
   ipcMain.handle('app:setAutostart', (_, enabled: boolean) => setAutostartEnabled(enabled))
 
