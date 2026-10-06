@@ -11,6 +11,7 @@ import { SubtaskList } from '@renderer/components/SubtaskList'
 import { DependencySelector } from '@renderer/components/DependencySelector'
 import { RecurrenceSelect } from '@renderer/components/RecurrenceSelect'
 import { GoogleCalendarTaskToggle } from '@renderer/components/GoogleCalendarTaskToggle'
+import { TimeInput } from '@renderer/components/TimeInput'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -188,6 +189,9 @@ export function SingleTaskPage(): React.JSX.Element {
   const [selectedContextIds, setSelectedContextIds] = useState<number[]>([])
   const [dueDate, setDueDate] = useState('')
   const [scheduledDate, setScheduledDate] = useState('')
+  const [scheduledTime, setScheduledTime] = useState('')
+  const [scheduledEndTime, setScheduledEndTime] = useState('')
+  const [dueTime, setDueTime] = useState('')
   const [recurrenceRule, setRecurrenceRule] = useState<string | null>(null)
   const [energyLevel, setEnergyLevel] = useState<EnergyLevel | undefined>(undefined)
 
@@ -211,6 +215,9 @@ export function SingleTaskPage(): React.JSX.Element {
       setSelectedContextIds(task.contexts?.map((c) => c.id) || [])
       setDueDate(task.due_date ? task.due_date.split('T')[0] : '')
       setScheduledDate(task.scheduled_date || '')
+      setScheduledTime(task.scheduled_time || '')
+      setScheduledEndTime(task.scheduled_end_time || '')
+      setDueTime(task.due_time || '')
       setRecurrenceRule(task.recurrence_rule || null)
       setEnergyLevel(task.energy_level)
       setLocalExportPath(task.local_export_path ?? null)
@@ -427,6 +434,22 @@ export function SingleTaskPage(): React.JSX.Element {
     async (value: string): Promise<void> => {
       setScheduledDate(value)
       await updateTask({ scheduled_date: value || null })
+    },
+    [updateTask]
+  )
+
+  const handleTimeChange = useCallback(
+    async (
+      field: 'scheduled_time' | 'scheduled_end_time' | 'due_time',
+      value: string
+    ): Promise<void> => {
+      const setters = {
+        scheduled_time: setScheduledTime,
+        scheduled_end_time: setScheduledEndTime,
+        due_time: setDueTime
+      }
+      setters[field](value)
+      await updateTask({ [field]: value || null })
     },
     [updateTask]
   )
@@ -712,6 +735,23 @@ export function SingleTaskPage(): React.JSX.Element {
                     onChange={(e) => handleScheduledDateChange(e.target.value)}
                     className="w-full h-8 text-xs border border-slate-200 rounded-lg px-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-slate-50 text-slate-700"
                   />
+                  {scheduledDate && (
+                    <div className="flex gap-2 mt-2">
+                      <TimeInput
+                        label="Início"
+                        value={scheduledTime}
+                        onChange={(value) => handleTimeChange('scheduled_time', value)}
+                      />
+                      {scheduledTime && (
+                        <TimeInput
+                          label="Fim"
+                          value={scheduledEndTime}
+                          min={scheduledTime}
+                          onChange={(value) => handleTimeChange('scheduled_end_time', value)}
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs text-slate-400 mb-1.5">Prazo</label>
@@ -721,6 +761,15 @@ export function SingleTaskPage(): React.JSX.Element {
                     onChange={(e) => handleDueDateChange(e.target.value)}
                     className="w-full h-8 text-xs border border-slate-200 rounded-lg px-2.5 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-slate-50 text-slate-700"
                   />
+                  {dueDate && (
+                    <div className="flex gap-2 mt-2">
+                      <TimeInput
+                        label="Hora"
+                        value={dueTime}
+                        onChange={(value) => handleTimeChange('due_time', value)}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
