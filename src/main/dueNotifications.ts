@@ -54,13 +54,13 @@ export function pickDueNotifications(
     const until = minutesOfDay(task.due_time) - nowMinutes
     if (until > 0 && until <= LEAD_MINUTES) {
       add({
-        key: `${task.id}-soon-${dueDate}`,
+        key: `${task.id}-soon-${dueDate}-${task.due_time}`,
         title: `⏰ Prazo às ${task.due_time}`,
         body: `"${task.name}" vence às ${task.due_time}.`
       })
     } else if (until <= 0 && until > -LEAD_MINUTES) {
       add({
-        key: `${task.id}-due-${dueDate}`,
+        key: `${task.id}-due-${dueDate}-${task.due_time}`,
         title: '⏰ Prazo agora',
         body: `"${task.name}" vence agora (${task.due_time}).`
       })

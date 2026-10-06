@@ -26,16 +26,20 @@ describe('pickDueNotifications', () => {
     expect(keys(pickDueNotifications([t], at('17:44'), new Set()))).toEqual(['1-today'])
     const soon = pickDueNotifications([t], at('17:45'), new Set(['1-today']))
     expect(soon).toEqual([
-      { key: '1-soon-2026-10-06', title: '⏰ Prazo às 18:00', body: '"Relatório" vence às 18:00.' }
+      {
+        key: '1-soon-2026-10-06-18:00',
+        title: '⏰ Prazo às 18:00',
+        body: '"Relatório" vence às 18:00.'
+      }
     ])
     expect(
-      keys(pickDueNotifications([t], at('18:00'), new Set(['1-today', '1-soon-2026-10-06'])))
-    ).toEqual(['1-due-2026-10-06'])
+      keys(pickDueNotifications([t], at('18:00'), new Set(['1-today', '1-soon-2026-10-06-18:00'])))
+    ).toEqual(['1-due-2026-10-06-18:00'])
   })
 
   it('não repete o que já foi avisado', () => {
     const t = task({ due_time: '18:00' })
-    const sent = new Set(['1-today', '1-soon-2026-10-06', '1-due-2026-10-06'])
+    const sent = new Set(['1-today', '1-soon-2026-10-06-18:00', '1-due-2026-10-06-18:00'])
     expect(pickDueNotifications([t], at('18:01'), sent)).toEqual([])
   })
 
@@ -47,7 +51,14 @@ describe('pickDueNotifications', () => {
   it('perdeu a janela de 15 min antes mas chegou na hora: só o "na hora"', () => {
     const t = task({ due_time: '18:00' })
     expect(keys(pickDueNotifications([t], at('18:05'), new Set(['1-today'])))).toEqual([
-      '1-due-2026-10-06'
+      '1-due-2026-10-06-18:00'
+    ])
+  })
+
+  it('mudar a hora do prazo no mesmo dia gera aviso novo', () => {
+    const sent = new Set(['1-today', '1-soon-2026-10-06-18:00'])
+    expect(keys(pickDueNotifications([task({ due_time: '18:30' })], at('18:20'), sent))).toEqual([
+      '1-soon-2026-10-06-18:30'
     ])
   })
 })

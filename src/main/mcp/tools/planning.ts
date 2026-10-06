@@ -20,7 +20,7 @@ import {
   updateTask,
   updateWeeklyReview
 } from '../../database'
-import { taskTimeError } from '@shared/taskTime'
+import { mergeTaskTimes, taskTimeError } from '@shared/taskTime'
 import { needsConfirmation } from '../confirmGuard'
 import { afterCalendarChange, afterTaskWrite, broadcastRefresh } from '../effects'
 import { fail, ok } from '../reply'
@@ -100,11 +100,15 @@ export function registerPlanningTools(server: McpServer, ctx: ToolContext): void
         return fail('validation', 'Informe schedule, create_blocks ou delete_block_ids.')
       }
       for (const item of scheduleItems) {
-        const timeError = taskTimeError({
-          scheduled_date: item.date,
-          scheduled_time: item.start_time,
-          scheduled_end_time: item.end_time
-        })
+        const current = getTask(item.task_id)
+        if (!current) return fail('not_found', `Task ${item.task_id} não existe.`)
+        const timeError = taskTimeError(
+          mergeTaskTimes(current, {
+            scheduled_date: item.date,
+            scheduled_time: item.start_time,
+            scheduled_end_time: item.end_time
+          })
+        )
         if (timeError) return fail('validation', `Task ${item.task_id}: ${timeError}`)
       }
 
