@@ -242,6 +242,25 @@ export interface GcalStatus {
   autoSync: boolean
 }
 
+export interface BackupCounts {
+  tasks: number | null
+  projects: number | null
+  timeEntries: number | null
+}
+
+export interface BackupSnapshot {
+  name: string
+  path: string
+  createdAt: string
+  sizeBytes: number
+  counts: BackupCounts
+}
+
+export interface BackupStatus {
+  folder: string | null
+  snapshots: BackupSnapshot[]
+}
+
 export interface TimeEntry {
   id: number
   task_id: number
