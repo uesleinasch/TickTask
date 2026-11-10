@@ -88,11 +88,16 @@ chore: atualiza dependências
 
 #### 🏷️ Branches
 
-- `main`: Branch principal (sempre estável)
-- `develop`: Branch de desenvolvimento
-- `feature/nome`: Novas funcionalidades
-- `fix/nome`: Correções de bugs
-- `hotfix/nome`: Correções urgentes
+- `main`: branch default e de integração; recebe PRs (squash)
+- `production`: espelho do que está publicado; atualizada só pelo mantenedor na promoção
+- `release/vX.Y.Z`: estabilização de uma versão; criada pelo mantenedor
+- `feature/descricao`: novas funcionalidades (de `main` para `main`)
+- `bugfix/descricao`: correções (de `main` ou de `release/vX.Y.Z`, volta para a origem)
+- `hotfix/descricao`: correção urgente de produção (PR para a `release/vX.Y.Z` de hotfix)
+- `chore/descricao`: manutenção sem impacto funcional
+
+A descrição usa apenas minúsculas, números e hífens. O título do PR segue Conventional Commits,
+pois vira o commit em `main`.
 
 ### 5. Testes
 
