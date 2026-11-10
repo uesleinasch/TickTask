@@ -1,0 +1,61 @@
+name: pr-checks
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  branch-name:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validar branch de origem × destino
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          work='(feature|bugfix|chore)/[a-z0-9]+(-[a-z0-9]+)*'
+          fixes='(bugfix|hotfix|chore)/[a-z0-9]+(-[a-z0-9]+)*'
+          release='release/v[0-9]+\.[0-9]+\.[0-9]+'
+          bots='dependabot/.+'
+
+          case "$BASE_REF" in
+            main)       allowed="^(${work}|${release}|${bots})$" ;;
+            release/v*) allowed="^(${fixes})$" ;;
+            *)
+              echo "::error::PRs para '$BASE_REF' não são permitidos."
+              exit 1
+              ;;
+          esac
+
+          if [[ ! "$HEAD_REF" =~ $allowed ]]; then
+            echo "::error::Branch '$HEAD_REF' não pode abrir PR para '$BASE_REF'. Veja GitFlow/01-branches.md."
+            exit 1
+          fi
+
+  pr-title:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: amannn/action-semantic-pull-request@e32d7e603df1aa1ba07e981f2a23455dee596825 # v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            refactor
+            docs
+            test
+            build
+            ci
+            style
+            chore
+            revert
+          requireScope: false
+          subjectPattern: ^[a-z](.*[^.])?$
+          subjectPatternError: 'A descrição "{subject}" deve começar com minúscula e não terminar com ponto.'

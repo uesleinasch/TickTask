@@ -223,33 +223,41 @@ Defined in `electron.vite.config.ts` and the tsconfigs:
 
 ## Release
 
-`.github/workflows/release.yml` fires on tags matching `v*`: builds on ubuntu + windows runners
-(`npm ci` → `npm run build` → `npm run dist`) and publishes the `.AppImage`, `.deb`, `.exe` and
-`.zip` artifacts to a GitHub Release. Bump `version` in `package.json` before tagging.
+Delivery is tag-driven (`.github/workflows/release.yml`). An annotated `vX.Y.Z-rc.N` tag on
+`release/vX.Y.Z` builds the installers on ubuntu + windows and publishes a GitHub **pre-release**
+(that is the "staging": the installers are tested from there). The final `vX.Y.Z` tag must sit on
+the same commit as the last RC and on the HEAD of `production`; it rebuilds, attests provenance
+and publishes the GitHub Release with a `git-cliff` changelog (`cliff.toml`).
+
+The version comes from the tag: the workflow runs `npm version <tag> --no-git-tag-version` before
+`electron-builder`, so **don't bump `package.json` by hand** — nothing is committed on protected
+branches during a release. The next version is computed from Conventional Commits
+(`git cliff --bumped-version`). Other workflows: `ci.yml` (typecheck + tests; lint stays out until
+the pre-existing errors are fixed), `pr-checks.yml` (branch × target and PR title), `security.yml`
+(dependency review + CodeQL).
 
 ## Git Context
 
-- A cada nova task, criar branch a partir de Production
-- Realizar commits granulares ao longo do desenvolvimento
-- Ao finalizar a task, realizar push da branch para o repositório remoto
+GitFlow da convenção `conventions-code` (GitFlow — Release Branch Strategy). Regras para o agente:
 
-### Subir branch para Development
-
-- Atualizar Development com os itens de Production via rebase
-- Abrir PR da branch de feature para Development
-- Realizar o merge
-- Criar tag de pre-release apontando para o commit mergeado em Development
-
-### Promover para Production
-
-- Criar branch de release a partir de Production
-- Abrir PR da branch de feature para a branch de release | merge por Squash
-- Abrir PR da branch de release para Production | merge
-- Criar tag de Production apontando para o commit mergeado em Production
-- Apagar a branch de feature e a branch de release
-- Sincronizar Development com Production via rebase
-- JAMAIS contaminar production com itens de development
-- Itens vão para production apenas por release/pr
+- `main`: default, integração. Nunca commitar direto; só recebe PR.
+- `production`: espelho de produção, sempre igual a uma tag `vX.Y.Z`. Nunca fazer push, merge ou PR
+  para ela; só o mantenedor a atualiza por fast-forward na promoção.
+- `release/vX.Y.Z`: criada só pelo mantenedor. Nunca criar.
+- Branches de trabalho: `feature/`, `bugfix/`, `hotfix/`, `chore/` + descrição em minúsculas com
+  hífens (ex.: `feature/issue-42-export-csv`). Sem maiúsculas, underscore ou ponto.
+  - `feature/*`, `bugfix/*`, `chore/*` saem de `main` e voltam para `main` por PR (squash).
+  - Correções de uma release (`bugfix/*`, `hotfix/*`, `chore/*`) saem de `release/vX.Y.Z` e voltam
+    para ela por PR (squash).
+- Commits granulares em Conventional Commits 1.0.0: `<tipo>(escopo)!: descrição` imperativa,
+  minúscula, sem ponto final. Tipos: feat, fix, perf, refactor, docs, test, build, ci, style, chore,
+  revert. O título do PR vira o commit em `main`, então segue o mesmo formato.
+- Ao finalizar a task, push da branch de trabalho e PR para o destino permitido.
+- Nunca criar, mover, apagar ou dar push em tags `v*`. Corte da release, RC, promoção, hotfix e
+  back-merge são comandos `git`/`gh` do mantenedor: mostre os comandos para o usuário executar
+  (seção "Uso diário" de `GitFlow/05-automacao.md` no plugin), não os rode.
+- Nunca `git push --force` (use `--force-with-lease` em branch de trabalho), nunca `--all`,
+  `--mirror`, `--tags`. Não desabilitar rulesets, assinatura ou checks para destravar algo.
 
 <!-- rtk-instructions v2 -->
 

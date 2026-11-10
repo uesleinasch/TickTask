@@ -1,73 +1,149 @@
-name: Release TickTask App
+name: release
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      base: ${{ steps.meta.outputs.base }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: meta
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+
+          git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+          [ "$(git cat-file -t "refs/tags/$TAG")" = "tag" ] || fail "$TAG não é uma tag anotada."
+
+          base="${TAG%%-rc.*}"
+          commit=$(git rev-list -n1 "$TAG")
+
+          if [[ "$TAG" == *-rc.* ]]; then
+            prerelease=true
+            git merge-base --is-ancestor "$commit" "origin/release/$base" || fail "$TAG não pertence a release/$base."
+          else
+            prerelease=false
+            [ "$commit" = "$(git rev-parse origin/production)" ] || fail "$TAG não aponta para o HEAD de production."
+
+            rc=$(git tag -l "$base-rc.*" --sort=-v:refname | head -n1)
+            [ -n "$rc" ] || fail "Nenhum release candidate para $base."
+            [ "$(git rev-list -n1 "$rc")" = "$commit" ] || fail "$TAG não está no commit do último RC ($rc)."
+            gh release view "$rc" >/dev/null 2>&1 || fail "Pre-release $rc não encontrado (build do RC falhou ou não terminou)."
+          fi
+
+          {
+            echo "version=${TAG#v}"
+            echo "base=$base"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+
+  ci:
+    needs: verify
+    uses: ./.github/workflows/ci.yml
+
   build:
+    needs: [verify, ci]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          node-version: 20
-          cache: 'npm'
+          persist-credentials: false
 
-      - name: Install dependencies
-        run: npm ci
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
 
-      - name: Build Frontend + Electron
-        run: npm run build
+      - run: npm ci
 
-      - name: Build App
+      - name: Aplicar versão da tag
+        shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run dist
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - name: Gerar instaladores
+        shell: bash
+        run: npm run build && npx electron-builder --publish never
+
+      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
-          name: ticktask-${{ matrix.os }}
+          subject-path: |
+            dist/*.exe
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: package-${{ matrix.os }}
+          if-no-files-found: error
+          path: |
+            dist/*.exe
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+
+  publish:
+    needs: [verify, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: package-*
+          merge-multiple: true
           path: dist/
 
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: write   # <- ESSENCIAL
-
-    steps:
-      - name: Download Windows artifacts
-        uses: actions/download-artifact@v4
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
         with:
-          name: ticktask-windows-latest
-          path: dist/win
+          tool: git-cliff
 
-      - name: Download Linux artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: ticktask-ubuntu-latest
-          path: dist/linux
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: 🚀 TickTask ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-          files: |
-            dist/win/*.exe
-            dist/win/*.zip
-            dist/linux/*.AppImage
-            dist/linux/*.deb
+      - name: Criar GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+        run: |
+          if [ "$PRERELEASE" = "true" ]; then
+            git cliff --unreleased --strip header > notes.md
+            flags=(--prerelease)
+          else
+            git cliff --latest --strip header > notes.md
+            flags=(--latest)
+          fi
+          gh release create "$TAG" dist/* --verify-tag --title "TickTask $TAG" --notes-file notes.md "${flags[@]}"
