@@ -16,6 +16,7 @@ botão-ícone de engrenagem no `TitleBar`.
 ├──────────────┬───────────────────────────────────────────────┤
 │ APLICATIVO   │  ┌─────────────────────────────────────────┐  │
 │ ⚙ Geral      │  │ [ícone] Título  (pílula de estado)      │  │
+│ 💾 Backup    │  │                                         │  │
 │ ⓘ Sobre      │  │ descrição                               │  │
 │ INTEGRAÇÕES  │  │ ─────────────────────────────────────── │  │
 │ 📖 Notion  ● │  │ conteúdo da seção                       │  │
@@ -64,6 +65,27 @@ reabrir. Lógica em `stepProgress.ts` (pura, testada).
 - Bloco "Captura rápida" com o atalho em `<kbd>` (`Ctrl` ou `⌘` conforme a plataforma) — só
   informativo, não editável.
 
+### Backup
+
+`BackupSection.tsx` carrega o próprio estado (`backupGetStatus`); a página não o conhece.
+
+- **Pasta de backup** + **Escolher pasta / Trocar** (diálogo do sistema). A pasta fica em
+  `userData/backup-config.json`.
+- **Fazer backup agora** (desabilitado sem pasta) cria um snapshot `AAAA-MM-DD_HHMMSS/` na pasta:
+  `ticktask.db` copiado com `db.backup()` (consistente com o app aberto, já inclui o WAL),
+  `notes-assets/`, `drawings/`, `notion-config.json`, `mcp-config.json` e um `MANIFEST.txt` com as
+  contagens e o sha256 de cada arquivo. O snapshot é montado em `.partial` e só ganha o nome final
+  quando termina.
+- Lista **Backups nesta pasta**, do mais recente para o mais antigo, com contagens e tamanho; cada
+  um tem **Restaurar**. **Restaurar de outra pasta…** aceita qualquer pasta com `ticktask.db`.
+- Restaurar sempre passa por `backup:inspect` (abre o banco só leitura e roda `integrity_check`)
+  e por um `DeleteConfirmDialog` com as contagens. Confirmado, o main para o MCP e o agendador,
+  fecha o banco, move os dados atuais para `userData/pre-restore-<carimbo>/`, copia o snapshot e
+  reinicia com `app.relaunch()` (sem `--hidden`). Se a cópia falhar, os dados antigos voltam.
+- O token do Google não entra: ele é cifrado pelo keyring do sistema e não abre em outra máquina.
+- O mesmo formato é lido e gerado por `scripts/ticktask-backup.sh` (`backup`, `list`,
+  `restore`), que funciona sem o app.
+
 ### Notion
 
 - **Sem banco criado** → `SetupSteps` (`settings.notion.steps`):
@@ -111,4 +133,4 @@ Versões em lista: TickTask (`app:getVersion`), Electron, Chromium e Node
 - Nenhuma configuração de **comportamento**: jornada de trabalho (fixa em 8h no plano do dia),
   limiares de time leak (1h/30min/0), janela da grade do calendário (07:00–22:00), intervalo do
   auto-sync de notas (60s), atalho global (fixo).
-- Nenhuma gestão de **dados**: exportar/importar o banco, localizar o arquivo, fazer backup.
+- Backup só manual: não há backup automático periódico nem limpeza de snapshots antigos.
