@@ -13,7 +13,7 @@ import { copyFileSync } from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/512.png?asset'
-import { shouldStartHidden } from './launchArgs'
+import { HIDDEN_FLAG, shouldStartHidden } from './launchArgs'
 import { createTray, destroyTray } from './tray'
 import { isAutostartEnabled, setAutostartEnabled } from './autostart'
 import {
@@ -149,6 +149,14 @@ import {
 import { saveNoteImage, registerAssetProtocol, ASSET_SCHEME } from './notesAssets'
 import { deleteDrawingPreview, saveDrawingPreview } from './drawingAssets'
 import { exportTaskToLocal } from './localExport'
+import {
+  chooseBackupFolder,
+  chooseSnapshotFolder,
+  createBackup,
+  getBackupStatus,
+  inspectSnapshot,
+  restoreSnapshot
+} from './backup'
 import { pickDueNotifications } from './dueNotifications'
 import { localDateString } from '../shared/dueState'
 import { readMcpConfig, writeMcpConfig } from './mcp/store'
@@ -466,6 +474,14 @@ function revealMainWindow(): void {
   mainWindow.show()
   mainWindow.focus()
   hideFloatWindow()
+}
+
+// Em AppImage o process.execPath aponta para o volume temporário montado, que some quando este
+// processo sai; APPIMAGE guarda o caminho real do arquivo distribuído.
+function relaunchApp(): void {
+  const args = process.argv.slice(1).filter((arg) => arg !== HIDDEN_FLAG)
+  app.relaunch(process.env.APPIMAGE ? { execPath: process.env.APPIMAGE, args } : { args })
+  app.exit(0)
 }
 
 function quitApp(): void {
@@ -1077,6 +1093,30 @@ function setupIpcHandlers(): void {
   ipcMain.handle('app:getVersion', () => app.getVersion())
   ipcMain.handle('app:getAutostart', () => isAutostartEnabled())
   ipcMain.handle('app:setAutostart', (_, enabled: boolean) => setAutostartEnabled(enabled))
+
+  ipcMain.handle('backup:getStatus', () => getBackupStatus())
+  ipcMain.handle('backup:chooseFolder', () => chooseBackupFolder(mainWindow))
+  ipcMain.handle('backup:create', () => createBackup())
+  ipcMain.handle('backup:chooseSnapshot', () => chooseSnapshotFolder(mainWindow))
+  ipcMain.handle('backup:inspect', (_, dir: string) => inspectSnapshot(dir))
+  ipcMain.handle('backup:restore', async (_, dir: string) => {
+    await inspectSnapshot(dir)
+    isQuitting = true
+    destroyTray()
+    if (notificationInterval) clearInterval(notificationInterval)
+    await stopMcpServer()
+    closeDatabase()
+    try {
+      await restoreSnapshot(dir)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      dialog.showErrorBox(
+        'Falha ao restaurar o backup',
+        `${message}\n\nOs dados anteriores foram mantidos. O TickTask vai reiniciar.`
+      )
+    }
+    relaunchApp()
+  })
 
   // ===================== MCP SERVER =====================
   ipcMain.handle('mcp:getStatus', () => buildMcpStatus())

@@ -30,7 +30,9 @@ import type {
   TaskListItem,
   TagWithUsage,
   UpdateTagInput,
-  McpStatus
+  McpStatus,
+  BackupSnapshot,
+  BackupStatus
 } from '../shared/types'
 
 interface FloatTimerData {
@@ -278,6 +280,14 @@ interface API {
   appGetVersion: () => Promise<string>
   appGetAutostart: () => Promise<boolean>
   appSetAutostart: (enabled: boolean) => Promise<boolean>
+
+  // Backup
+  backupGetStatus: () => Promise<BackupStatus>
+  backupChooseFolder: () => Promise<BackupStatus | null>
+  backupCreate: () => Promise<BackupSnapshot>
+  backupChooseSnapshot: () => Promise<string | null>
+  backupInspect: (dir: string) => Promise<BackupSnapshot>
+  backupRestore: (dir: string) => Promise<void>
 
   // MCP Server
   mcpGetStatus: () => Promise<McpStatus>

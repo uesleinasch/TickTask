@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, BookOpen, CalendarDays, Info, Loader2, Server, Settings } from 'lucide-react'
+import {
+  ArrowLeft,
+  BookOpen,
+  CalendarDays,
+  DatabaseBackup,
+  Info,
+  Loader2,
+  Server,
+  Settings
+} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
@@ -8,6 +17,7 @@ import { usePersistedState } from '@renderer/hooks/usePersistedState'
 import { cn } from '@renderer/lib/utils'
 import type { GcalStatus, McpStatus } from '@shared/types'
 import { AboutSection } from '@renderer/components/settings/AboutSection'
+import { BackupSection } from '@renderer/components/settings/BackupSection'
 import { GeneralSection } from '@renderer/components/settings/GeneralSection'
 import { GoogleCalendarSection } from '@renderer/components/settings/GoogleCalendarSection'
 import { McpSection } from '@renderer/components/settings/McpSection'
@@ -20,7 +30,7 @@ import {
   type StatusTone
 } from '@renderer/components/settings/settingsStatus'
 
-type SectionId = 'geral' | 'notion' | 'google' | 'mcp' | 'sobre'
+type SectionId = 'geral' | 'backup' | 'notion' | 'google' | 'mcp' | 'sobre'
 
 interface NavItem {
   id: SectionId
@@ -65,6 +75,7 @@ export function SettingsPage(): React.JSX.Element {
       label: 'Aplicativo',
       items: [
         { id: 'geral', label: 'Geral', icon: Settings },
+        { id: 'backup', label: 'Backup', icon: DatabaseBackup },
         { id: 'sobre', label: 'Sobre', icon: Info }
       ]
     },
@@ -151,6 +162,7 @@ export function SettingsPage(): React.JSX.Element {
                 {section === 'geral' && (
                   <GeneralSection autostart={autostart} onAutostartChange={setAutostart} />
                 )}
+                {section === 'backup' && <BackupSection />}
                 {section === 'notion' && (
                   <NotionSection config={notion} onConfigChange={setNotion} />
                 )}

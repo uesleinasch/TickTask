@@ -2,6 +2,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { timingSafeEqual } from 'crypto'
 import http from 'http'
 import type { McpConfig } from './config'
+import { createConfirmStore, type ConfirmStore } from './confirmGuard'
 import { createMcpServer } from './server'
 
 const HOST = '127.0.0.1'
@@ -41,13 +42,15 @@ export function startMcpServer(config: McpConfig): Promise<void> {
 
 // O SDK só sustenta uma requisição por transport em modo stateless (sessionIdGenerator:
 // undefined); reusar o par para a próxima chamada faz o transport rejeitar com erro. Por isso o
-// par server+transport nasce e morre dentro de cada requisição.
+// par server+transport nasce e morre dentro de cada requisição. O confirmStore não pode nascer
+// junto: o token da prévia é consumido numa requisição seguinte, que veria um store vazio.
 async function handleMcpRequest(
   req: http.IncomingMessage,
   res: http.ServerResponse,
-  config: McpConfig
+  config: McpConfig,
+  confirmStore: ConfirmStore
 ): Promise<void> {
-  const server = createMcpServer(config.bulkThreshold)
+  const server = createMcpServer(config.bulkThreshold, confirmStore)
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined })
 
   res.on('close', () => {
@@ -60,6 +63,7 @@ async function handleMcpRequest(
 }
 
 async function performStart(config: McpConfig): Promise<void> {
+  const confirmStore = createConfirmStore()
   const instance = http.createServer((req, res) => {
     const url = (req.url ?? '').split('?')[0]
     if (url !== ROUTE) {
@@ -70,7 +74,7 @@ async function performStart(config: McpConfig): Promise<void> {
       res.writeHead(401).end()
       return
     }
-    handleMcpRequest(req, res, config).catch((error) => {
+    handleMcpRequest(req, res, config, confirmStore).catch((error) => {
       console.error('[mcp] falha ao tratar requisição:', error)
       if (!res.headersSent) res.writeHead(500).end()
     })

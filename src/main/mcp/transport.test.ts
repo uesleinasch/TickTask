@@ -1,7 +1,14 @@
 import http from 'http'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { McpConfig } from './config'
+import type { ConfirmStore } from './confirmGuard'
+import * as mcpServer from './server'
 import { isAuthorized, isMcpRunning, startMcpServer, stopMcpServer } from './transport'
+
+vi.mock('./server', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./server')>()
+  return { ...original, createMcpServer: vi.fn(original.createMcpServer) }
+})
 
 const TOKEN = 'a'.repeat(64)
 
@@ -111,6 +118,48 @@ describe('integração HTTP', () => {
     const dataLine = body.split('\n').find((line) => line.startsWith('data: '))
     const payload = JSON.parse((dataLine ?? '').slice('data: '.length))
     expect(payload.result.tools.length).toBeGreaterThan(0)
+  })
+})
+
+describe('confirmação entre requisições', () => {
+  const PORT = 48766
+
+  afterEach(async () => {
+    await stopMcpServer()
+  })
+
+  it('o token emitido numa requisição vale na seguinte', async () => {
+    const createMcpServer = vi.mocked(mcpServer.createMcpServer)
+    createMcpServer.mockClear()
+    await startMcpServer(buildConfig(PORT))
+
+    const initialize = () =>
+      fetch(`http://127.0.0.1:${PORT}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          Authorization: `Bearer ${TOKEN}`
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-06-18',
+            capabilities: {},
+            clientInfo: { name: 'transport-test', version: '1.0.0' }
+          }
+        })
+      }).then((response) => response.text())
+
+    await initialize()
+    await initialize()
+
+    const [primeira, segunda] = createMcpServer.mock.calls.map((args) => args[1] as ConfirmStore | undefined)
+    const operation = { kind: 'delete_tasks', payload: { ids: [1, 2] } }
+    const token = primeira!.issue(operation)
+    expect(segunda!.consume(token, operation)).toEqual({ ok: true })
   })
 })
 

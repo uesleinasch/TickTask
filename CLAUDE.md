@@ -158,6 +158,16 @@ Notion e Google; o Google só age em tasks com `gcal_sync = 1`, então **caminho
 os ids com `filterGcalSyncedIds` antes de apagar** e chamam `pushToGoogle` depois. Handlers de time
 block também sincronizam. No MCP, use `afterCalendarChange(ids)`.
 
+## Backup e restauração
+
+`src/main/backup.ts` (lado Electron) + `backupPlan.ts` (puro, testado), expostos em Configurações →
+Backup. Um snapshot é uma pasta `AAAA-MM-DD_HHMMSS/` com `ticktask.db` (via `db.backup()`),
+`notes-assets/`, `drawings/`, as configs do Notion e do MCP e um `MANIFEST.txt`. O formato é
+compartilhado com `scripts/ticktask-backup.sh`, que faz backup e restauração sem o app — mudar
+nomes ou rótulos do manifest exige mudar os dois. Restaurar fecha o banco, guarda os dados atuais
+em `userData/pre-restore-*/` e reinicia o app. `gcal-config.json` fica de fora de propósito: o
+token é cifrado com `safeStorage` e não abre em outra máquina.
+
 ## MCP server
 
 Lives in `src/main/mcp/`, embedded in the main process. It speaks MCP over HTTP on loopback
