@@ -42,12 +42,14 @@ npm run typecheck:node   # or typecheck:web — narrow the tsc run while iterati
 Tests run on **vitest** (`vitest.config.ts`, `environment: 'node'`, include `src/**/*.test.ts`) and
 cover the pure modules — query building (`taskQuery`), tag merge/rename (`tagQueries`),
 ProseMirror↔Markdown (`notesMarkdown`), ProseMirror→Notion blocks (`notionBlocks`), note
-format/layout math, and the auxiliary-window guard (`timerWindow`). Anything that imports
+format/layout math, the auxiliary-window guard (`timerWindow`), the Google Calendar plan/API/OAuth
+modules, backup planning, due-date notices and most of `src/main/mcp/`. Anything that imports
 `electron` or `better-sqlite3` is not testable as-is; extract the logic into a pure module next to
 it (as `src/main/taskQuery.ts` does for `database.ts`, or `tagQueries.ts` does by taking an
 injected `SqliteLike`) and test that.
 
-The build runs `typecheck` first, so a type error fails the build. After meaningful changes run `npm run typecheck && npm run lint` to validate.
+`build` (and `dist`/`build:win`/`build:unpack`) runs `typecheck` first, so a type error fails it —
+but `build:linux` and `build:mac` call `electron-vite build` directly and skip it. After meaningful changes run `npm run typecheck && npm run lint` to validate.
 
 `npm run lint` reports pre-existing prettier warnings across the repo. Do **not** run
 `prettier --write` on a whole legacy file to silence them — it rewrites hundreds of untouched lines
@@ -62,7 +64,7 @@ renderer (React)  →  preload (window.api)  →  main (ipcMain.handle)  →  da
    src/renderer/src      src/preload/index.ts      src/main/index.ts        src/main/database.ts
 ```
 
-- **src/main/** — Node side. `index.ts` (windows, lifecycle, ~108 `ipcMain.handle` registrations in `setupIpcHandlers()`, global shortcut, PDF export via `webContents.printToPDF`). `database.ts` owns the schema + every query as an exported function. `notion.ts` is the Notion client/sync. Around it sit the pure/leaf modules: `taskQuery.ts` (WHERE/ORDER builder), `tagQueries.ts` (tag CRUD/merge over an injected `SqliteLike`), `notesMarkdown.ts` (ProseMirror JSON ↔ Markdown), `notionBlocks.ts` (ProseMirror → Notion blocks), `notionFileUpload.ts` (image upload to Notion), `notesAssets.ts` (local image store + `ticktask-asset://` protocol), `localExport.ts` (task → Markdown file with YAML frontmatter + copied assets).
+- **src/main/** — Node side. `index.ts` (windows, lifecycle, ~130 `ipcMain.handle` registrations in `setupIpcHandlers()`, global shortcut, PDF export via `webContents.printToPDF`). `database.ts` owns the schema + every query as an exported function. `notion.ts` is the Notion client/sync. Around it sit the pure/leaf modules: `taskQuery.ts` (WHERE/ORDER builder), `tagQueries.ts` (tag CRUD/merge over an injected `SqliteLike`), `notesMarkdown.ts` (ProseMirror JSON ↔ Markdown), `notionBlocks.ts` (ProseMirror → Notion blocks), `notionFileUpload.ts` (image upload to Notion), `notesAssets.ts` (local image store + `ticktask-asset://` protocol), `localExport.ts` (task → Markdown file with YAML frontmatter + copied assets).
 - **src/preload/index.ts** — exposes a single `api` object on `window.api` via `contextBridge` (and `@electron-toolkit/preload`'s `electron`). Every method is a thin `ipcRenderer.invoke('domain:action', …)` wrapper. `index.d.ts` types `window.api` for the renderer.
 - **src/renderer/src/** — React 19 app. `main.tsx` → `App.tsx` (uses **`HashRouter`** — required because Electron loads the renderer over `file://`). Pages in `pages/`, reusable components in `components/` (shadcn/Radix primitives under `components/ui/`), data-fetching logic in `hooks/` (one hook per domain: `useTasks`, `useProjects`, `useContexts`, `useTags`, `useCalendar`, `useHorizons`, `useWeeklyReview`, `useTaskDetail`, `useTimer`, `useNotification`, plus the UI-only `useIncrementalList` — IntersectionObserver paging of an already-loaded array — and `usePersistedState` for view preferences), Zustand `stores/timerStore.ts` for the live timer.
 - **src/shared/types.ts** — the single source of truth for domain types (`Task`, `Project`, `Context`, `Area`, `Goal`, `TimeBlock`, `WeeklyReview`, the `Create*/Update*Input` variants, and the status/category/energy unions). Imported by all three contexts.
@@ -88,7 +90,7 @@ programmatic `scrollIntoView` (see `docs/ui/02-detalhe-da-tarefa.md`).
 
 - File: `app.getPath('userData')/ticktask.db`. Opened with `journal_mode = WAL` and `foreign_keys = ON`. `initDatabase()` runs at startup.
 - 13 tables: `tasks`, `time_entries`, `tags`, `task_tags`, `projects`, `contexts`, `task_contexts`, `weekly_reviews`, `task_dependencies`, `areas`, `goals`, `time_blocks`, `note_assets`.
-- **Migrations are imperative, inline in `initDatabase()`** — `CREATE TABLE IF NOT EXISTS` plus guarded `ALTER TABLE`s. Changing a `CHECK` constraint requires the create-new-table-and-copy dance (see the `tasks_new` rebuild around `src/main/database.ts:265`, used to widen the task `status` CHECK). There is no migration framework — follow the existing pattern.
+- **Migrations are imperative, inline in `initDatabase()`** — `CREATE TABLE IF NOT EXISTS` plus guarded `ALTER TABLE`s. Changing a `CHECK` constraint requires the create-new-table-and-copy dance (see the `tasks_new` rebuild around `src/main/database.ts:375`, used to widen the task `status` CHECK). There is no migration framework — follow the existing pattern.
 - All queries use better-sqlite3 prepared statements; multi-step writes use `db.transaction(...)`.
 
 ### Task listings
@@ -400,3 +402,13 @@ rtk init --global       # Add RTK to ~/.claude/CLAUDE.md
 Overall average: **60-90% token reduction** on common development operations.
 
 <!-- /rtk-instructions -->
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
