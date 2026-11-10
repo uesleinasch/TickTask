@@ -359,24 +359,17 @@ export function initDatabase(): void {
  * se sim, recria a tabela tasks com o novo constraint que inclui 'someday'.
  */
 function migrateTasksTableForSomedayStatus(): void {
-  // Verificar se a migração é necessária tentando inserir e remover um registro de teste
-  try {
-    const testStmt = db.prepare(
-      "INSERT INTO tasks (name, status) VALUES ('__migration_test__', 'someday')"
-    )
-    const result = testStmt.run()
-    // Se chegou aqui, o constraint já permite 'someday' — remover o registro de teste
-    db.prepare('DELETE FROM tasks WHERE id = ?').run(result.lastInsertRowid)
-    return
-  } catch {
-    // CHECK constraint falhou — precisa migrar
-    console.log('[Migration] Recriando tabela tasks para incluir status "someday"...')
-  }
+  // Decidir pelo schema, não por um INSERT de teste: num banco novo o INSERT falha por outro motivo
+  // (a FK de tasks aponta para projects, que ainda não foi criada) e disparava a migração à toa.
+  const row = db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'tasks'")
+    .get() as { sql: string } | undefined
+  if (!row || row.sql.includes("'someday'")) return
+  console.log('[Migration] Recriando tabela tasks para incluir status "someday"...')
 
+  // PRAGMA foreign_keys é ignorado dentro de uma transação — precisa ser trocado fora dela.
+  db.pragma('foreign_keys = OFF')
   const migration = db.transaction(() => {
-    // Desabilitar foreign keys temporariamente para permitir a migração
-    db.pragma('foreign_keys = OFF')
-
     // 1. Criar tabela temporária com o novo schema
     db.exec(`
       CREATE TABLE tasks_new (
@@ -427,12 +420,13 @@ function migrateTasksTableForSomedayStatus(): void {
     // 3. Dropar tabela antiga e renomear
     db.exec('DROP TABLE tasks')
     db.exec('ALTER TABLE tasks_new RENAME TO tasks')
-
-    // Reabilitar foreign keys
-    db.pragma('foreign_keys = ON')
   })
 
-  migration()
+  try {
+    migration()
+  } finally {
+    db.pragma('foreign_keys = ON')
+  }
   console.log('[Migration] Tabela tasks migrada com sucesso.')
 }
 
