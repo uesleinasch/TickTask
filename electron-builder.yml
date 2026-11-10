@@ -42,6 +42,9 @@ appImage:
   artifactName: ${name}-${version}.${ext}
 deb:
   artifactName: ${name}-${version}.${ext}
+  # Perfil AppArmor para o sandbox do Chromium no Ubuntu 24.04+ — ver build/linux/after-install.sh
+  afterInstall: build/linux/after-install.sh
+  afterRemove: build/linux/after-remove.sh
 npmRebuild: false
 publish:
   provider: generic
