@@ -21,5 +21,9 @@ copilot-instructions.md
 # Artefatos do fluxo de especificação: nunca versionados.
 docs/superpowers/
 
-# Grafo de conhecimento gerado pelo graphify: local, não versionado.
-graphify-out/
+# Grafo de conhecimento do graphify: versiona só o grafo e o relatório;
+# cache, manifest e caminhos da máquina ficam locais.
+graphify-out/*
+!graphify-out/graph.json
+!graphify-out/graph.html
+!graphify-out/GRAPH_REPORT.md
