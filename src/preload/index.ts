@@ -29,7 +29,9 @@ import type {
   TaskListItem,
   TagWithUsage,
   UpdateTagInput,
-  McpStatus
+  McpStatus,
+  BackupSnapshot,
+  BackupStatus
 } from '../shared/types'
 
 // Custom APIs for renderer
@@ -360,6 +362,15 @@ const api = {
   appGetAutostart: (): Promise<boolean> => ipcRenderer.invoke('app:getAutostart'),
   appSetAutostart: (enabled: boolean): Promise<boolean> =>
     ipcRenderer.invoke('app:setAutostart', enabled),
+
+  // ===================== BACKUP =====================
+  backupGetStatus: (): Promise<BackupStatus> => ipcRenderer.invoke('backup:getStatus'),
+  backupChooseFolder: (): Promise<BackupStatus | null> => ipcRenderer.invoke('backup:chooseFolder'),
+  backupCreate: (): Promise<BackupSnapshot> => ipcRenderer.invoke('backup:create'),
+  backupChooseSnapshot: (): Promise<string | null> => ipcRenderer.invoke('backup:chooseSnapshot'),
+  backupInspect: (dir: string): Promise<BackupSnapshot> =>
+    ipcRenderer.invoke('backup:inspect', dir),
+  backupRestore: (dir: string): Promise<void> => ipcRenderer.invoke('backup:restore', dir),
 
   // ===================== MCP SERVER =====================
   mcpGetStatus: (): Promise<McpStatus> => ipcRenderer.invoke('mcp:getStatus'),

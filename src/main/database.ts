@@ -1995,6 +1995,10 @@ export function closeDatabase(): void {
   }
 }
 
+export async function backupDatabase(destination: string): Promise<void> {
+  await db.backup(destination)
+}
+
 // ===================== FASE 4: ÁREAS DE FOCO =====================
 
 export function createArea(data: CreateAreaInput): Area {
