@@ -4,9 +4,13 @@ import type {
   GcalStatus,
   JiraBoardSummary,
   JiraCredentialsInput,
+  JiraFieldInput,
   JiraImportResult,
+  JiraIssueFields,
   JiraOptionsInput,
   JiraStatus,
+  JiraTransitionOption,
+  JiraUser,
   Task,
   TimeEntry,
   CreateTaskInput,
@@ -288,7 +292,7 @@ const api = {
   jiraGetStatus: (): Promise<JiraStatus> => ipcRenderer.invoke('jira:getStatus'),
   jiraSaveCredentials: (input: JiraCredentialsInput): Promise<JiraStatus> =>
     ipcRenderer.invoke('jira:saveCredentials', input),
-  jiraTest: (): Promise<{ displayName: string }> => ipcRenderer.invoke('jira:test'),
+  jiraTest: (): Promise<JiraUser> => ipcRenderer.invoke('jira:test'),
   jiraListBoards: (): Promise<JiraBoardSummary[]> => ipcRenderer.invoke('jira:listBoards'),
   jiraSaveBoards: (boardIds: number[]): Promise<JiraStatus> =>
     ipcRenderer.invoke('jira:saveBoards', boardIds),
@@ -298,6 +302,19 @@ const api = {
     ipcRenderer.invoke('jira:saveOptions', input),
   jiraDisconnect: (): Promise<JiraStatus> => ipcRenderer.invoke('jira:disconnect'),
   jiraImportNow: (): Promise<JiraImportResult | null> => ipcRenderer.invoke('jira:importNow'),
+  jiraListTransitions: (taskId: number): Promise<JiraTransitionOption[]> =>
+    ipcRenderer.invoke('jira:listTransitions', taskId),
+  jiraTransition: (taskId: number, transitionId: string): Promise<void> =>
+    ipcRenderer.invoke('jira:transition', taskId, transitionId),
+  jiraGetFields: (taskId: number): Promise<JiraIssueFields> =>
+    ipcRenderer.invoke('jira:getFields', taskId),
+  jiraUpdateField: (
+    taskId: number,
+    fieldId: string,
+    value: JiraFieldInput
+  ): Promise<JiraIssueFields> => ipcRenderer.invoke('jira:updateField', taskId, fieldId, value),
+  jiraSearchUsers: (taskId: number, fieldId: string, query: string): Promise<JiraUser[]> =>
+    ipcRenderer.invoke('jira:searchUsers', taskId, fieldId, query),
   onJiraSync: (
     callback: (status: 'syncing' | 'success' | 'error', detail?: string) => void
   ): (() => void) => {

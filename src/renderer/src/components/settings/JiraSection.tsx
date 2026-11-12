@@ -3,7 +3,13 @@ import { Loader2, LogOut, RefreshCw, Ticket } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { toast } from '@renderer/components/ui/sonner'
-import { STATUS_LABELS, type JiraStatus, type Project, type TaskStatus } from '@shared/types'
+import {
+  STATUS_LABELS,
+  type JiraBoardSummary,
+  type JiraStatus,
+  type Project,
+  type TaskStatus
+} from '@shared/types'
 import { SectionHeader, ToggleRow } from './SettingsPrimitives'
 import { errorMessage, jiraStatusInfo } from './settingsStatus'
 
@@ -24,6 +30,26 @@ const AUTO_IMPORT_OPTIONS = [
   { value: 30, label: 'A cada 30 min' },
   { value: 60, label: 'A cada hora' }
 ]
+
+interface BoardGroup {
+  key: string | null
+  name: string
+  boards: JiraBoardSummary[]
+}
+
+function groupBoardsBySpace(boards: JiraBoardSummary[]): BoardGroup[] {
+  const groups = new Map<string, BoardGroup>()
+  for (const board of boards) {
+    const name = board.spaceName ?? 'Sem espaço'
+    const group = groups.get(name) ?? { key: board.spaceKey ?? null, name, boards: [] }
+    group.boards.push(board)
+    groups.set(name, group)
+  }
+  return [...groups.values()].sort((a, b) => {
+    if (!a.key !== !b.key) return a.key ? -1 : 1
+    return a.name.localeCompare(b.name, 'pt-BR')
+  })
+}
 
 export function JiraSection({
   status,
@@ -120,7 +146,7 @@ export function JiraSection({
       <SectionHeader
         icon={Ticket}
         title="Jira"
-        description="Carrega as issues atribuídas a você dos boards escolhidos como tasks e pode refletir o status de volta no Jira."
+        description="Carrega as issues atribuídas a você dos boards escolhidos como tasks. O status do Jira fica separado do status da task e muda pelo seletor no card."
         status={jiraStatusInfo(status)}
       />
 
@@ -208,21 +234,35 @@ export function JiraSection({
                 Carregue os boards do seu Jira e marque os que devem alimentar o TickTask.
               </p>
             ) : (
-              <ul className="grid gap-1.5">
-                {status.boards.map((board) => (
-                  <li key={board.id}>
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={status.boardIds.includes(board.id)}
-                        onChange={() => toggleBoard(board.id)}
-                        className="h-4 w-4 accent-slate-900"
-                      />
-                      {board.name}
-                    </label>
-                  </li>
+              <div className="grid gap-4">
+                {groupBoardsBySpace(status.boards).map((group) => (
+                  <div key={group.name} className="space-y-1.5">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {group.name}
+                      {group.key && (
+                        <span className="ml-1.5 font-mono font-normal normal-case text-slate-400">
+                          {group.key}
+                        </span>
+                      )}
+                    </h4>
+                    <ul className="grid gap-1.5">
+                      {group.boards.map((board) => (
+                        <li key={board.id}>
+                          <label className="flex items-center gap-2 text-sm text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={status.boardIds.includes(board.id)}
+                              onChange={() => toggleBoard(board.id)}
+                              className="h-4 w-4 accent-slate-900"
+                            />
+                            {board.name}
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ))}
-              </ul>
+              </div>
             )}
           </div>
 
@@ -253,10 +293,10 @@ export function JiraSection({
 
           {status.knownStatuses.length > 0 && (
             <div className="space-y-3 pt-4 border-t border-slate-200">
-              <h3 className="text-sm font-medium text-slate-800">Mapeamento de status</h3>
+              <h3 className="text-sm font-medium text-slate-800">Status inicial das tasks novas</h3>
               <p className="text-xs text-slate-500">
-                Sem escolha, o status segue a categoria do Jira. Escolha um status local para
-                sobrescrever.
+                Vale só quando a importação cria a task. Depois disso o status da task e o status do
+                Jira andam separados. Sem escolha, segue a categoria do Jira.
               </p>
               <ul className="grid gap-2">
                 {status.knownStatuses.map((known) => (
@@ -289,14 +329,6 @@ export function JiraSection({
           )}
 
           <div className="space-y-3 pt-4 border-t border-slate-200">
-            <ToggleRow
-              title="Enviar status ao Jira"
-              description="Ao mudar o status de uma task vinculada, o TickTask tenta fazer a transição correspondente na issue."
-              checked={status.pushStatus}
-              onChange={async () =>
-                onStatusChange(await window.api.jiraSaveOptions({ pushStatus: !status.pushStatus }))
-              }
-            />
             <ToggleRow
               title="Sincronizar tasks do Jira com o Notion"
               description="Envia as tasks vinculadas ao Jira para o banco do Notion, junto com as demais."

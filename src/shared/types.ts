@@ -250,6 +250,55 @@ export interface GcalStatus {
 export interface JiraBoardSummary {
   id: number
   name: string
+  spaceKey?: string | null
+  spaceName?: string | null
+}
+
+export interface JiraTransitionOption {
+  id: string
+  name: string
+  category: 'new' | 'indeterminate' | 'done'
+}
+
+export interface JiraUser {
+  accountId: string
+  displayName: string
+}
+
+export interface JiraFieldOption {
+  id: string
+  label: string
+}
+
+export type JiraFieldView =
+  | { kind: 'string' | 'text'; value: string | null }
+  | { kind: 'number'; value: number | null }
+  | { kind: 'date' | 'datetime'; value: string | null }
+  | { kind: 'select'; value: string | null; options: JiraFieldOption[] }
+  | { kind: 'multiselect'; value: string[]; options: JiraFieldOption[] }
+  | { kind: 'labels'; value: string[] }
+  | { kind: 'user'; value: JiraUser | null }
+  | { kind: 'sprint'; value: number | null; options: JiraFieldOption[] }
+  | { kind: 'readonly'; value: string }
+
+export type JiraField = JiraFieldView & {
+  id: string
+  name: string
+  required: boolean
+}
+
+export type JiraFieldInput =
+  | string
+  | number
+  | string[]
+  | null
+
+export interface JiraIssueFields {
+  key: string
+  url: string
+  statusName: string
+  fields: JiraField[]
+  me: JiraUser | null
 }
 
 export interface JiraKnownStatus {
@@ -264,7 +313,6 @@ export interface JiraCredentialsInput {
 }
 
 export interface JiraOptionsInput {
-  pushStatus?: boolean
   syncToNotion?: boolean
   autoImportMinutes?: number
   projectId?: number | null
@@ -286,7 +334,6 @@ export interface JiraStatus {
   boards: JiraBoardSummary[]
   knownStatuses: JiraKnownStatus[]
   statusMapping: Record<string, TaskStatus>
-  pushStatus: boolean
   syncToNotion: boolean
   autoImportMinutes: number
   projectId: number | null

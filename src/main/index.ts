@@ -136,19 +136,30 @@ import {
 } from './googleCalendar'
 import {
   disconnectJira,
+  getJiraIssueFields,
   getJiraStatus,
   importJiraIssues,
   jiraNotionFilter,
   listJiraBoards,
-  scheduleJiraStatusPush,
+  listJiraTransitions,
+  onJiraBackgroundError,
+  scheduleJiraDescriptionPush,
+  searchJiraUsers,
   startJiraScheduler,
   saveJiraBoards,
   saveJiraCredentials,
   saveJiraMapping,
   saveJiraOptions,
-  testJiraConnection
+  testJiraConnection,
+  transitionJiraIssue,
+  updateJiraIssueField
 } from './jira'
-import type { JiraCredentialsInput, JiraImportResult, JiraOptionsInput } from '@shared/types'
+import type {
+  JiraCredentialsInput,
+  JiraFieldInput,
+  JiraImportResult,
+  JiraOptionsInput
+} from '@shared/types'
 import type { StatusMapping } from './jiraPlan'
 import {
   // Notion
@@ -319,18 +330,19 @@ function autoSyncToGoogle(...taskIds: number[]): void {
 
 function autoSyncTask(taskId: number): Promise<void> {
   autoSyncToGoogle(taskId)
-  void pushJiraStatus(taskId)
+  scheduleJiraDescriptionPush(taskId)
   return autoSyncToNotion(taskId)
 }
 
-async function pushJiraStatus(taskId: number): Promise<void> {
-  try {
-    await scheduleJiraStatusPush(taskId)
-  } catch (error) {
-    console.error('[jira] erro ao enviar status:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
-    mainWindow?.webContents.send('jira:syncError', errorMessage)
-  }
+onJiraBackgroundError((error) => {
+  console.error('[jira] erro ao enviar a descrição:', error)
+  const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+  mainWindow?.webContents.send('jira:syncError', errorMessage)
+})
+
+async function afterJiraIssueChange(taskId: number): Promise<void> {
+  mainWindow?.webContents.send('tasks:refresh')
+  await autoSyncTask(taskId)
 }
 
 // Renomear, mesclar ou excluir uma tag muda o multi_select das tarefas no Notion, que só é
@@ -664,6 +676,7 @@ function setupIpcHandlers(): void {
   })
   ipcMain.handle('task:updateNotes', (_, id: number, notes: string | null) => {
     updateTaskNotes(id, notes)
+    scheduleJiraDescriptionPush(id)
   })
   // O PNG alimenta MCP, Notion e export local. Gravá-lo junto do JSON evita que essas três
   // saídas passem a servir um preview defasado quando só uma das escritas falha.
@@ -1115,6 +1128,23 @@ function setupIpcHandlers(): void {
   ipcMain.handle('jira:saveMapping', (_, mapping: StatusMapping) => saveJiraMapping(mapping))
   ipcMain.handle('jira:saveOptions', (_, input: JiraOptionsInput) => saveJiraOptions(input))
   ipcMain.handle('jira:disconnect', () => disconnectJira())
+  ipcMain.handle('jira:listTransitions', (_, taskId: number) => listJiraTransitions(taskId))
+  ipcMain.handle('jira:transition', async (_, taskId: number, transitionId: string) => {
+    await transitionJiraIssue(taskId, transitionId)
+    await afterJiraIssueChange(taskId)
+  })
+  ipcMain.handle('jira:getFields', (_, taskId: number) => getJiraIssueFields(taskId))
+  ipcMain.handle(
+    'jira:updateField',
+    async (_, taskId: number, fieldId: string, value: JiraFieldInput) => {
+      const fields = await updateJiraIssueField(taskId, fieldId, value)
+      await afterJiraIssueChange(taskId)
+      return fields
+    }
+  )
+  ipcMain.handle('jira:searchUsers', (_, taskId: number, fieldId: string, query: string) =>
+    searchJiraUsers(taskId, fieldId, query)
+  )
 
   // Google Calendar
   ipcMain.handle('gcal:getStatus', () => getGcalStatus())

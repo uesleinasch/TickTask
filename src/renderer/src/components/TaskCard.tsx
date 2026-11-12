@@ -3,6 +3,7 @@ import { StatusBadge } from './StatusBadge'
 import { CategoryBadge } from './CategoryBadge'
 import { DueDateBadge } from './DueDateBadge'
 import { ScheduledTimeBadge } from './ScheduledTimeBadge'
+import { JiraTaskControls } from './jira/JiraTaskControls'
 import { formatTime } from '@renderer/lib/utils'
 import type { Task } from '../../../shared/types'
 import {
@@ -137,6 +138,7 @@ export function TaskCard({
           {task.category && task.category !== 'normal' && (
             <CategoryBadge category={task.category} />
           )}
+          <JiraTaskControls task={task} />
         </div>
 
         {/* Descrição (só se houver) */}

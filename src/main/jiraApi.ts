@@ -1,10 +1,25 @@
 import type { FetchFn } from './googleOAuth'
+import type { DocNode } from './jiraAdf'
+import type { RawIssueWithMeta } from './jiraFields'
 
 export type JiraStatusCategory = 'new' | 'indeterminate' | 'done'
 
 export interface JiraBoard {
   id: number
   name: string
+  spaceKey: string | null
+  spaceName: string | null
+}
+
+export interface JiraSprint {
+  id: number
+  name: string
+  state: string
+}
+
+export interface JiraAccount {
+  accountId: string
+  displayName: string
 }
 
 export interface JiraIssue {
@@ -39,17 +54,23 @@ export interface JiraApiDeps {
 }
 
 export interface JiraApi {
-  getMyself: () => Promise<{ displayName: string }>
+  getMyself: () => Promise<JiraAccount>
   listBoards: () => Promise<JiraBoard[]>
   listAssignedBoardIssues: (boardId: number) => Promise<JiraIssue[]>
-  getIssueStatus: (issueKey: string) => Promise<Pick<JiraIssue, 'statusName' | 'statusCategory'>>
+  getIssue: (issueKey: string) => Promise<JiraIssue>
+  getIssueWithEditMeta: (issueKey: string) => Promise<RawIssueWithMeta>
+  getDescriptions: (issueKeys: string[]) => Promise<Map<string, DocNode | null>>
+  updateIssue: (issueKey: string, fields: Record<string, unknown>) => Promise<void>
   listTransitions: (issueKey: string) => Promise<JiraTransition[]>
   doTransition: (issueKey: string, transitionId: string) => Promise<void>
+  listOpenSprints: (boardId: number) => Promise<JiraSprint[]>
+  searchUsers: (query: string, assignableTo?: string) => Promise<JiraAccount[]>
 }
 
 const RETRY_DELAY_MS = 1000
 const PAGE_SIZE = 100
 const ISSUE_FIELDS = 'summary,status,duedate'
+const SEARCH_BATCH = 100
 const ASSIGNED_ISSUES_JQL =
   'assignee = currentUser() AND (statusCategory != Done OR updated >= -30d)'
 
@@ -100,18 +121,29 @@ export function createJiraApi(deps: JiraApiDeps): JiraApi {
 
   return {
     async getMyself() {
-      const data = await request<{ displayName: string }>('GET', '/rest/api/3/myself')
-      return { displayName: data.displayName }
+      const data = await request<JiraAccount>('GET', '/rest/api/3/myself')
+      return { accountId: data.accountId, displayName: data.displayName }
     },
 
     async listBoards() {
       const boards: JiraBoard[] = []
       for (;;) {
         const page = await request<{
-          values: { id: number; name: string }[]
+          values: {
+            id: number
+            name: string
+            location?: { projectKey?: string; projectName?: string; displayName?: string }
+          }[]
           isLast: boolean
         }>('GET', `/rest/agile/1.0/board?startAt=${boards.length}&maxResults=${PAGE_SIZE}`)
-        boards.push(...page.values.map((b) => ({ id: b.id, name: b.name })))
+        boards.push(
+          ...page.values.map((b) => ({
+            id: b.id,
+            name: b.name,
+            spaceKey: b.location?.projectKey ?? null,
+            spaceName: b.location?.projectName ?? b.location?.displayName ?? null
+          }))
+        )
         if (page.isLast || page.values.length === 0) return boards
       }
     },
@@ -129,13 +161,48 @@ export function createJiraApi(deps: JiraApiDeps): JiraApi {
       }
     },
 
-    async getIssueStatus(issueKey) {
+    async getIssue(issueKey) {
       const data = await request<RawIssue>(
         'GET',
-        `/rest/api/3/issue/${encodeURIComponent(issueKey)}?fields=status`
+        `/rest/api/3/issue/${encodeURIComponent(issueKey)}?fields=${ISSUE_FIELDS}`
       )
-      const issue = toIssue(data)
-      return { statusName: issue.statusName, statusCategory: issue.statusCategory }
+      return toIssue(data)
+    },
+
+    async getIssueWithEditMeta(issueKey) {
+      return request<RawIssueWithMeta>(
+        'GET',
+        `/rest/api/3/issue/${encodeURIComponent(issueKey)}?expand=editmeta`
+      )
+    },
+
+    async getDescriptions(issueKeys) {
+      const descriptions = new Map<string, DocNode | null>()
+      for (let i = 0; i < issueKeys.length; i += SEARCH_BATCH) {
+        const batch = issueKeys.slice(i, i + SEARCH_BATCH)
+        const jql = `key in (${batch.map((k) => `"${k.replace(/"/g, '')}"`).join(',')})`
+        let nextPageToken: string | undefined
+        do {
+          const page = await request<{
+            issues: { key: string; fields: { description?: DocNode | null } }[]
+            nextPageToken?: string
+          }>('POST', '/rest/api/3/search/jql', {
+            jql,
+            fields: ['description'],
+            maxResults: SEARCH_BATCH,
+            ...(nextPageToken ? { nextPageToken } : {})
+          })
+          for (const issue of page.issues) {
+            descriptions.set(issue.key, issue.fields.description ?? null)
+          }
+          nextPageToken = page.nextPageToken
+        } while (nextPageToken)
+      }
+      return descriptions
+    },
+
+    async updateIssue(issueKey, fields) {
+      await request<void>('PUT', `/rest/api/3/issue/${encodeURIComponent(issueKey)}`, { fields })
     },
 
     async listTransitions(issueKey) {
@@ -153,6 +220,29 @@ export function createJiraApi(deps: JiraApiDeps): JiraApi {
       await request<void>('POST', `/rest/api/3/issue/${encodeURIComponent(issueKey)}/transitions`, {
         transition: { id: transitionId }
       })
+    },
+
+    async listOpenSprints(boardId) {
+      const sprints: JiraSprint[] = []
+      for (;;) {
+        const page = await request<{ values: JiraSprint[]; isLast: boolean }>(
+          'GET',
+          `/rest/agile/1.0/board/${boardId}/sprint?state=active,future&startAt=${sprints.length}&maxResults=${PAGE_SIZE}`
+        )
+        sprints.push(...page.values.map((s) => ({ id: s.id, name: s.name, state: s.state })))
+        if (page.isLast || page.values.length === 0) return sprints
+      }
+    },
+
+    async searchUsers(query, assignableTo) {
+      const q = encodeURIComponent(query)
+      const path = assignableTo
+        ? `/rest/api/3/user/assignable/search?issueKey=${encodeURIComponent(assignableTo)}&query=${q}&maxResults=20`
+        : `/rest/api/3/user/search?query=${q}&maxResults=20`
+      const users = await request<(JiraAccount & { accountType?: string })[]>('GET', path)
+      return users
+        .filter((u) => !u.accountType || u.accountType === 'atlassian')
+        .map((u) => ({ accountId: u.accountId, displayName: u.displayName }))
     }
   }
 }

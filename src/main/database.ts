@@ -318,7 +318,9 @@ export function initDatabase(): void {
     'due_time',
     'external_url',
     'jira_key',
-    'jira_status'
+    'jira_status',
+    'jira_desc_hash',
+    'jira_notes_hash'
   ]) {
     try {
       db.exec(`ALTER TABLE tasks ADD COLUMN ${column} TEXT`)
@@ -821,7 +823,7 @@ const TASK_LIST_COLUMNS = `
   t.project_id, t.created_at, t.updated_at, t.scheduled_date, t.due_date,
   t.recurrence_rule, t.parent_task_id, t.recurrence_source_id, t.day_order,
   t.energy_level, t.scheduled_time, t.scheduled_end_time, t.due_time,
-  t.external_url, t.jira_key,
+  t.external_url, t.jira_key, t.jira_status,
   p.name as project_name, p.color as project_color
 `
 
@@ -1225,7 +1227,6 @@ export function unarchiveTask(id: number): void {
 export interface JiraLinkedTask {
   id: number
   name: string
-  status: TaskStatus
   due_date: string | null
   external_url: string | null
   jira_key: string
@@ -1235,7 +1236,7 @@ export interface JiraLinkedTask {
 export function listJiraLinkedTasks(): JiraLinkedTask[] {
   return db
     .prepare(
-      `SELECT id, name, status, due_date, external_url, jira_key, jira_status
+      `SELECT id, name, due_date, external_url, jira_key, jira_status
        FROM tasks WHERE jira_key IS NOT NULL`
     )
     .all() as JiraLinkedTask[]
@@ -1270,6 +1271,34 @@ export function updateJiraLinkedTask(
 
 export function setTaskJiraStatus(id: number, jiraStatus: string): void {
   db.prepare('UPDATE tasks SET jira_status = ? WHERE id = ?').run(jiraStatus, id)
+}
+
+export interface JiraDescriptionState {
+  id: number
+  jira_key: string | null
+  notes: string | null
+  jira_desc_hash: string | null
+  jira_notes_hash: string | null
+}
+
+export function getJiraDescriptionState(id: number): JiraDescriptionState | undefined {
+  return db
+    .prepare('SELECT id, jira_key, notes, jira_desc_hash, jira_notes_hash FROM tasks WHERE id = ?')
+    .get(id) as JiraDescriptionState | undefined
+}
+
+export function saveJiraDescriptionSync(
+  id: number,
+  sync: { descHash: string; notesHash: string; notes?: string | null }
+): void {
+  db.transaction(() => {
+    if (sync.notes !== undefined) updateTaskNotes(id, sync.notes)
+    db.prepare('UPDATE tasks SET jira_desc_hash = ?, jira_notes_hash = ? WHERE id = ?').run(
+      sync.descHash,
+      sync.notesHash,
+      id
+    )
+  })()
 }
 
 export function updateTaskStatus(id: number, status: TaskStatus): void {

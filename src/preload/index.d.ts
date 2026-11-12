@@ -3,9 +3,13 @@ import type {
   GcalStatus,
   JiraBoardSummary,
   JiraCredentialsInput,
+  JiraFieldInput,
   JiraImportResult,
+  JiraIssueFields,
   JiraOptionsInput,
   JiraStatus,
+  JiraTransitionOption,
+  JiraUser,
   Task,
   TimeEntry,
   CreateTaskInput,
@@ -241,13 +245,22 @@ interface API {
   // Google Calendar
   jiraGetStatus: () => Promise<JiraStatus>
   jiraSaveCredentials: (input: JiraCredentialsInput) => Promise<JiraStatus>
-  jiraTest: () => Promise<{ displayName: string }>
+  jiraTest: () => Promise<JiraUser>
   jiraListBoards: () => Promise<JiraBoardSummary[]>
   jiraSaveBoards: (boardIds: number[]) => Promise<JiraStatus>
   jiraSaveMapping: (mapping: Record<string, TaskStatus>) => Promise<JiraStatus>
   jiraSaveOptions: (input: JiraOptionsInput) => Promise<JiraStatus>
   jiraDisconnect: () => Promise<JiraStatus>
   jiraImportNow: () => Promise<JiraImportResult | null>
+  jiraListTransitions: (taskId: number) => Promise<JiraTransitionOption[]>
+  jiraTransition: (taskId: number, transitionId: string) => Promise<void>
+  jiraGetFields: (taskId: number) => Promise<JiraIssueFields>
+  jiraUpdateField: (
+    taskId: number,
+    fieldId: string,
+    value: JiraFieldInput
+  ) => Promise<JiraIssueFields>
+  jiraSearchUsers: (taskId: number, fieldId: string, query: string) => Promise<JiraUser[]>
   onJiraSync: (
     callback: (status: 'syncing' | 'success' | 'error', detail?: string) => void
   ) => () => void

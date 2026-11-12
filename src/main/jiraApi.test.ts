@@ -66,15 +66,65 @@ describe('createJiraApi', () => {
   it('pagina boards pelo que o servidor devolveu, mesmo abaixo do maxResults pedido', async () => {
     const { api, calls } = setup((url) =>
       url.includes('startAt=0&')
-        ? jsonResponse(200, { values: [{ id: 1, name: 'A' }], isLast: false })
+        ? jsonResponse(200, {
+            values: [{ id: 1, name: 'A', location: { projectKey: 'CON', projectName: 'Conecta' } }],
+            isLast: false
+          })
         : jsonResponse(200, { values: [{ id: 2, name: 'B' }], isLast: true })
     )
     await expect(api.listBoards()).resolves.toEqual([
-      { id: 1, name: 'A' },
-      { id: 2, name: 'B' }
+      { id: 1, name: 'A', spaceKey: 'CON', spaceName: 'Conecta' },
+      { id: 2, name: 'B', spaceKey: null, spaceName: null }
     ])
     expect(calls).toHaveLength(2)
     expect(calls[1].url).toContain('startAt=1&')
+  })
+
+  it('busca descrições em lote pela busca JQL e segue o nextPageToken', async () => {
+    const doc = { type: 'doc', version: 1, content: [] }
+    const { api, calls } = setup((_, init) => {
+      const body = JSON.parse(String(init.body))
+      return body.nextPageToken
+        ? jsonResponse(200, { issues: [{ key: 'ABC-2', fields: { description: null } }] })
+        : jsonResponse(200, {
+            issues: [{ key: 'ABC-1', fields: { description: doc } }],
+            nextPageToken: 't2'
+          })
+    })
+    const descriptions = await api.getDescriptions(['ABC-1', 'ABC-2'])
+    expect([...descriptions]).toEqual([
+      ['ABC-1', doc],
+      ['ABC-2', null]
+    ])
+    expect(calls[0]).toMatchObject({
+      url: 'https://jacto.atlassian.net/rest/api/3/search/jql',
+      method: 'POST',
+      body: { jql: 'key in ("ABC-1","ABC-2")', fields: ['description'] }
+    })
+    expect(calls[1].body).toMatchObject({ nextPageToken: 't2' })
+  })
+
+  it('atualiza campos da issue com PUT', async () => {
+    const { api, calls } = setup(() => jsonResponse(204))
+    await api.updateIssue('ABC-1', { customfield_1: 8 })
+    expect(calls[0]).toEqual({
+      url: 'https://jacto.atlassian.net/rest/api/3/issue/ABC-1',
+      method: 'PUT',
+      body: { fields: { customfield_1: 8 } }
+    })
+  })
+
+  it('busca usuários atribuíveis à issue e descarta contas de app', async () => {
+    const { api, calls } = setup(() =>
+      jsonResponse(200, [
+        { accountId: 'u1', displayName: 'Ana', accountType: 'atlassian' },
+        { accountId: 'bot', displayName: 'Bot', accountType: 'app' }
+      ])
+    )
+    await expect(api.searchUsers('an', 'ABC-1')).resolves.toEqual([
+      { accountId: 'u1', displayName: 'Ana' }
+    ])
+    expect(calls[0].url).toContain('/rest/api/3/user/assignable/search?issueKey=ABC-1&query=an')
   })
 
   it('pagina issues até o total mesmo com páginas menores que o pedido', async () => {

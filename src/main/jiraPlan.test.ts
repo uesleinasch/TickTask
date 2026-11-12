@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildIssueUrl,
-  hasJiraEquivalent,
   mapJiraStatusToLocal,
   normalizeJiraSite,
-  pickTransitionFor,
+  planDescriptionImport,
   planImport,
   type ExistingJiraTask
 } from './jiraPlan'
 import type { JiraIssue } from './jiraApi'
+import type { DocNode } from './jiraAdf'
 
 const SITE = 'jacto.atlassian.net'
 
@@ -24,7 +24,6 @@ const issue = (over: Partial<JiraIssue> = {}): JiraIssue => ({
 const existing = (over: Partial<ExistingJiraTask> = {}): ExistingJiraTask => ({
   id: 9,
   name: 'Título',
-  status: 'executando',
   due_date: null,
   external_url: buildIssueUrl(SITE, 'ABC-1'),
   jira_status: 'Em Progresso',
@@ -44,43 +43,6 @@ describe('mapJiraStatusToLocal', () => {
     expect(mapJiraStatusToLocal(issue({ statusName: 'Revisão' }), { Revisão: 'aguardando' })).toBe(
       'aguardando'
     )
-  })
-})
-
-describe('hasJiraEquivalent', () => {
-  it('reconhece status cobertos por categoria ou por mapeamento explícito', () => {
-    expect(hasJiraEquivalent('finalizada', {})).toBe(true)
-    expect(hasJiraEquivalent('aguardando', { Revisão: 'aguardando' })).toBe(true)
-  })
-
-  it('status local sem equivalente não é empurrado ao Jira', () => {
-    expect(hasJiraEquivalent('someday', {})).toBe(false)
-    expect(hasJiraEquivalent('proximas', {})).toBe(false)
-  })
-})
-
-describe('pickTransitionFor', () => {
-  const transitions = [
-    { id: '11', toName: 'Backlog', toCategory: 'new' as const },
-    { id: '21', toName: 'Em Progresso', toCategory: 'indeterminate' as const },
-    { id: '31', toName: 'Cancelado', toCategory: 'done' as const },
-    { id: '41', toName: 'Concluído', toCategory: 'done' as const }
-  ]
-
-  it('cai na categoria padrão quando não há mapeamento explícito', () => {
-    expect(pickTransitionFor('executando', transitions, {})?.id).toBe('21')
-  })
-
-  it('ignora transição da categoria cujo destino está mapeado para outro status local', () => {
-    expect(pickTransitionFor('finalizada', transitions, { Cancelado: 'someday' })?.id).toBe('41')
-  })
-
-  it('prefere o destino mapeado explicitamente para o status local', () => {
-    expect(pickTransitionFor('finalizada', transitions, { Concluído: 'finalizada' })?.id).toBe('41')
-  })
-
-  it('devolve undefined quando nenhuma transição leva a um status equivalente', () => {
-    expect(pickTransitionFor('aguardando', transitions, {})).toBeUndefined()
   })
 })
 
@@ -104,7 +66,7 @@ describe('planImport', () => {
     expect(planImport([issue({ statusCategory: 'done' })], new Map(), SITE, {})).toEqual([])
   })
 
-  it('atualiza task existente para concluída quando a issue fecha no Jira', () => {
+  it('mudança de status no Jira só atualiza o status Jira, nunca o status local', () => {
     const [op] = planImport(
       [issue({ statusName: 'Concluído', statusCategory: 'done' })],
       linked(existing()),
@@ -113,28 +75,16 @@ describe('planImport', () => {
     )
     expect(op).toEqual({
       type: 'update',
+      key: 'ABC-1',
       id: 9,
-      patch: { jira_status: 'Concluído', status: 'finalizada' }
+      patch: { jira_status: 'Concluído' }
     })
   })
 
-  it('preserva o status local quando o status no Jira não mudou desde a última leitura', () => {
-    const [op] = planImport([issue()], linked(existing({ status: 'proximas' })), SITE, {})
-    expect(op).toEqual({ type: 'noop', id: 9 })
-  })
-
-  it('task vinculada sem snapshot recebe o status do Jira', () => {
-    const [op] = planImport(
-      [issue()],
-      linked(existing({ status: 'inbox', jira_status: null })),
-      SITE,
-      {}
-    )
-    expect(op).toEqual({
-      type: 'update',
-      id: 9,
-      patch: { jira_status: 'Em Progresso', status: 'executando' }
-    })
+  it('não gera mudança quando nada mudou no Jira', () => {
+    expect(planImport([issue()], linked(existing()), SITE, {})).toEqual([
+      { type: 'noop', key: 'ABC-1', id: 9 }
+    ])
   })
 
   it('não apaga prazo local quando a issue não tem prazo, e atualiza quando tem', () => {
@@ -145,6 +95,7 @@ describe('planImport', () => {
     )
     expect(planImport([issue({ dueDate: '2026-12-01' })], linked(local), SITE, {})[0]).toEqual({
       type: 'update',
+      key: 'ABC-1',
       id: 9,
       patch: { due_date: '2026-12-01' }
     })
@@ -153,6 +104,7 @@ describe('planImport', () => {
   it('atualiza o título quando ele muda no Jira', () => {
     expect(planImport([issue({ summary: 'Novo' })], linked(existing()), SITE, {})[0]).toEqual({
       type: 'update',
+      key: 'ABC-1',
       id: 9,
       patch: { name: 'Novo' }
     })
@@ -170,5 +122,61 @@ describe('normalizeJiraSite', () => {
   it('recusa hosts que não são Jira Cloud', () => {
     expect(normalizeJiraSite('exemplo.com')).toBeNull()
     expect(normalizeJiraSite('')).toBeNull()
+  })
+})
+
+describe('planDescriptionImport', () => {
+  const adf = (text: string): DocNode => ({
+    type: 'doc',
+    version: 1,
+    content: [{ type: 'paragraph', content: [{ type: 'text', text }] }]
+  })
+  const notes = (text: string): string =>
+    JSON.stringify({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }]
+    })
+
+  it('não faz nada quando a descrição não mudou desde a última leitura', () => {
+    const plan = planDescriptionImport(adf('a'), 'h1', { notes: notes('x'), jira_desc_hash: 'h1' })
+    expect(plan).toEqual({ type: 'none' })
+  })
+
+  it('descrição alterada no Jira substitui as notas', () => {
+    const plan = planDescriptionImport(adf('novo'), 'h2', {
+      notes: notes('x'),
+      jira_desc_hash: 'h1'
+    })
+    expect(plan).toEqual({ type: 'replace', notes: notes('novo') })
+  })
+
+  it('descrição esvaziada no Jira limpa as notas', () => {
+    const empty = { type: 'doc', version: 1, content: [] }
+    const plan = planDescriptionImport(empty, 'h2', { notes: notes('x'), jira_desc_hash: 'h1' })
+    expect(plan).toEqual({ type: 'replace', notes: null })
+  })
+
+  it('primeira leitura com notas vazias copia a descrição', () => {
+    const plan = planDescriptionImport(adf('a'), 'h', { notes: null, jira_desc_hash: null })
+    expect(plan).toEqual({ type: 'replace', notes: notes('a') })
+  })
+
+  it('primeira leitura com notas locais e Jira vazio envia as notas', () => {
+    const plan = planDescriptionImport(null, 'h', { notes: notes('local'), jira_desc_hash: null })
+    expect(plan).toEqual({ type: 'push' })
+  })
+
+  it('primeira leitura com os dois lados preenchidos junta sem perder nada', () => {
+    const plan = planDescriptionImport(adf('jira'), 'h', {
+      notes: notes('local'),
+      jira_desc_hash: null
+    })
+    expect(plan.type).toBe('merge')
+    const doc = JSON.parse((plan as { notes: string }).notes)
+    expect(doc.content.map((n: { type: string }) => n.type)).toEqual([
+      'paragraph',
+      'horizontalRule',
+      'paragraph'
+    ])
   })
 })
