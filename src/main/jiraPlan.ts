@@ -27,6 +27,7 @@ export interface ExistingJiraTask {
   due_date: string | null
   external_url: string | null
   jira_status: string | null
+  jira_space: string | null
 }
 
 export interface JiraTaskFields {
@@ -34,6 +35,7 @@ export interface JiraTaskFields {
   due_date: string | null
   external_url: string
   jira_status: string
+  jira_space: string | null
 }
 
 export type ImportOp =
@@ -62,7 +64,8 @@ export function planImport(
           status: mapJiraStatusToLocal(issue, mapping),
           due_date: issue.dueDate,
           external_url: url,
-          jira_status: issue.statusName
+          jira_status: issue.statusName,
+          jira_space: issue.spaceName
         }
       })
       continue
@@ -75,6 +78,9 @@ export function planImport(
       patch.due_date = issue.dueDate
     }
     if (existing.jira_status !== issue.statusName) patch.jira_status = issue.statusName
+    if (issue.spaceName && existing.jira_space !== issue.spaceName) {
+      patch.jira_space = issue.spaceName
+    }
 
     ops.push(
       Object.keys(patch).length > 0

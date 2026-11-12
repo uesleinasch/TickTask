@@ -184,13 +184,16 @@ tempo. Clicar navega para a subtarefa. As subtarefas são carregadas sob demanda
 sobrescreve tudo com `!bg-sky-50`.
 
 **`JiraTaskControls`** (`components/jira/`) — usado no card, na tabela e no detalhe, só quando a
-task tem `jira_key`. Duas peças, num wrapper que para a propagação do clique (senão abriria a task):
+task tem `jira_key`. Três peças, num wrapper que para a propagação do clique (senão abriria a task):
+- chip cinza com `Layers` e o **espaço** da issue (`tasks.jira_space`, gravado pela importação; antes
+  da primeira importação que o preenche, mostra o prefixo da chave, ex.: `CON`).
 - chip azul **Jira · {status}**: um `Select` que, ao abrir, busca as transições da issue
   (`jira:listTransitions`) e aplica a escolhida (`jira:transition`). É independente do `StatusBadge`
   local — mudar um não muda o outro.
 - botão `SlidersHorizontal` que abre o `JiraFieldsSheet`: painel lateral direito com os campos
   editáveis da issue (vindos do `editmeta`), um editor por tipo (texto, número, data, seleção,
-  múltipla escolha, rótulos, pessoa com "Atribuir a mim", sprint). Cada campo grava ao sair do
+  múltipla escolha, rótulos, pessoa com "Atribuir a mim", sprint). Múltipla escolha (ex.: Cliente,
+  Equipe) é um `SearchableSelect` "Adicionar opção…" com as escolhidas em chips removíveis. Cada campo grava ao sair do
   campo/escolher; erro do Jira volta como toast e o campo retorna ao valor anterior.
 
 ### Modo cards (`TaskList` → `TaskCard`)

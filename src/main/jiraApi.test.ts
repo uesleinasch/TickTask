@@ -44,6 +44,7 @@ interface RawIssueFixture {
     summary: string
     duedate: null
     status: { name: string; statusCategory: { key: string } }
+    project: { key: string; name: string }
   }
 }
 
@@ -52,7 +53,8 @@ const issue = (key: string, statusName: string, category: string): RawIssueFixtu
   fields: {
     summary: `Resumo ${key}`,
     duedate: null,
-    status: { name: statusName, statusCategory: { key: category } }
+    status: { name: statusName, statusCategory: { key: category } },
+    project: { key: 'ABC', name: 'Conecta' }
   }
 })
 
@@ -161,7 +163,8 @@ describe('createJiraApi', () => {
         summary: 'Resumo ABC-1',
         statusName: 'Em Progresso',
         statusCategory: 'indeterminate',
-        dueDate: null
+        dueDate: null,
+        spaceName: 'Conecta'
       }
     ])
     expect(decodeURIComponent(calls[0].url)).toContain(

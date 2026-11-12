@@ -320,7 +320,8 @@ export function initDatabase(): void {
     'jira_key',
     'jira_status',
     'jira_desc_hash',
-    'jira_notes_hash'
+    'jira_notes_hash',
+    'jira_space'
   ]) {
     try {
       db.exec(`ALTER TABLE tasks ADD COLUMN ${column} TEXT`)
@@ -823,7 +824,7 @@ const TASK_LIST_COLUMNS = `
   t.project_id, t.created_at, t.updated_at, t.scheduled_date, t.due_date,
   t.recurrence_rule, t.parent_task_id, t.recurrence_source_id, t.day_order,
   t.energy_level, t.scheduled_time, t.scheduled_end_time, t.due_time,
-  t.external_url, t.jira_key, t.jira_status,
+  t.external_url, t.jira_key, t.jira_status, t.jira_space,
   p.name as project_name, p.color as project_color
 `
 
@@ -1231,12 +1232,13 @@ export interface JiraLinkedTask {
   external_url: string | null
   jira_key: string
   jira_status: string | null
+  jira_space: string | null
 }
 
 export function listJiraLinkedTasks(): JiraLinkedTask[] {
   return db
     .prepare(
-      `SELECT id, name, due_date, external_url, jira_key, jira_status
+      `SELECT id, name, due_date, external_url, jira_key, jira_status, jira_space
        FROM tasks WHERE jira_key IS NOT NULL`
     )
     .all() as JiraLinkedTask[]
@@ -1244,28 +1246,28 @@ export function listJiraLinkedTasks(): JiraLinkedTask[] {
 
 export function createJiraLinkedTask(
   data: CreateTaskInput,
-  link: { jiraKey: string; jiraStatus: string; status: TaskStatus }
+  link: { jiraKey: string; jiraStatus: string; jiraSpace: string | null; status: TaskStatus }
 ): number {
   return db.transaction(() => {
     const task = createTask(data)
-    db.prepare('UPDATE tasks SET jira_key = ?, jira_status = ?, status = ? WHERE id = ?').run(
-      link.jiraKey,
-      link.jiraStatus,
-      link.status,
-      task.id
-    )
+    db.prepare(
+      'UPDATE tasks SET jira_key = ?, jira_status = ?, jira_space = ?, status = ? WHERE id = ?'
+    ).run(link.jiraKey, link.jiraStatus, link.jiraSpace, link.status, task.id)
     return task.id
   })()
 }
 
 export function updateJiraLinkedTask(
   id: number,
-  patch: UpdateTaskInput & { jira_status?: string }
+  patch: UpdateTaskInput & { jira_status?: string; jira_space?: string | null }
 ): void {
-  const { jira_status, ...fields } = patch
+  const { jira_status, jira_space, ...fields } = patch
   db.transaction(() => {
     if (Object.keys(fields).length > 0) updateTask(id, fields)
     if (jira_status !== undefined) setTaskJiraStatus(id, jira_status)
+    if (jira_space !== undefined) {
+      db.prepare('UPDATE tasks SET jira_space = ? WHERE id = ?').run(jira_space, id)
+    }
   })()
 }
 

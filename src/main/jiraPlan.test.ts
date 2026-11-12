@@ -18,6 +18,7 @@ const issue = (over: Partial<JiraIssue> = {}): JiraIssue => ({
   statusName: 'Em Progresso',
   statusCategory: 'indeterminate',
   dueDate: null,
+  spaceName: 'Conecta',
   ...over
 })
 
@@ -27,6 +28,7 @@ const existing = (over: Partial<ExistingJiraTask> = {}): ExistingJiraTask => ({
   due_date: null,
   external_url: buildIssueUrl(SITE, 'ABC-1'),
   jira_status: 'Em Progresso',
+  jira_space: 'Conecta',
   ...over
 })
 
@@ -57,7 +59,8 @@ describe('planImport', () => {
         status: 'executando',
         due_date: '2026-11-20',
         external_url: 'https://jacto.atlassian.net/browse/ABC-1',
-        jira_status: 'Em Progresso'
+        jira_status: 'Em Progresso',
+        jira_space: 'Conecta'
       }
     })
   })
@@ -78,6 +81,16 @@ describe('planImport', () => {
       key: 'ABC-1',
       id: 9,
       patch: { jira_status: 'Concluído' }
+    })
+  })
+
+  it('preenche o espaço de task vinculada antes dele existir', () => {
+    const [op] = planImport([issue()], linked(existing({ jira_space: null })), SITE, {})
+    expect(op).toEqual({
+      type: 'update',
+      key: 'ABC-1',
+      id: 9,
+      patch: { jira_space: 'Conecta' }
     })
   })
 

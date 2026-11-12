@@ -28,6 +28,7 @@ export interface JiraIssue {
   statusName: string
   statusCategory: JiraStatusCategory
   dueDate: string | null
+  spaceName: string | null
 }
 
 export interface JiraTransition {
@@ -69,7 +70,7 @@ export interface JiraApi {
 
 const RETRY_DELAY_MS = 1000
 const PAGE_SIZE = 100
-const ISSUE_FIELDS = 'summary,status,duedate'
+const ISSUE_FIELDS = 'summary,status,duedate,project'
 const SEARCH_BATCH = 100
 const ASSIGNED_ISSUES_JQL =
   'assignee = currentUser() AND (statusCategory != Done OR updated >= -30d)'
@@ -253,6 +254,7 @@ interface RawIssue {
     summary: string
     duedate: string | null
     status: { name: string; statusCategory: { key: string } }
+    project?: { key: string; name: string }
   }
 }
 
@@ -262,7 +264,8 @@ function toIssue(raw: RawIssue): JiraIssue {
     summary: raw.fields.summary,
     statusName: raw.fields.status.name,
     statusCategory: raw.fields.status.statusCategory.key as JiraStatusCategory,
-    dueDate: raw.fields.duedate
+    dueDate: raw.fields.duedate,
+    spaceName: raw.fields.project?.name ?? null
   }
 }
 

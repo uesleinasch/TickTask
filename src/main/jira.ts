@@ -270,7 +270,12 @@ function applyImportOp(op: Exclude<ImportOp, { type: 'noop' }>, config: StoredCo
         external_url: fields.external_url,
         project_id: config.projectId ?? undefined
       },
-      { jiraKey: op.key, jiraStatus: fields.jira_status, status: fields.status }
+      {
+        jiraKey: op.key,
+        jiraStatus: fields.jira_status,
+        jiraSpace: fields.jira_space,
+        status: fields.status
+      }
     )
   }
   updateJiraLinkedTask(op.id, op.patch)

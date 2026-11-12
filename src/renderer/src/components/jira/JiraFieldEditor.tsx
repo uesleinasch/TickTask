@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { UserRound, X } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
-import type { JiraField, JiraFieldInput, JiraUser } from '@shared/types'
+import { SearchableSelect } from '@renderer/components/ui/searchable-select'
+import type { JiraField, JiraFieldInput, JiraFieldOption, JiraUser } from '@shared/types'
 
 const inputClass =
   'h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-800 outline-none focus:border-slate-400 disabled:opacity-60'
@@ -113,6 +114,62 @@ function LabelsEditor({
         onBlur={add}
         className="h-7 min-w-[7rem] flex-1 rounded-md border border-dashed border-slate-200 bg-white px-2 text-xs outline-none focus:border-slate-400"
       />
+    </div>
+  )
+}
+
+function MultiSelectEditor({
+  value,
+  options,
+  saving,
+  onSave
+}: {
+  value: string[]
+  options: JiraFieldOption[]
+  saving: boolean
+  onSave: (value: string[]) => void
+}): React.JSX.Element {
+  const selected = value.map(
+    (id) => options.find((option) => option.id === id) ?? { id, label: id }
+  )
+  const available = options
+    .filter((option) => !value.includes(option.id))
+    .map((option) => ({ value: option.id, label: option.label }))
+
+  return (
+    <div className="space-y-1.5">
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selected.map((option) => (
+            <span
+              key={option.id}
+              className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700"
+            >
+              {option.label}
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => onSave(value.filter((id) => id !== option.id))}
+                className="text-slate-400 hover:text-slate-700"
+                aria-label={`Remover ${option.label}`}
+              >
+                <X size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {available.length > 0 ? (
+        <SearchableSelect
+          options={available}
+          value=""
+          onChange={(id) => id && !saving && onSave([...value, id])}
+          placeholder="Adicionar opção…"
+          searchPlaceholder="Buscar opção…"
+        />
+      ) : (
+        options.length === 0 && <span className="text-xs text-slate-400">Sem opções</span>
+      )}
     </div>
   )
 }
@@ -279,34 +336,12 @@ export function JiraFieldEditor({
     }
     case 'multiselect':
       return (
-        <div className="flex flex-wrap gap-1.5">
-          {field.options.length === 0 && <span className="text-xs text-slate-400">Sem opções</span>}
-          {field.options.map((option) => {
-            const checked = field.value.includes(option.id)
-            return (
-              <button
-                key={option.id}
-                type="button"
-                disabled={saving}
-                onClick={() =>
-                  onSave(
-                    checked
-                      ? field.value.filter((id) => id !== option.id)
-                      : [...field.value, option.id]
-                  )
-                }
-                className={cn(
-                  'rounded-full border px-2 py-0.5 text-xs transition-colors',
-                  checked
-                    ? 'border-slate-900 bg-slate-900 text-white'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400'
-                )}
-              >
-                {option.label}
-              </button>
-            )
-          })}
-        </div>
+        <MultiSelectEditor
+          value={field.value}
+          options={field.options}
+          saving={saving}
+          onSave={onSave}
+        />
       )
     case 'labels':
       return <LabelsEditor value={field.value} saving={saving} onSave={onSave} />
