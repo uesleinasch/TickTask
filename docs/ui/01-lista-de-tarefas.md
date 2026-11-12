@@ -171,6 +171,7 @@ A célula **Tarefa** empilha, da esquerda para a direita:
 - botão **Hoje** (`CalendarDays`) — azul sólido com "Hoje ✓" se já agendada para hoje, contorno cinza
   caso contrário;
 - contador `ListChecks {feitas}/{total}` de subtarefas;
+- `JiraTaskControls`, só em task importada do Jira (ver abaixo);
 - descrição em `text-xs text-slate-400 truncate max-w-md`, na segunda linha.
 
 **Linhas de subtarefa** (ao expandir) aparecem como linhas irmãs com `bg-slate-50/70`, recuo
@@ -181,6 +182,16 @@ tempo. Clicar navega para a subtarefa. As subtarefas são carregadas sob demanda
 **Coloração Time Leak da linha:** `bg-red-50` acima de 60min, `bg-orange-50` acima de 30min,
 `bg-yellow-50` acima de 0. Acima de 1h o tempo fica `text-red-600 font-bold`. A linha selecionada
 sobrescreve tudo com `!bg-sky-50`.
+
+**`JiraTaskControls`** (`components/jira/`) — usado no card, na tabela e no detalhe, só quando a
+task tem `jira_key`. Duas peças, num wrapper que para a propagação do clique (senão abriria a task):
+- chip azul **Jira · {status}**: um `Select` que, ao abrir, busca as transições da issue
+  (`jira:listTransitions`) e aplica a escolhida (`jira:transition`). É independente do `StatusBadge`
+  local — mudar um não muda o outro.
+- botão `SlidersHorizontal` que abre o `JiraFieldsSheet`: painel lateral direito com os campos
+  editáveis da issue (vindos do `editmeta`), um editor por tipo (texto, número, data, seleção,
+  múltipla escolha, rótulos, pessoa com "Atribuir a mim", sprint). Cada campo grava ao sair do
+  campo/escolher; erro do Jira volta como toast e o campo retorna ao valor anterior.
 
 ### Modo cards (`TaskList` → `TaskCard`)
 
@@ -193,7 +204,8 @@ Grade responsiva `grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4`. Cada card
 2. **Topo:** cadeado laranja (se bloqueada) + título em `font-semibold text-[15px] line-clamp-2`;
    checkbox à direita, oculto até o hover ou até estar marcado.
 3. **Identidade:** bolinha + nome do projeto (truncado em 150px), `StatusBadge`, e `CategoryBadge`
-   **só quando a categoria não é "normal"** — diferente da tabela, que sempre mostra.
+   **só quando a categoria não é "normal"** — diferente da tabela, que sempre mostra. Em task do
+   Jira, também `JiraTaskControls`.
 4. **Descrição** em `line-clamp-2`, se houver.
 5. **Chips:** `DueDateBadge`, limite de tempo (`Clock`), botão de subtarefas
    (`{feitas}/{total}` com chevron) que expande a lista inline.
