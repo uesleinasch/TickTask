@@ -42,6 +42,7 @@ export interface JiraApi {
   getMyself: () => Promise<{ displayName: string }>
   listBoards: () => Promise<JiraBoard[]>
   listAssignedBoardIssues: (boardId: number) => Promise<JiraIssue[]>
+  getIssueStatus: (issueKey: string) => Promise<Pick<JiraIssue, 'statusName' | 'statusCategory'>>
   listTransitions: (issueKey: string) => Promise<JiraTransition[]>
   doTransition: (issueKey: string, transitionId: string) => Promise<void>
 }
@@ -121,6 +122,15 @@ export function createJiraApi(deps: JiraApiDeps): JiraApi {
         issues.push(...page.issues.map(toIssue))
         if (page.issues.length === 0 || startAt + page.issues.length >= page.total) return issues
       }
+    },
+
+    async getIssueStatus(issueKey) {
+      const data = await request<RawIssue>(
+        'GET',
+        `/rest/api/3/issue/${encodeURIComponent(issueKey)}?fields=status`
+      )
+      const issue = toIssue(data)
+      return { statusName: issue.statusName, statusCategory: issue.statusCategory }
     },
 
     async listTransitions(issueKey) {

@@ -4,18 +4,29 @@ import path from 'node:path'
 import type {
   JiraCredentialsInput,
   JiraImportResult,
+  TaskStatus,
   JiraKnownStatus,
   JiraOptionsInput,
   JiraStatus
 } from '@shared/types'
 import {
   createJiraLinkedTask,
+  getTask,
   listJiraLinkedTasks,
   updateTask,
   type JiraLinkedTask
 } from './database'
+import { createKeyedQueue } from './gcalSyncQueue'
 import { createJiraApi, type JiraApi, type JiraBoard, type JiraIssue } from './jiraApi'
-import { normalizeJiraSite, planImport, type ImportOp, type StatusMapping } from './jiraPlan'
+import {
+  mapJiraStatusToLocal,
+  normalizeJiraSite,
+  pickTransition,
+  planImport,
+  resolveJiraTarget,
+  type ImportOp,
+  type StatusMapping
+} from './jiraPlan'
 
 interface StoredConfig {
   site?: string
@@ -258,4 +269,39 @@ export function startJiraScheduler(onDue: () => void): () => void {
     if (Date.now() - last >= minutes * 60_000) onDue()
   }, IMPORT_TICK_MS)
   return () => clearInterval(timer)
+}
+
+const lastSyncedStatus = new Map<number, TaskStatus>()
+
+async function pushStatusToJira(taskId: number): Promise<void> {
+  const config = readConfig()
+  const connection = currentConnection(config)
+  if (!config.pushStatus || !connection) return
+  const task = getTask(taskId)
+  if (!task?.jira_key || lastSyncedStatus.get(taskId) === task.status) return
+
+  const mapping = config.statusMapping ?? {}
+  const target = resolveJiraTarget(task.status, mapping)
+  if (!target) {
+    lastSyncedStatus.set(taskId, task.status)
+    return
+  }
+
+  const api = apiFor(connection)
+  const current = await api.getIssueStatus(task.jira_key)
+  if (mapJiraStatusToLocal(current, mapping) !== task.status) {
+    const transition = pickTransition(await api.listTransitions(task.jira_key), target)
+    if (!transition) {
+      const wanted = target.name ?? `categoria ${target.category}`
+      throw new Error(`O Jira não tem transição de "${current.statusName}" para ${wanted}.`)
+    }
+    await api.doTransition(task.jira_key, transition.id)
+  }
+  lastSyncedStatus.set(taskId, task.status)
+}
+
+const schedulePush = createKeyedQueue(pushStatusToJira)
+
+export function scheduleJiraStatusPush(taskId: number): Promise<void> {
+  return schedulePush(taskId)
 }

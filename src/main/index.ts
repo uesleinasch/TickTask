@@ -139,6 +139,7 @@ import {
   getJiraStatus,
   importJiraIssues,
   listJiraBoards,
+  scheduleJiraStatusPush,
   startJiraScheduler,
   saveJiraBoards,
   saveJiraCredentials,
@@ -269,7 +270,10 @@ async function runJiraImport(): Promise<void> {
   mainWindow?.webContents.send('jira:syncStart')
   try {
     const result = await importJiraIssues()
-    for (const taskId of result.taskIds) await autoSyncTask(taskId)
+    for (const taskId of result.taskIds) {
+      autoSyncToGoogle(taskId)
+      await autoSyncToNotion(taskId)
+    }
     mainWindow?.webContents.send('tasks:refresh')
     const detail = `${result.created} novas, ${result.updated} atualizadas`
     mainWindow?.webContents.send('jira:syncSuccess', detail)
@@ -314,7 +318,18 @@ function autoSyncToGoogle(...taskIds: number[]): void {
 
 function autoSyncTask(taskId: number): Promise<void> {
   autoSyncToGoogle(taskId)
+  void pushJiraStatus(taskId)
   return autoSyncToNotion(taskId)
+}
+
+async function pushJiraStatus(taskId: number): Promise<void> {
+  try {
+    await scheduleJiraStatusPush(taskId)
+  } catch (error) {
+    console.error('[jira] erro ao enviar status:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+    mainWindow?.webContents.send('jira:syncError', errorMessage)
+  }
 }
 
 // Renomear, mesclar ou excluir uma tag muda o multi_select das tarefas no Notion, que só é
