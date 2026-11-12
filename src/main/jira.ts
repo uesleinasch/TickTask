@@ -10,6 +10,7 @@ import type {
   JiraIssueFields,
   JiraKnownStatus,
   JiraOptionsInput,
+  JiraSpace,
   JiraStatus,
   JiraTransitionOption,
   JiraUser,
@@ -20,6 +21,7 @@ import {
   getJiraDescriptionState,
   getTask,
   listJiraLinkedTasks,
+  listProjects,
   saveJiraDescriptionSync,
   updateJiraLinkedTask,
   type JiraLinkedTask
@@ -34,6 +36,7 @@ import {
   planDescriptionImport,
   planImport,
   type ImportOp,
+  type SpaceProjects,
   type StatusMapping
 } from './jiraPlan'
 
@@ -45,6 +48,8 @@ interface StoredConfig {
   boardIds?: number[]
   boards?: JiraBoard[]
   knownStatuses?: JiraKnownStatus[]
+  knownSpaces?: JiraSpace[]
+  spaceProjects?: SpaceProjects
   statusMapping?: StatusMapping
   syncToNotion?: boolean
   autoImportMinutes?: number
@@ -136,6 +141,8 @@ export function getJiraStatus(): JiraStatus {
     boardIds: config.boardIds ?? [],
     boards: config.boards ?? [],
     knownStatuses: config.knownStatuses ?? [],
+    knownSpaces: knownSpaces(config),
+    spaceProjects: config.spaceProjects ?? {},
     statusMapping: config.statusMapping ?? {},
     syncToNotion: config.syncToNotion ?? false,
     autoImportMinutes: config.autoImportMinutes ?? 0,
@@ -161,7 +168,9 @@ export function saveJiraCredentials(input: JiraCredentialsInput): JiraStatus {
     site,
     email,
     ...(token ? sealToken(token) : {}),
-    ...(accountChanged ? { boardIds: [], boards: [], knownStatuses: [], lastImportAt: null } : {})
+    ...(accountChanged
+      ? { boardIds: [], boards: [], knownStatuses: [], knownSpaces: [], lastImportAt: null }
+      : {})
   })
   return getJiraStatus()
 }
@@ -193,6 +202,13 @@ export function saveJiraOptions(input: JiraOptionsInput): JiraStatus {
     patch.autoImportMinutes = Math.max(0, Math.round(input.autoImportMinutes))
   }
   if (input.projectId !== undefined) patch.projectId = input.projectId
+  if (input.spaceProjects !== undefined) {
+    patch.spaceProjects = Object.fromEntries(
+      Object.entries(input.spaceProjects).filter(
+        ([key, id]) => key && Number.isInteger(id) && id > 0
+      )
+    )
+  }
   updateConfig(patch)
   return getJiraStatus()
 }
@@ -211,6 +227,7 @@ export function disconnectJira(): JiraStatus {
     boardIds: [],
     boards: [],
     knownStatuses: [],
+    knownSpaces: [],
     lastImportAt: null
   })
   return getJiraStatus()
@@ -236,20 +253,30 @@ export async function importJiraIssues(): Promise<JiraImportResult> {
 
   const linked = new Map<string, JiraLinkedTask>()
   for (const task of listJiraLinkedTasks()) linked.set(task.jira_key, task)
-  const ops = planImport(issues, linked, connection.site, config.statusMapping ?? {})
+  const projects = existingProjects(config)
+  const ops = planImport(
+    issues,
+    linked,
+    connection.site,
+    config.statusMapping ?? {},
+    projects.spaceProjects
+  )
 
   const taskIdByKey = new Map<string, number>()
   const changedIds = new Set<number>()
   for (const op of ops) {
     if (op.type === 'noop') taskIdByKey.set(op.key, op.id)
     else {
-      const id = applyImportOp(op, config)
+      const id = applyImportOp(op, projects.defaultProjectId)
       taskIdByKey.set(op.key, id)
       changedIds.add(id)
     }
   }
   for (const id of await importDescriptions(api, taskIdByKey)) changedIds.add(id)
-  updateConfig({ knownStatuses: collectKnownStatuses(issues) })
+  updateConfig({
+    knownStatuses: collectKnownStatuses(issues),
+    knownSpaces: mergeKnownSpaces(config.knownSpaces ?? [], issues)
+  })
   const taskIds = [...changedIds]
 
   return {
@@ -260,7 +287,43 @@ export async function importJiraIssues(): Promise<JiraImportResult> {
   }
 }
 
-function applyImportOp(op: Exclude<ImportOp, { type: 'noop' }>, config: StoredConfig): number {
+function existingProjects(config: StoredConfig): {
+  spaceProjects: SpaceProjects
+  defaultProjectId: number | null
+} {
+  const ids = new Set(listProjects().map((project) => project.id))
+  const spaceProjects = Object.fromEntries(
+    Object.entries(config.spaceProjects ?? {}).filter(([, id]) => ids.has(id))
+  )
+  const defaultProjectId = config.projectId && ids.has(config.projectId) ? config.projectId : null
+  return { spaceProjects, defaultProjectId }
+}
+
+function knownSpaces(config: StoredConfig): JiraSpace[] {
+  const byKey = new Map<string, JiraSpace>()
+  for (const board of config.boards ?? []) {
+    if (board.spaceKey && config.boardIds?.includes(board.id)) {
+      byKey.set(board.spaceKey, { key: board.spaceKey, name: board.spaceName ?? board.spaceKey })
+    }
+  }
+  for (const space of config.knownSpaces ?? []) byKey.set(space.key, space)
+  return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+}
+
+function mergeKnownSpaces(previous: JiraSpace[], issues: JiraIssue[]): JiraSpace[] {
+  const byKey = new Map(previous.map((space) => [space.key, space]))
+  for (const issue of issues) {
+    if (issue.spaceKey) {
+      byKey.set(issue.spaceKey, { key: issue.spaceKey, name: issue.spaceName ?? issue.spaceKey })
+    }
+  }
+  return [...byKey.values()]
+}
+
+function applyImportOp(
+  op: Exclude<ImportOp, { type: 'noop' }>,
+  defaultProjectId: number | null
+): number {
   if (op.type === 'create') {
     const { fields } = op
     return createJiraLinkedTask(
@@ -268,7 +331,7 @@ function applyImportOp(op: Exclude<ImportOp, { type: 'noop' }>, config: StoredCo
         name: fields.name,
         due_date: fields.due_date ?? undefined,
         external_url: fields.external_url,
-        project_id: config.projectId ?? undefined
+        project_id: fields.project_id ?? defaultProjectId ?? undefined
       },
       {
         jiraKey: op.key,
@@ -408,8 +471,14 @@ async function refreshLinkedTask(
   const existing = listJiraLinkedTasks().find((task) => task.id === taskId)
   if (!existing) return
   const issue = await api.getIssue(existing.jira_key)
-  const mapping = readConfig().statusMapping ?? {}
-  const [op] = planImport([issue], new Map([[issue.key, existing]]), connection.site, mapping)
+  const config = readConfig()
+  const [op] = planImport(
+    [issue],
+    new Map([[issue.key, existing]]),
+    connection.site,
+    config.statusMapping ?? {},
+    existingProjects(config).spaceProjects
+  )
   if (op?.type === 'update') updateJiraLinkedTask(op.id, op.patch)
 }
 

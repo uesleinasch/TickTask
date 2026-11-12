@@ -302,6 +302,11 @@ export interface JiraIssueFields {
   me: JiraUser | null
 }
 
+export interface JiraSpace {
+  key: string
+  name: string
+}
+
 export interface JiraKnownStatus {
   name: string
   category: 'new' | 'indeterminate' | 'done'
@@ -317,6 +322,7 @@ export interface JiraOptionsInput {
   syncToNotion?: boolean
   autoImportMinutes?: number
   projectId?: number | null
+  spaceProjects?: Record<string, number>
 }
 
 export interface JiraImportResult {
@@ -334,6 +340,8 @@ export interface JiraStatus {
   boardIds: number[]
   boards: JiraBoardSummary[]
   knownStatuses: JiraKnownStatus[]
+  knownSpaces: JiraSpace[]
+  spaceProjects: Record<string, number>
   statusMapping: Record<string, TaskStatus>
   syncToNotion: boolean
   autoImportMinutes: number

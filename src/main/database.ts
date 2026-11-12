@@ -1233,12 +1233,13 @@ export interface JiraLinkedTask {
   jira_key: string
   jira_status: string | null
   jira_space: string | null
+  project_id: number | null
 }
 
 export function listJiraLinkedTasks(): JiraLinkedTask[] {
   return db
     .prepare(
-      `SELECT id, name, due_date, external_url, jira_key, jira_status, jira_space
+      `SELECT id, name, due_date, external_url, jira_key, jira_status, jira_space, project_id
        FROM tasks WHERE jira_key IS NOT NULL`
     )
     .all() as JiraLinkedTask[]

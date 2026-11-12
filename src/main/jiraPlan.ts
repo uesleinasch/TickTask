@@ -3,6 +3,7 @@ import type { JiraIssue, JiraStatusCategory } from './jiraApi'
 import { adfToProsemirror, isEmptyDoc, parseDoc, type DocNode } from './jiraAdf'
 
 export type StatusMapping = Record<string, TaskStatus>
+export type SpaceProjects = Record<string, number>
 
 export const DEFAULT_STATUS_BY_CATEGORY: Record<JiraStatusCategory, TaskStatus> = {
   new: 'inbox',
@@ -28,6 +29,7 @@ export interface ExistingJiraTask {
   external_url: string | null
   jira_status: string | null
   jira_space: string | null
+  project_id: number | null
 }
 
 export interface JiraTaskFields {
@@ -36,6 +38,7 @@ export interface JiraTaskFields {
   external_url: string
   jira_status: string
   jira_space: string | null
+  project_id: number | null
 }
 
 export type ImportOp =
@@ -47,11 +50,13 @@ export function planImport(
   issues: JiraIssue[],
   existingByKey: Map<string, ExistingJiraTask>,
   site: string,
-  mapping: StatusMapping
+  mapping: StatusMapping,
+  spaceProjects: SpaceProjects = {}
 ): ImportOp[] {
   const ops: ImportOp[] = []
   for (const issue of issues) {
     const url = buildIssueUrl(site, issue.key)
+    const spaceProject = issue.spaceKey ? (spaceProjects[issue.spaceKey] ?? null) : null
     const existing = existingByKey.get(issue.key)
 
     if (!existing) {
@@ -65,7 +70,8 @@ export function planImport(
           due_date: issue.dueDate,
           external_url: url,
           jira_status: issue.statusName,
-          jira_space: issue.spaceName
+          jira_space: issue.spaceName,
+          project_id: spaceProject
         }
       })
       continue
@@ -81,6 +87,7 @@ export function planImport(
     if (issue.spaceName && existing.jira_space !== issue.spaceName) {
       patch.jira_space = issue.spaceName
     }
+    if (existing.project_id === null && spaceProject !== null) patch.project_id = spaceProject
 
     ops.push(
       Object.keys(patch).length > 0

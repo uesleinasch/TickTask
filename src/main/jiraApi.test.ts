@@ -164,6 +164,7 @@ describe('createJiraApi', () => {
         statusName: 'Em Progresso',
         statusCategory: 'indeterminate',
         dueDate: null,
+        spaceKey: 'ABC',
         spaceName: 'Conecta'
       }
     ])

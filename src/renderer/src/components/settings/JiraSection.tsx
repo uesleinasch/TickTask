@@ -31,6 +31,33 @@ const AUTO_IMPORT_OPTIONS = [
   { value: 60, label: 'A cada hora' }
 ]
 
+function ProjectSelect({
+  value,
+  projects,
+  emptyLabel,
+  onChange
+}: {
+  value: number | null
+  projects: Project[]
+  emptyLabel: string
+  onChange: (projectId: number | null) => void
+}): React.JSX.Element {
+  return (
+    <select
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+      className="h-8 max-w-[14rem] rounded-md border border-slate-200 bg-white px-2 text-sm"
+    >
+      <option value="">{emptyLabel}</option>
+      {projects.map((project) => (
+        <option key={project.id} value={project.id}>
+          {project.name}
+        </option>
+      ))}
+    </select>
+  )
+}
+
 interface BoardGroup {
   key: string | null
   name: string
@@ -118,6 +145,13 @@ export function JiraSection({
     if (local) mapping[jiraStatus] = local as TaskStatus
     else delete mapping[jiraStatus]
     onStatusChange(await window.api.jiraSaveMapping(mapping))
+  }
+
+  async function changeSpaceProject(spaceKey: string, projectId: number | null): Promise<void> {
+    const spaceProjects = { ...status.spaceProjects }
+    if (projectId) spaceProjects[spaceKey] = projectId
+    else delete spaceProjects[spaceKey]
+    onStatusChange(await window.api.jiraSaveOptions({ spaceProjects }))
   }
 
   async function toggleBoard(boardId: number): Promise<void> {
@@ -291,6 +325,49 @@ export function JiraSection({
             </div>
           </div>
 
+          <div className="space-y-3 pt-4 border-t border-slate-200">
+            <h3 className="text-sm font-medium text-slate-800">Projeto por espaço</h3>
+            <p className="text-xs text-slate-500">
+              Tasks novas vão para o projeto do seu espaço; sem escolha, para o projeto padrão. Na
+              importação, task já vinculada e sem projeto também recebe o projeto do espaço.
+            </p>
+            <ul className="grid gap-2">
+              <li className="flex items-center justify-between gap-3 text-sm text-slate-700">
+                <span className="font-medium">Projeto padrão</span>
+                <ProjectSelect
+                  value={status.projectId}
+                  projects={projects}
+                  emptyLabel="Sem projeto"
+                  onChange={async (projectId) =>
+                    onStatusChange(await window.api.jiraSaveOptions({ projectId }))
+                  }
+                />
+              </li>
+              {status.knownSpaces.map((space) => (
+                <li
+                  key={space.key}
+                  className="flex items-center justify-between gap-3 text-sm text-slate-700"
+                >
+                  <span className="min-w-0 truncate">
+                    {space.name}{' '}
+                    <span className="font-mono text-xs text-slate-400">{space.key}</span>
+                  </span>
+                  <ProjectSelect
+                    value={status.spaceProjects[space.key] ?? null}
+                    projects={projects}
+                    emptyLabel="Projeto padrão"
+                    onChange={(projectId) => changeSpaceProject(space.key, projectId)}
+                  />
+                </li>
+              ))}
+            </ul>
+            {status.knownSpaces.length === 0 && (
+              <p className="text-xs text-slate-400">
+                Os espaços aparecem aqui ao marcar boards ou depois da primeira importação.
+              </p>
+            )}
+          </div>
+
           {status.knownStatuses.length > 0 && (
             <div className="space-y-3 pt-4 border-t border-slate-200">
               <h3 className="text-sm font-medium text-slate-800">Status inicial das tasks novas</h3>
@@ -353,27 +430,6 @@ export function JiraSection({
                 {AUTO_IMPORT_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center justify-between gap-3 text-sm text-slate-700">
-              Projeto das tasks novas
-              <select
-                value={status.projectId ?? ''}
-                onChange={async (e) =>
-                  onStatusChange(
-                    await window.api.jiraSaveOptions({
-                      projectId: e.target.value ? Number(e.target.value) : null
-                    })
-                  )
-                }
-                className="h-8 max-w-[14rem] rounded-md border border-slate-200 bg-white px-2 text-sm"
-              >
-                <option value="">Sem projeto</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
                   </option>
                 ))}
               </select>

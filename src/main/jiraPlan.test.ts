@@ -18,6 +18,7 @@ const issue = (over: Partial<JiraIssue> = {}): JiraIssue => ({
   statusName: 'Em Progresso',
   statusCategory: 'indeterminate',
   dueDate: null,
+  spaceKey: 'CON',
   spaceName: 'Conecta',
   ...over
 })
@@ -29,6 +30,7 @@ const existing = (over: Partial<ExistingJiraTask> = {}): ExistingJiraTask => ({
   external_url: buildIssueUrl(SITE, 'ABC-1'),
   jira_status: 'Em Progresso',
   jira_space: 'Conecta',
+  project_id: 5,
   ...over
 })
 
@@ -60,7 +62,8 @@ describe('planImport', () => {
         due_date: '2026-11-20',
         external_url: 'https://jacto.atlassian.net/browse/ABC-1',
         jira_status: 'Em Progresso',
-        jira_space: 'Conecta'
+        jira_space: 'Conecta',
+        project_id: null
       }
     })
   })
@@ -82,6 +85,26 @@ describe('planImport', () => {
       id: 9,
       patch: { jira_status: 'Concluído' }
     })
+  })
+
+  it('task nova vai para o projeto mapeado do espaço', () => {
+    const [op] = planImport([issue()], new Map(), SITE, {}, { CON: 3 })
+    expect(op.type === 'create' && op.fields.project_id).toBe(3)
+  })
+
+  it('projeto do espaço só preenche task vinculada sem projeto', () => {
+    const noProject = planImport(
+      [issue()],
+      linked(existing({ project_id: null })),
+      SITE,
+      {},
+      {
+        CON: 3
+      }
+    )
+    expect(noProject[0]).toEqual({ type: 'update', key: 'ABC-1', id: 9, patch: { project_id: 3 } })
+    const moved = planImport([issue()], linked(existing({ project_id: 8 })), SITE, {}, { CON: 3 })
+    expect(moved[0].type).toBe('noop')
   })
 
   it('preenche o espaço de task vinculada antes dele existir', () => {

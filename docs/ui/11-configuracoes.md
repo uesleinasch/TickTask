@@ -132,13 +132,18 @@ reabrir. Lógica em `stepProgress.ts` (pura, testada).
   descrição no Jira.
 - Excluir uma task importada não impede que ela volte na próxima importação; para tirá-la da
   frente, arquive.
+- **Projeto por espaço**: "Projeto padrão" e uma linha por espaço conhecido (dos boards marcados e
+  das issues já importadas, chave em `font-mono`), cada uma com um `select` de projeto. Task nova vai
+  para o projeto do espaço, senão para o padrão; task já vinculada **sem projeto** recebe o do espaço
+  na importação, mas uma task movida para outro projeto não é tocada. Mapeamento para projeto
+  apagado é ignorado. Fica em `jira-config.json` (`spaceProjects`, chave do espaço → id).
 - **Status inicial das tasks novas**: a lista vem dos status vistos na última importação. Só vale
   quando a importação cria a task. "Padrão da categoria" usa a categoria Jira (A fazer → Inbox, Em
   andamento → Executando, Concluído → Finalizada); uma escolha explícita vence.
 - **Opções**: "Sincronizar
   com o Notion" (opt-in: tasks do Jira só vão ao Notion se ligado, inclusive no sync em lote e no
-  ressync após mudança de tag), importação automática em intervalos de 15 min / 30 min / 1 h (só
-  roda com board escolhido) e o projeto das tasks novas.
+  ressync após mudança de tag) e importação automática em intervalos de 15 min / 30 min / 1 h (só
+  roda com board escolhido).
 
 ### Servidor MCP
 

@@ -28,6 +28,7 @@ export interface JiraIssue {
   statusName: string
   statusCategory: JiraStatusCategory
   dueDate: string | null
+  spaceKey: string | null
   spaceName: string | null
 }
 
@@ -265,6 +266,7 @@ function toIssue(raw: RawIssue): JiraIssue {
     statusName: raw.fields.status.name,
     statusCategory: raw.fields.status.statusCategory.key as JiraStatusCategory,
     dueDate: raw.fields.duedate,
+    spaceKey: raw.fields.project?.key ?? null,
     spaceName: raw.fields.project?.name ?? null
   }
 }

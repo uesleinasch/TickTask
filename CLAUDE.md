@@ -172,7 +172,8 @@ todos puros e testados — e `jira.ts` (lado Electron: `userData/jira-config.jso
   `tasks.jira_key` (índice único). Ela escreve direto no banco, sem passar pelos handlers `task:*`.
 - **Status do Jira e status da task são independentes.** O mapeamento só escolhe o status inicial
   de task nova; depois a importação atualiza só `tasks.jira_status` (e `tasks.jira_space`, o nome do
-  espaço/projeto da issue). O status no Jira muda apenas
+  espaço/projeto da issue). `spaceProjects` (config) leva cada espaço a um projeto local: vale para
+  task nova e para task vinculada ainda sem projeto. O status no Jira muda apenas
   pelo seletor de transições (`jira:transition`), nunca ao mover a task no TickTask.
 - O painel lateral (`components/jira/JiraFieldsSheet.tsx`) lê `issue?expand=editmeta` e grava cada
   campo com PUT na issue (`jira:updateField`). Depois de transição ou edição, a task é relida do
