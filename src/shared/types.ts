@@ -246,6 +246,45 @@ export interface GcalStatus {
   autoSync: boolean
 }
 
+export interface JiraBoardSummary {
+  id: number
+  name: string
+}
+
+export interface JiraKnownStatus {
+  name: string
+  category: 'new' | 'indeterminate' | 'done'
+}
+
+export interface JiraCredentialsInput {
+  site: string
+  email: string
+  apiToken: string
+}
+
+export interface JiraOptionsInput {
+  pushStatus?: boolean
+  syncToNotion?: boolean
+  autoImportMinutes?: number
+  projectId?: number | null
+}
+
+export interface JiraStatus {
+  site: string
+  email: string
+  hasToken: boolean
+  connected: boolean
+  boardIds: number[]
+  boards: JiraBoardSummary[]
+  knownStatuses: JiraKnownStatus[]
+  statusMapping: Record<string, TaskStatus>
+  pushStatus: boolean
+  syncToNotion: boolean
+  autoImportMinutes: number
+  projectId: number | null
+  lastImportAt: string | null
+}
+
 export interface BackupCounts {
   tasks: number | null
   projects: number | null

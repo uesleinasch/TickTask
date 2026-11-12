@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildIssueUrl,
   mapJiraStatusToLocal,
+  normalizeJiraSite,
   pickTransition,
   planImport,
   resolveJiraTarget,
@@ -106,5 +107,19 @@ describe('planImport', () => {
     expect(op.type).toBe('update')
     expect(op.existingId).toBe(9)
     expect(op.status).toBe('executando')
+  })
+})
+
+describe('normalizeJiraSite', () => {
+  it('aceita host puro ou URL colada', () => {
+    expect(normalizeJiraSite('jacto.atlassian.net')).toBe('jacto.atlassian.net')
+    expect(normalizeJiraSite(' https://Jacto.atlassian.net/jira/board ')).toBe(
+      'jacto.atlassian.net'
+    )
+  })
+
+  it('recusa hosts que não são Jira Cloud', () => {
+    expect(normalizeJiraSite('exemplo.com')).toBeNull()
+    expect(normalizeJiraSite('')).toBeNull()
   })
 })

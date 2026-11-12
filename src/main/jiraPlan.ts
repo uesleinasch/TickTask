@@ -94,3 +94,14 @@ export function planImport(
     }
   })
 }
+
+const JIRA_CLOUD_HOST = /^[a-z0-9-]+\.atlassian\.net$/
+
+export function normalizeJiraSite(input: string): string | null {
+  const host = input
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/.*$/, '')
+  return JIRA_CLOUD_HOST.test(host) ? host : null
+}

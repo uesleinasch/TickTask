@@ -2,6 +2,10 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
   GcalStatus,
+  JiraBoardSummary,
+  JiraCredentialsInput,
+  JiraOptionsInput,
+  JiraStatus,
   Task,
   TimeEntry,
   CreateTaskInput,
@@ -278,6 +282,20 @@ const api = {
   notionSyncAllTasks: (): Promise<{ success: number; failed: number }> =>
     ipcRenderer.invoke('notion:syncAllTasks'),
   notionCreateDatabase: (): Promise<string> => ipcRenderer.invoke('notion:createDatabase'),
+
+  // Jira
+  jiraGetStatus: (): Promise<JiraStatus> => ipcRenderer.invoke('jira:getStatus'),
+  jiraSaveCredentials: (input: JiraCredentialsInput): Promise<JiraStatus> =>
+    ipcRenderer.invoke('jira:saveCredentials', input),
+  jiraTest: (): Promise<{ displayName: string }> => ipcRenderer.invoke('jira:test'),
+  jiraListBoards: (): Promise<JiraBoardSummary[]> => ipcRenderer.invoke('jira:listBoards'),
+  jiraSaveBoards: (boardIds: number[]): Promise<JiraStatus> =>
+    ipcRenderer.invoke('jira:saveBoards', boardIds),
+  jiraSaveMapping: (mapping: Record<string, TaskStatus>): Promise<JiraStatus> =>
+    ipcRenderer.invoke('jira:saveMapping', mapping),
+  jiraSaveOptions: (input: JiraOptionsInput): Promise<JiraStatus> =>
+    ipcRenderer.invoke('jira:saveOptions', input),
+  jiraDisconnect: (): Promise<JiraStatus> => ipcRenderer.invoke('jira:disconnect'),
 
   // Google Calendar
   gcalGetStatus: (): Promise<GcalStatus> => ipcRenderer.invoke('gcal:getStatus'),

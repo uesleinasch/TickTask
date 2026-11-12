@@ -1,4 +1,4 @@
-import type { GcalStatus, McpStatus } from '@shared/types'
+import type { GcalStatus, JiraStatus, McpStatus } from '@shared/types'
 
 export type StatusTone = 'on' | 'off' | 'error'
 
@@ -22,6 +22,12 @@ export function notionStatus(config: NotionConfig | null): StatusInfo {
 }
 
 export function gcalStatusInfo(status: GcalStatus | null): StatusInfo {
+  return status?.connected
+    ? { tone: 'on', label: 'Conectado' }
+    : { tone: 'off', label: 'Não conectado' }
+}
+
+export function jiraStatusInfo(status: JiraStatus | null): StatusInfo {
   return status?.connected
     ? { tone: 'on', label: 'Conectado' }
     : { tone: 'off', label: 'Não conectado' }

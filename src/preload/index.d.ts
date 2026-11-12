@@ -1,6 +1,10 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type {
   GcalStatus,
+  JiraBoardSummary,
+  JiraCredentialsInput,
+  JiraOptionsInput,
+  JiraStatus,
   Task,
   TimeEntry,
   CreateTaskInput,
@@ -234,6 +238,14 @@ interface API {
   notionCreateDatabase: () => Promise<string>
 
   // Google Calendar
+  jiraGetStatus: () => Promise<JiraStatus>
+  jiraSaveCredentials: (input: JiraCredentialsInput) => Promise<JiraStatus>
+  jiraTest: () => Promise<{ displayName: string }>
+  jiraListBoards: () => Promise<JiraBoardSummary[]>
+  jiraSaveBoards: (boardIds: number[]) => Promise<JiraStatus>
+  jiraSaveMapping: (mapping: Record<string, TaskStatus>) => Promise<JiraStatus>
+  jiraSaveOptions: (input: JiraOptionsInput) => Promise<JiraStatus>
+  jiraDisconnect: () => Promise<JiraStatus>
   gcalGetStatus: () => Promise<GcalStatus>
   gcalSaveCredentials: (clientId: string, clientSecret: string) => Promise<GcalStatus>
   gcalConnect: () => Promise<GcalStatus>

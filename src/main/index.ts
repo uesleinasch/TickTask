@@ -135,6 +135,18 @@ import {
   syncTaskToGoogle
 } from './googleCalendar'
 import {
+  disconnectJira,
+  getJiraStatus,
+  listJiraBoards,
+  saveJiraBoards,
+  saveJiraCredentials,
+  saveJiraMapping,
+  saveJiraOptions,
+  testJiraConnection
+} from './jira'
+import type { JiraCredentialsInput, JiraOptionsInput } from '@shared/types'
+import type { StatusMapping } from './jiraPlan'
+import {
   // Notion
   getNotionConfig,
   saveNotionConfig,
@@ -1049,6 +1061,18 @@ function setupIpcHandlers(): void {
     deleteTimeBlock(id)
     if (before) autoSyncToGoogle(before.task_id)
   })
+
+  // Jira
+  ipcMain.handle('jira:getStatus', () => getJiraStatus())
+  ipcMain.handle('jira:saveCredentials', (_, input: JiraCredentialsInput) =>
+    saveJiraCredentials(input)
+  )
+  ipcMain.handle('jira:test', () => testJiraConnection())
+  ipcMain.handle('jira:listBoards', () => listJiraBoards())
+  ipcMain.handle('jira:saveBoards', (_, boardIds: number[]) => saveJiraBoards(boardIds))
+  ipcMain.handle('jira:saveMapping', (_, mapping: StatusMapping) => saveJiraMapping(mapping))
+  ipcMain.handle('jira:saveOptions', (_, input: JiraOptionsInput) => saveJiraOptions(input))
+  ipcMain.handle('jira:disconnect', () => disconnectJira())
 
   // Google Calendar
   ipcMain.handle('gcal:getStatus', () => getGcalStatus())
