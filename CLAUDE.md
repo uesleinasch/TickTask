@@ -160,6 +160,28 @@ Notion e Google; o Google só age em tasks com `gcal_sync = 1`, então **caminho
 os ids com `filterGcalSyncedIds` antes de apagar** e chamam `pushToGoogle` depois. Handlers de time
 block também sincronizam. No MCP, use `afterCalendarChange(ids)`.
 
+## Jira
+
+Jira Cloud com e-mail + API token (Basic auth), em duas vias só para status. Mesmo desenho do
+Google: `jiraApi.ts` (REST puro, `fetch` injetado), `jiraPlan.ts` (mapeamento, escolha de transição
+e diff de importação, puros e testados) e `jira.ts` (lado Electron: `userData/jira-config.json`,
+token via `safeStorage`, importação, envio de status e agendador).
+
+- A importação traz as issues atribuídas ao usuário nos boards escolhidos e faz upsert por
+  `tasks.jira_key` (índice único). Ela escreve direto no banco, sem passar pelos handlers `task:*`,
+  para não reenviar ao Jira o que acabou de ler.
+- `tasks.jira_status` guarda o último status lido no Jira. A importação só muda o status local
+  quando esse valor muda; o envio grava o status de destino. É isso que impede uma importação de
+  desfazer uma mudança local.
+- O envio ao Jira sai de `autoSyncTask(id)` (então cobre IPC e MCP) e é serializado por task com
+  `createKeyedQueue`. Status local sem equivalente no mapeamento não é enviado.
+- Tasks com `jira_key` só vão ao Notion com o opt-in ligado: todo caminho que sincroniza com o
+  Notion filtra com `jiraNotionFilter()`.
+- `jira-config.json` fica fora do backup pelo mesmo motivo do `gcal-config.json`.
+
+`tasks.external_url` é o link externo genérico da task (as importadas recebem o da issue). Abrir no
+navegador passa por `app:openExternal`, que só aceita `http(s)` (`shared/externalUrl.ts`).
+
 ## Backup e restauração
 
 `src/main/backup.ts` (lado Electron) + `backupPlan.ts` (puro, testado), expostos em Configurações →
