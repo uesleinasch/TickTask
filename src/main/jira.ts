@@ -1,30 +1,32 @@
 import { app, safeStorage } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
-import type {
-  Task,
-  JiraCredentialsInput,
-  JiraImportResult,
-  TaskStatus,
-  JiraKnownStatus,
-  JiraOptionsInput,
-  JiraStatus
+import {
+  STATUS_LABELS,
+  type JiraCredentialsInput,
+  type JiraImportResult,
+  type JiraKnownStatus,
+  type JiraOptionsInput,
+  type JiraStatus,
+  type Task,
+  type TaskStatus
 } from '@shared/types'
 import {
   createJiraLinkedTask,
   getTask,
   listJiraLinkedTasks,
-  updateTask,
+  setTaskJiraStatus,
+  updateJiraLinkedTask,
   type JiraLinkedTask
 } from './database'
 import { createKeyedQueue } from './gcalSyncQueue'
 import { createJiraApi, type JiraApi, type JiraBoard, type JiraIssue } from './jiraApi'
 import {
+  hasJiraEquivalent,
   mapJiraStatusToLocal,
   normalizeJiraSite,
-  pickTransition,
+  pickTransitionFor,
   planImport,
-  resolveJiraTarget,
   type ImportOp,
   type StatusMapping
 } from './jiraPlan'
@@ -69,14 +71,21 @@ function sealToken(token: string): Pick<StoredConfig, 'apiToken' | 'tokenEncrypt
   }
 }
 
+let openedToken: { sealed: string; token: string | null } | null = null
+
 function openToken(config: StoredConfig): string | null {
   if (!config.apiToken) return null
   if (!config.tokenEncrypted) return config.apiToken
-  try {
-    return safeStorage.decryptString(Buffer.from(config.apiToken, 'base64'))
-  } catch {
-    return null
+  if (openedToken?.sealed !== config.apiToken) {
+    let token: string | null
+    try {
+      token = safeStorage.decryptString(Buffer.from(config.apiToken, 'base64'))
+    } catch {
+      token = null
+    }
+    openedToken = { sealed: config.apiToken, token }
   }
+  return openedToken.token
 }
 
 interface Connection {
@@ -164,12 +173,16 @@ export function saveJiraBoards(boardIds: number[]): JiraStatus {
 
 export function saveJiraMapping(mapping: StatusMapping): JiraStatus {
   updateConfig({ statusMapping: mapping })
+  lastSyncedStatus.clear()
   return getJiraStatus()
 }
 
 export function saveJiraOptions(input: JiraOptionsInput): JiraStatus {
   const patch: Partial<StoredConfig> = {}
-  if (input.pushStatus !== undefined) patch.pushStatus = input.pushStatus
+  if (input.pushStatus !== undefined) {
+    patch.pushStatus = input.pushStatus
+    lastSyncedStatus.clear()
+  }
   if (input.syncToNotion !== undefined) patch.syncToNotion = input.syncToNotion
   if (input.autoImportMinutes !== undefined) {
     patch.autoImportMinutes = Math.max(0, Math.round(input.autoImportMinutes))
@@ -179,8 +192,9 @@ export function saveJiraOptions(input: JiraOptionsInput): JiraStatus {
   return getJiraStatus()
 }
 
-export function jiraAllowsNotionSync(task: Pick<Task, 'jira_key'>): boolean {
-  return !task.jira_key || (readConfig().syncToNotion ?? false)
+export function jiraNotionFilter(): (task: Pick<Task, 'jira_key'>) => boolean {
+  const syncJiraTasks = readConfig().syncToNotion ?? false
+  return (task) => !task.jira_key || syncJiraTasks
 }
 
 export function disconnectJira(): JiraStatus {
@@ -219,9 +233,7 @@ export async function importJiraIssues(): Promise<JiraImportResult> {
   for (const task of listJiraLinkedTasks()) linked.set(task.jira_key, task)
   const ops = planImport(issues, linked, connection.site, config.statusMapping ?? {})
 
-  const taskIds = ops
-    .filter((op) => op.type !== 'noop')
-    .map((op) => applyImportOp(op, config.projectId))
+  const taskIds = ops.flatMap((op) => (op.type === 'noop' ? [] : [applyImportOp(op, config)]))
   updateConfig({ knownStatuses: collectKnownStatuses(issues) })
 
   return {
@@ -232,27 +244,22 @@ export async function importJiraIssues(): Promise<JiraImportResult> {
   }
 }
 
-function applyImportOp(op: ImportOp, projectId: number | null | undefined): number {
-  const fields = {
-    name: op.issue.summary,
-    due_date: op.issue.dueDate,
-    status: op.status,
-    external_url: op.url
-  }
+function applyImportOp(op: Exclude<ImportOp, { type: 'noop' }>, config: StoredConfig): number {
   if (op.type === 'create') {
+    const { fields } = op
     return createJiraLinkedTask(
       {
         name: fields.name,
         due_date: fields.due_date ?? undefined,
         external_url: fields.external_url,
-        project_id: projectId ?? undefined
+        project_id: config.projectId ?? undefined
       },
-      op.issue.key,
-      op.status
+      { jiraKey: op.key, jiraStatus: fields.jira_status, status: fields.status }
     )
   }
-  updateTask(op.existingId!, fields)
-  return op.existingId!
+  updateJiraLinkedTask(op.id, op.patch)
+  lastSyncedStatus.delete(op.id)
+  return op.id
 }
 
 function collectKnownStatuses(issues: JiraIssue[]): JiraKnownStatus[] {
@@ -269,7 +276,7 @@ export function startJiraScheduler(onDue: () => void): () => void {
   const timer = setInterval(() => {
     const config = readConfig()
     const minutes = config.autoImportMinutes ?? 0
-    if (!minutes || !currentConnection(config)) return
+    if (!minutes || !config.boardIds?.length || !currentConnection(config)) return
     const last = config.lastImportAt ? Date.parse(config.lastImportAt) : 0
     if (Date.now() - last >= minutes * 60_000) onDue()
   }, IMPORT_TICK_MS)
@@ -280,28 +287,35 @@ const lastSyncedStatus = new Map<number, TaskStatus>()
 
 async function pushStatusToJira(taskId: number): Promise<void> {
   const config = readConfig()
+  if (!config.pushStatus) return
   const connection = currentConnection(config)
-  if (!config.pushStatus || !connection) return
   const task = getTask(taskId)
-  if (!task?.jira_key || lastSyncedStatus.get(taskId) === task.status) return
+  if (!connection || !task?.jira_key || lastSyncedStatus.get(taskId) === task.status) return
 
   const mapping = config.statusMapping ?? {}
-  const target = resolveJiraTarget(task.status, mapping)
-  if (!target) {
+  if (!hasJiraEquivalent(task.status, mapping)) {
     lastSyncedStatus.set(taskId, task.status)
     return
   }
 
   const api = apiFor(connection)
   const current = await api.getIssueStatus(task.jira_key)
+  let jiraStatus = current.statusName
   if (mapJiraStatusToLocal(current, mapping) !== task.status) {
-    const transition = pickTransition(await api.listTransitions(task.jira_key), target)
+    const transition = pickTransitionFor(
+      task.status,
+      await api.listTransitions(task.jira_key),
+      mapping
+    )
     if (!transition) {
-      const wanted = target.name ?? `categoria ${target.category}`
-      throw new Error(`O Jira não tem transição de "${current.statusName}" para ${wanted}.`)
+      throw new Error(
+        `${task.jira_key}: o Jira não tem transição de "${current.statusName}" para um status equivalente a "${STATUS_LABELS[task.status]}".`
+      )
     }
     await api.doTransition(task.jira_key, transition.id)
+    jiraStatus = transition.toName
   }
+  setTaskJiraStatus(taskId, jiraStatus)
   lastSyncedStatus.set(taskId, task.status)
 }
 

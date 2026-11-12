@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createJiraApi, JiraApiError } from './jiraApi'
+import { createJiraApi, JiraApiError, type JiraApi } from './jiraApi'
 
 const noSleep = async (): Promise<void> => {}
 
@@ -7,9 +7,19 @@ function jsonResponse(status: number, body?: unknown): Response {
   return new Response(body === undefined ? null : JSON.stringify(body), { status })
 }
 
-function setup(handler: (url: string, init: RequestInit) => Response | Error) {
-  const calls: { url: string; method: string; body?: unknown }[] = []
-  const fetch = vi.fn(async (url: string, init: RequestInit = {}) => {
+interface Call {
+  url: string
+  method: string
+  body?: unknown
+}
+
+function setup(handler: (url: string, init: RequestInit) => Response | Error): {
+  api: JiraApi
+  calls: Call[]
+  fetch: ReturnType<typeof vi.fn>
+} {
+  const calls: Call[] = []
+  const fetch = vi.fn(async (url: string, init: RequestInit = {}): Promise<Response> => {
     calls.push({
       url,
       method: init.method ?? 'GET',
@@ -28,7 +38,16 @@ function setup(handler: (url: string, init: RequestInit) => Response | Error) {
   return { api, calls, fetch }
 }
 
-const issue = (key: string, statusName: string, category: string) => ({
+interface RawIssueFixture {
+  key: string
+  fields: {
+    summary: string
+    duedate: null
+    status: { name: string; statusCategory: { key: string } }
+  }
+}
+
+const issue = (key: string, statusName: string, category: string): RawIssueFixture => ({
   key,
   fields: {
     summary: `Resumo ${key}`,
@@ -44,9 +63,9 @@ describe('createJiraApi', () => {
     expect(calls[0].url).toBe('https://jacto.atlassian.net/rest/api/3/myself')
   })
 
-  it('pagina boards até isLast', async () => {
+  it('pagina boards pelo que o servidor devolveu, mesmo abaixo do maxResults pedido', async () => {
     const { api, calls } = setup((url) =>
-      url.includes('startAt=0')
+      url.includes('startAt=0&')
         ? jsonResponse(200, { values: [{ id: 1, name: 'A' }], isLast: false })
         : jsonResponse(200, { values: [{ id: 2, name: 'B' }], isLast: true })
     )
@@ -55,6 +74,30 @@ describe('createJiraApi', () => {
       { id: 2, name: 'B' }
     ])
     expect(calls).toHaveLength(2)
+    expect(calls[1].url).toContain('startAt=1&')
+  })
+
+  it('pagina issues até o total mesmo com páginas menores que o pedido', async () => {
+    const { api, calls } = setup((url) =>
+      url.includes('startAt=0&')
+        ? jsonResponse(200, { total: 2, issues: [issue('ABC-1', 'A Fazer', 'new')] })
+        : jsonResponse(200, { total: 2, issues: [issue('ABC-2', 'A Fazer', 'new')] })
+    )
+    const issues = await api.listAssignedBoardIssues(7)
+    expect(issues.map((i) => i.key)).toEqual(['ABC-1', 'ABC-2'])
+    expect(calls[1].url).toContain('startAt=1&')
+  })
+
+  it('corpo de erro que não é JSON vira JiraApiError com o status', async () => {
+    const { api } = setup(() => new Response('<html>Bad gateway</html>', { status: 404 }))
+    const error = await api.getMyself().catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(JiraApiError)
+    expect((error as JiraApiError).message).toBe('Jira respondeu 404.')
+  })
+
+  it('resposta 200 que não é JSON (ex.: página de login) vira erro claro', async () => {
+    const { api } = setup(() => new Response('<html>login</html>', { status: 200 }))
+    await expect(api.getMyself()).rejects.toThrow('Resposta inesperada do Jira')
   })
 
   it('lista issues do board atribuídas ao usuário', async () => {
@@ -71,8 +114,8 @@ describe('createJiraApi', () => {
         dueDate: null
       }
     ])
-    expect(calls[0].url).toContain(
-      '/rest/agile/1.0/board/7/issue?jql=assignee%20%3D%20currentUser()'
+    expect(decodeURIComponent(calls[0].url)).toContain(
+      '/rest/agile/1.0/board/7/issue?jql=assignee = currentUser() AND (statusCategory != Done OR updated >= -30d)'
     )
   })
 

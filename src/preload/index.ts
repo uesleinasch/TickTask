@@ -4,6 +4,7 @@ import type {
   GcalStatus,
   JiraBoardSummary,
   JiraCredentialsInput,
+  JiraImportResult,
   JiraOptionsInput,
   JiraStatus,
   Task,
@@ -296,7 +297,7 @@ const api = {
   jiraSaveOptions: (input: JiraOptionsInput): Promise<JiraStatus> =>
     ipcRenderer.invoke('jira:saveOptions', input),
   jiraDisconnect: (): Promise<JiraStatus> => ipcRenderer.invoke('jira:disconnect'),
-  jiraImportNow: (): Promise<void> => ipcRenderer.invoke('jira:importNow'),
+  jiraImportNow: (): Promise<JiraImportResult | null> => ipcRenderer.invoke('jira:importNow'),
   onJiraSync: (
     callback: (status: 'syncing' | 'success' | 'error', detail?: string) => void
   ): (() => void) => {

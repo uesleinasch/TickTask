@@ -312,7 +312,14 @@ export function initDatabase(): void {
     /* já existe */
   }
 
-  for (const column of ['scheduled_time', 'scheduled_end_time', 'due_time', 'external_url', 'jira_key']) {
+  for (const column of [
+    'scheduled_time',
+    'scheduled_end_time',
+    'due_time',
+    'external_url',
+    'jira_key',
+    'jira_status'
+  ]) {
     try {
       db.exec(`ALTER TABLE tasks ADD COLUMN ${column} TEXT`)
     } catch {
@@ -1222,26 +1229,47 @@ export interface JiraLinkedTask {
   due_date: string | null
   external_url: string | null
   jira_key: string
+  jira_status: string | null
 }
 
 export function listJiraLinkedTasks(): JiraLinkedTask[] {
   return db
     .prepare(
-      'SELECT id, name, status, due_date, external_url, jira_key FROM tasks WHERE jira_key IS NOT NULL'
+      `SELECT id, name, status, due_date, external_url, jira_key, jira_status
+       FROM tasks WHERE jira_key IS NOT NULL`
     )
     .all() as JiraLinkedTask[]
 }
 
 export function createJiraLinkedTask(
   data: CreateTaskInput,
-  jiraKey: string,
-  status: TaskStatus
+  link: { jiraKey: string; jiraStatus: string; status: TaskStatus }
 ): number {
   return db.transaction(() => {
     const task = createTask(data)
-    db.prepare('UPDATE tasks SET jira_key = ?, status = ? WHERE id = ?').run(jiraKey, status, task.id)
+    db.prepare('UPDATE tasks SET jira_key = ?, jira_status = ?, status = ? WHERE id = ?').run(
+      link.jiraKey,
+      link.jiraStatus,
+      link.status,
+      task.id
+    )
     return task.id
   })()
+}
+
+export function updateJiraLinkedTask(
+  id: number,
+  patch: UpdateTaskInput & { jira_status?: string }
+): void {
+  const { jira_status, ...fields } = patch
+  db.transaction(() => {
+    if (Object.keys(fields).length > 0) updateTask(id, fields)
+    if (jira_status !== undefined) setTaskJiraStatus(id, jira_status)
+  })()
+}
+
+export function setTaskJiraStatus(id: number, jiraStatus: string): void {
+  db.prepare('UPDATE tasks SET jira_status = ? WHERE id = ?').run(jiraStatus, id)
 }
 
 export function updateTaskStatus(id: number, status: TaskStatus): void {

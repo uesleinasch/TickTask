@@ -807,6 +807,7 @@ export function SingleTaskPage(): React.JSX.Element {
 
               <ExternalLinkField
                 value={task.external_url}
+                jiraKey={task.jira_key}
                 onSave={(value) => updateTask({ external_url: value })}
               />
 

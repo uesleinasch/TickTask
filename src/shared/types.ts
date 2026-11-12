@@ -189,6 +189,7 @@ export interface Task {
   due_time?: string | null
   external_url?: string | null
   jira_key?: string | null
+  jira_status?: string | null
 }
 
 export interface CreateTaskInput {

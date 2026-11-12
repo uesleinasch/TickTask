@@ -5,10 +5,15 @@ import { isSafeHttpUrl } from '@shared/externalUrl'
 
 interface ExternalLinkFieldProps {
   value: string | null | undefined
+  jiraKey?: string | null
   onSave: (value: string | null) => Promise<void>
 }
 
-export function ExternalLinkField({ value, onSave }: ExternalLinkFieldProps): React.JSX.Element {
+export function ExternalLinkField({
+  value,
+  jiraKey,
+  onSave
+}: ExternalLinkFieldProps): React.JSX.Element {
   const [draft, setDraft] = useState(value ?? '')
 
   useEffect(() => {
@@ -34,7 +39,10 @@ export function ExternalLinkField({ value, onSave }: ExternalLinkFieldProps): Re
 
   return (
     <div>
-      <label className="block text-xs text-slate-400 mb-1.5">Link externo</label>
+      <label className="block text-xs text-slate-400 mb-1.5">
+        Link externo
+        {jiraKey && <span className="ml-1.5 font-mono text-slate-500">· Jira {jiraKey}</span>}
+      </label>
       <div className="flex gap-2">
         <input
           type="url"

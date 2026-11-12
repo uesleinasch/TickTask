@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Loader2, LogOut, RefreshCw, Ticket } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { toast } from '@renderer/components/ui/sonner'
-import { STATUS_LABELS, type JiraStatus, type TaskStatus } from '@shared/types'
+import { STATUS_LABELS, type JiraStatus, type Project, type TaskStatus } from '@shared/types'
 import { SectionHeader, ToggleRow } from './SettingsPrimitives'
 import { errorMessage, jiraStatusInfo } from './settingsStatus'
 
@@ -36,6 +36,11 @@ export function JiraSection({
   const [email, setEmail] = useState(status.email)
   const [apiToken, setApiToken] = useState('')
   const [busy, setBusy] = useState<'save' | 'boards' | 'import' | 'disconnect' | null>(null)
+  const [projects, setProjects] = useState<Project[]>([])
+
+  useEffect(() => {
+    window.api.listProjects().then(setProjects).catch(console.error)
+  }, [])
 
   async function handleSave(): Promise<void> {
     setBusy('save')
@@ -68,7 +73,12 @@ export function JiraSection({
   async function handleImport(): Promise<void> {
     setBusy('import')
     try {
-      await window.api.jiraImportNow()
+      const result = await window.api.jiraImportNow()
+      if (result) {
+        toast.success(
+          `Jira: ${result.created} novas, ${result.updated} atualizadas, ${result.unchanged} sem mudança.`
+        )
+      }
     } catch {
       /* o erro já aparece pelo evento jira:syncError */
     } finally {
@@ -311,6 +321,27 @@ export function JiraSection({
                 {AUTO_IMPORT_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm text-slate-700">
+              Projeto das tasks novas
+              <select
+                value={status.projectId ?? ''}
+                onChange={async (e) =>
+                  onStatusChange(
+                    await window.api.jiraSaveOptions({
+                      projectId: e.target.value ? Number(e.target.value) : null
+                    })
+                  )
+                }
+                className="h-8 max-w-[14rem] rounded-md border border-slate-200 bg-white px-2 text-sm"
+              >
+                <option value="">Sem projeto</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
                   </option>
                 ))}
               </select>

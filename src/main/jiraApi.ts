@@ -50,6 +50,8 @@ export interface JiraApi {
 const RETRY_DELAY_MS = 1000
 const PAGE_SIZE = 100
 const ISSUE_FIELDS = 'summary,status,duedate'
+const ASSIGNED_ISSUES_JQL =
+  'assignee = currentUser() AND (statusCategory != Done OR updated >= -30d)'
 
 const defaultSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
@@ -85,9 +87,12 @@ export function createJiraApi(deps: JiraApiDeps): JiraApi {
       }
 
       const text = await response.text()
-      const data = text ? JSON.parse(text) : undefined
+      const data = parseJson(text)
       if (!response.ok) {
         throw new JiraApiError(response.status, describeError(response.status, data))
+      }
+      if (text && data === undefined) {
+        throw new JiraApiError(response.status, 'Resposta inesperada do Jira. Confira o site.')
       }
       return data as T
     }
@@ -101,26 +106,26 @@ export function createJiraApi(deps: JiraApiDeps): JiraApi {
 
     async listBoards() {
       const boards: JiraBoard[] = []
-      for (let startAt = 0; ; startAt += PAGE_SIZE) {
+      for (;;) {
         const page = await request<{
           values: { id: number; name: string }[]
           isLast: boolean
-        }>('GET', `/rest/agile/1.0/board?startAt=${startAt}&maxResults=${PAGE_SIZE}`)
+        }>('GET', `/rest/agile/1.0/board?startAt=${boards.length}&maxResults=${PAGE_SIZE}`)
         boards.push(...page.values.map((b) => ({ id: b.id, name: b.name })))
         if (page.isLast || page.values.length === 0) return boards
       }
     },
 
     async listAssignedBoardIssues(boardId) {
-      const jql = encodeURIComponent('assignee = currentUser()')
+      const jql = encodeURIComponent(ASSIGNED_ISSUES_JQL)
       const issues: JiraIssue[] = []
-      for (let startAt = 0; ; startAt += PAGE_SIZE) {
+      for (;;) {
         const page = await request<{ total: number; issues: RawIssue[] }>(
           'GET',
-          `/rest/agile/1.0/board/${boardId}/issue?jql=${jql}&fields=${ISSUE_FIELDS}&startAt=${startAt}&maxResults=${PAGE_SIZE}`
+          `/rest/agile/1.0/board/${boardId}/issue?jql=${jql}&fields=${ISSUE_FIELDS}&startAt=${issues.length}&maxResults=${PAGE_SIZE}`
         )
         issues.push(...page.issues.map(toIssue))
-        if (page.issues.length === 0 || startAt + page.issues.length >= page.total) return issues
+        if (page.issues.length === 0 || issues.length >= page.total) return issues
       }
     },
 
@@ -168,6 +173,15 @@ function toIssue(raw: RawIssue): JiraIssue {
     statusName: raw.fields.status.name,
     statusCategory: raw.fields.status.statusCategory.key as JiraStatusCategory,
     dueDate: raw.fields.duedate
+  }
+}
+
+function parseJson(text: string): unknown {
+  if (!text) return undefined
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
   }
 }
 

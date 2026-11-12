@@ -16,7 +16,7 @@ import icon from '../../resources/512.png?asset'
 import { HIDDEN_FLAG, shouldStartHidden } from './launchArgs'
 import { createTray, destroyTray } from './tray'
 import { isAutostartEnabled, setAutostartEnabled } from './autostart'
-import { isSafeHttpUrl } from '../shared/externalUrl'
+import { isSafeHttpUrl } from '@shared/externalUrl'
 import {
   initDatabase,
   closeDatabase,
@@ -138,7 +138,7 @@ import {
   disconnectJira,
   getJiraStatus,
   importJiraIssues,
-  jiraAllowsNotionSync,
+  jiraNotionFilter,
   listJiraBoards,
   scheduleJiraStatusPush,
   startJiraScheduler,
@@ -148,7 +148,7 @@ import {
   saveJiraOptions,
   testJiraConnection
 } from './jira'
-import type { JiraCredentialsInput, JiraOptionsInput } from '@shared/types'
+import type { JiraCredentialsInput, JiraImportResult, JiraOptionsInput } from '@shared/types'
 import type { StatusMapping } from './jiraPlan'
 import {
   // Notion
@@ -249,7 +249,7 @@ async function autoSyncToNotion(taskId: number): Promise<void> {
   if (config?.autoSync && config.databaseId) {
     try {
       const task = getTask(taskId)
-      if (task && jiraAllowsNotionSync(task)) {
+      if (task && jiraNotionFilter()(task)) {
         mainWindow?.webContents.send('notion:syncStart', task.name)
         await syncTaskToNotion(task)
         console.log('Tarefa sincronizada automaticamente:', task.name)
@@ -265,8 +265,8 @@ async function autoSyncToNotion(taskId: number): Promise<void> {
 
 let jiraImporting = false
 
-async function runJiraImport(): Promise<void> {
-  if (jiraImporting) return
+async function runJiraImport(): Promise<JiraImportResult | null> {
+  if (jiraImporting) return null
   jiraImporting = true
   mainWindow?.webContents.send('jira:syncStart')
   try {
@@ -276,8 +276,8 @@ async function runJiraImport(): Promise<void> {
       await autoSyncToNotion(taskId)
     }
     mainWindow?.webContents.send('tasks:refresh')
-    const detail = `${result.created} novas, ${result.updated} atualizadas`
-    mainWindow?.webContents.send('jira:syncSuccess', detail)
+    mainWindow?.webContents.send('jira:syncSuccess')
+    return result
   } catch (error) {
     console.error('[jira] erro na importação:', error)
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
@@ -343,9 +343,10 @@ async function syncTasksAfterTagChange(taskIds: number[]): Promise<void> {
   const label = `${taskIds.length} ${taskIds.length === 1 ? 'tarefa' : 'tarefas'}`
   mainWindow?.webContents.send('notion:syncStart', label)
   try {
+    const allowed = jiraNotionFilter()
     for (const id of taskIds) {
       const task = getTask(id)
-      if (task) {
+      if (task && allowed(task)) {
         await syncTaskToNotion(task)
       }
     }
@@ -1044,7 +1045,7 @@ function setupIpcHandlers(): void {
     }
   })
   ipcMain.handle('notion:syncAllTasks', async () => {
-    const tasks = listTasksForSync().filter(jiraAllowsNotionSync)
+    const tasks = listTasksForSync().filter(jiraNotionFilter())
     return syncAllTasks(tasks)
   })
   ipcMain.handle('notion:createDatabase', () => findOrCreateDatabase())

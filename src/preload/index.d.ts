@@ -3,6 +3,7 @@ import type {
   GcalStatus,
   JiraBoardSummary,
   JiraCredentialsInput,
+  JiraImportResult,
   JiraOptionsInput,
   JiraStatus,
   Task,
@@ -246,7 +247,7 @@ interface API {
   jiraSaveMapping: (mapping: Record<string, TaskStatus>) => Promise<JiraStatus>
   jiraSaveOptions: (input: JiraOptionsInput) => Promise<JiraStatus>
   jiraDisconnect: () => Promise<JiraStatus>
-  jiraImportNow: () => Promise<void>
+  jiraImportNow: () => Promise<JiraImportResult | null>
   onJiraSync: (
     callback: (status: 'syncing' | 'success' | 'error', detail?: string) => void
   ) => () => void
