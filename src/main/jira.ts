@@ -3,12 +3,19 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type {
   JiraCredentialsInput,
+  JiraImportResult,
   JiraKnownStatus,
   JiraOptionsInput,
   JiraStatus
 } from '@shared/types'
-import { createJiraApi, type JiraApi, type JiraBoard } from './jiraApi'
-import { normalizeJiraSite, type StatusMapping } from './jiraPlan'
+import {
+  createJiraLinkedTask,
+  listJiraLinkedTasks,
+  updateTask,
+  type JiraLinkedTask
+} from './database'
+import { createJiraApi, type JiraApi, type JiraBoard, type JiraIssue } from './jiraApi'
+import { normalizeJiraSite, planImport, type ImportOp, type StatusMapping } from './jiraPlan'
 
 interface StoredConfig {
   site?: string
@@ -172,4 +179,83 @@ export function disconnectJira(): JiraStatus {
     lastImportAt: null
   })
   return getJiraStatus()
+}
+
+const IMPORT_TICK_MS = 60_000
+
+export async function importJiraIssues(): Promise<JiraImportResult> {
+  const config = readConfig()
+  const connection = currentConnection(config)
+  if (!connection) throw new Error('Jira não está conectado. Preencha o site, e-mail e API token.')
+  if (!config.boardIds?.length) throw new Error('Escolha ao menos um board antes de importar.')
+
+  updateConfig({ lastImportAt: new Date().toISOString() })
+  const api = apiFor(connection)
+  const issuesByKey = new Map<string, JiraIssue>()
+  for (const boardId of config.boardIds) {
+    for (const issue of await api.listAssignedBoardIssues(boardId)) {
+      issuesByKey.set(issue.key, issue)
+    }
+  }
+  const issues = [...issuesByKey.values()]
+
+  const linked = new Map<string, JiraLinkedTask>()
+  for (const task of listJiraLinkedTasks()) linked.set(task.jira_key, task)
+  const ops = planImport(issues, linked, connection.site, config.statusMapping ?? {})
+
+  const taskIds = ops
+    .filter((op) => op.type !== 'noop')
+    .map((op) => applyImportOp(op, config.projectId))
+  updateConfig({ knownStatuses: collectKnownStatuses(issues) })
+
+  return {
+    created: ops.filter((op) => op.type === 'create').length,
+    updated: ops.filter((op) => op.type === 'update').length,
+    unchanged: ops.filter((op) => op.type === 'noop').length,
+    taskIds
+  }
+}
+
+function applyImportOp(op: ImportOp, projectId: number | null | undefined): number {
+  const fields = {
+    name: op.issue.summary,
+    due_date: op.issue.dueDate,
+    status: op.status,
+    external_url: op.url
+  }
+  if (op.type === 'create') {
+    return createJiraLinkedTask(
+      {
+        name: fields.name,
+        due_date: fields.due_date ?? undefined,
+        external_url: fields.external_url,
+        project_id: projectId ?? undefined
+      },
+      op.issue.key,
+      op.status
+    )
+  }
+  updateTask(op.existingId!, fields)
+  return op.existingId!
+}
+
+function collectKnownStatuses(issues: JiraIssue[]): JiraKnownStatus[] {
+  const byName = new Map<string, JiraKnownStatus>()
+  for (const issue of issues) {
+    if (!byName.has(issue.statusName)) {
+      byName.set(issue.statusName, { name: issue.statusName, category: issue.statusCategory })
+    }
+  }
+  return [...byName.values()]
+}
+
+export function startJiraScheduler(onDue: () => void): () => void {
+  const timer = setInterval(() => {
+    const config = readConfig()
+    const minutes = config.autoImportMinutes ?? 0
+    if (!minutes || !currentConnection(config)) return
+    const last = config.lastImportAt ? Date.parse(config.lastImportAt) : 0
+    if (Date.now() - last >= minutes * 60_000) onDue()
+  }, IMPORT_TICK_MS)
+  return () => clearInterval(timer)
 }

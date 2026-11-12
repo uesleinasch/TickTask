@@ -1215,6 +1215,35 @@ export function unarchiveTask(id: number): void {
   stmt.run(id)
 }
 
+export interface JiraLinkedTask {
+  id: number
+  name: string
+  status: TaskStatus
+  due_date: string | null
+  external_url: string | null
+  jira_key: string
+}
+
+export function listJiraLinkedTasks(): JiraLinkedTask[] {
+  return db
+    .prepare(
+      'SELECT id, name, status, due_date, external_url, jira_key FROM tasks WHERE jira_key IS NOT NULL'
+    )
+    .all() as JiraLinkedTask[]
+}
+
+export function createJiraLinkedTask(
+  data: CreateTaskInput,
+  jiraKey: string,
+  status: TaskStatus
+): number {
+  return db.transaction(() => {
+    const task = createTask(data)
+    db.prepare('UPDATE tasks SET jira_key = ?, status = ? WHERE id = ?').run(jiraKey, status, task.id)
+    return task.id
+  })()
+}
+
 export function updateTaskStatus(id: number, status: TaskStatus): void {
   const stmt = db.prepare(
     'UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'

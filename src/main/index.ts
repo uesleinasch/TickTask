@@ -137,7 +137,9 @@ import {
 import {
   disconnectJira,
   getJiraStatus,
+  importJiraIssues,
   listJiraBoards,
+  startJiraScheduler,
   saveJiraBoards,
   saveJiraCredentials,
   saveJiraMapping,
@@ -256,6 +258,28 @@ async function autoSyncToNotion(taskId: number): Promise<void> {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
       mainWindow?.webContents.send('notion:syncError', errorMessage)
     }
+  }
+}
+
+let jiraImporting = false
+
+async function runJiraImport(): Promise<void> {
+  if (jiraImporting) return
+  jiraImporting = true
+  mainWindow?.webContents.send('jira:syncStart')
+  try {
+    const result = await importJiraIssues()
+    for (const taskId of result.taskIds) await autoSyncTask(taskId)
+    mainWindow?.webContents.send('tasks:refresh')
+    const detail = `${result.created} novas, ${result.updated} atualizadas`
+    mainWindow?.webContents.send('jira:syncSuccess', detail)
+  } catch (error) {
+    console.error('[jira] erro na importação:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+    mainWindow?.webContents.send('jira:syncError', errorMessage)
+    throw error
+  } finally {
+    jiraImporting = false
   }
 }
 
@@ -1064,6 +1088,7 @@ function setupIpcHandlers(): void {
 
   // Jira
   ipcMain.handle('jira:getStatus', () => getJiraStatus())
+  ipcMain.handle('jira:importNow', () => runJiraImport())
   ipcMain.handle('jira:saveCredentials', (_, input: JiraCredentialsInput) =>
     saveJiraCredentials(input)
   )
@@ -1230,6 +1255,9 @@ app.whenReady().then(() => {
   registerAssetProtocol()
   setupIpcHandlers()
   startNotificationScheduler()
+  startJiraScheduler(() => {
+    runJiraImport().catch(() => undefined)
+  })
 
   electronApp.setAppUserModelId('com.ticktask.app')
   try {

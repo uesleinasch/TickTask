@@ -269,6 +269,13 @@ export interface JiraOptionsInput {
   projectId?: number | null
 }
 
+export interface JiraImportResult {
+  created: number
+  updated: number
+  unchanged: number
+  taskIds: number[]
+}
+
 export interface JiraStatus {
   site: string
   email: string

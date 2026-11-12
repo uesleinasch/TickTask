@@ -3,9 +3,20 @@ import { Loader2, LogOut, RefreshCw, Ticket } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { toast } from '@renderer/components/ui/sonner'
-import type { JiraStatus } from '@shared/types'
+import { STATUS_LABELS, type JiraStatus, type TaskStatus } from '@shared/types'
 import { SectionHeader, ToggleRow } from './SettingsPrimitives'
 import { errorMessage, jiraStatusInfo } from './settingsStatus'
+
+const LOCAL_STATUSES: TaskStatus[] = [
+  'inbox',
+  'proximas',
+  'aguardando',
+  'executando',
+  'finalizada',
+  'someday'
+]
+
+const CATEGORY_LABELS = { new: 'A fazer', indeterminate: 'Em andamento', done: 'Concluído' }
 
 const AUTO_IMPORT_OPTIONS = [
   { value: 0, label: 'Desligado' },
@@ -24,7 +35,7 @@ export function JiraSection({
   const [site, setSite] = useState(status.site)
   const [email, setEmail] = useState(status.email)
   const [apiToken, setApiToken] = useState('')
-  const [busy, setBusy] = useState<'save' | 'boards' | 'disconnect' | null>(null)
+  const [busy, setBusy] = useState<'save' | 'boards' | 'import' | 'disconnect' | null>(null)
 
   async function handleSave(): Promise<void> {
     setBusy('save')
@@ -52,6 +63,25 @@ export function JiraSection({
     } finally {
       setBusy(null)
     }
+  }
+
+  async function handleImport(): Promise<void> {
+    setBusy('import')
+    try {
+      await window.api.jiraImportNow()
+    } catch {
+      /* o erro já aparece pelo evento jira:syncError */
+    } finally {
+      onStatusChange(await window.api.jiraGetStatus())
+      setBusy(null)
+    }
+  }
+
+  async function changeMapping(jiraStatus: string, local: string): Promise<void> {
+    const mapping = { ...status.statusMapping }
+    if (local) mapping[jiraStatus] = local as TaskStatus
+    else delete mapping[jiraStatus]
+    onStatusChange(await window.api.jiraSaveMapping(mapping))
   }
 
   async function toggleBoard(boardId: number): Promise<void> {
@@ -185,6 +215,68 @@ export function JiraSection({
               </ul>
             )}
           </div>
+
+          <div className="space-y-3 pt-4 border-t border-slate-200">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-medium text-slate-800">Importar issues</h3>
+                <p className="text-xs text-slate-500">
+                  {status.lastImportAt
+                    ? `Última tentativa: ${new Date(status.lastImportAt).toLocaleString('pt-BR')}`
+                    : 'Ainda não importado.'}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={handleImport}
+                disabled={busy !== null || status.boardIds.length === 0}
+              >
+                {busy === 'import' ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <RefreshCw size={16} />
+                )}
+                Importar agora
+              </Button>
+            </div>
+          </div>
+
+          {status.knownStatuses.length > 0 && (
+            <div className="space-y-3 pt-4 border-t border-slate-200">
+              <h3 className="text-sm font-medium text-slate-800">Mapeamento de status</h3>
+              <p className="text-xs text-slate-500">
+                Sem escolha, o status segue a categoria do Jira. Escolha um status local para
+                sobrescrever.
+              </p>
+              <ul className="grid gap-2">
+                {status.knownStatuses.map((known) => (
+                  <li
+                    key={known.name}
+                    className="flex items-center justify-between gap-3 text-sm text-slate-700"
+                  >
+                    <span className="min-w-0 truncate">
+                      {known.name}{' '}
+                      <span className="text-xs text-slate-400">
+                        ({CATEGORY_LABELS[known.category]})
+                      </span>
+                    </span>
+                    <select
+                      value={status.statusMapping[known.name] ?? ''}
+                      onChange={(e) => changeMapping(known.name, e.target.value)}
+                      className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                    >
+                      <option value="">Padrão da categoria</option>
+                      {LOCAL_STATUSES.map((local) => (
+                        <option key={local} value={local}>
+                          {STATUS_LABELS[local]}
+                        </option>
+                      ))}
+                    </select>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="space-y-3 pt-4 border-t border-slate-200">
             <ToggleRow

@@ -296,6 +296,22 @@ const api = {
   jiraSaveOptions: (input: JiraOptionsInput): Promise<JiraStatus> =>
     ipcRenderer.invoke('jira:saveOptions', input),
   jiraDisconnect: (): Promise<JiraStatus> => ipcRenderer.invoke('jira:disconnect'),
+  jiraImportNow: (): Promise<void> => ipcRenderer.invoke('jira:importNow'),
+  onJiraSync: (
+    callback: (status: 'syncing' | 'success' | 'error', detail?: string) => void
+  ): (() => void) => {
+    const start = (_: unknown, detail?: string): void => callback('syncing', detail)
+    const success = (_: unknown, detail?: string): void => callback('success', detail)
+    const error = (_: unknown, detail?: string): void => callback('error', detail)
+    ipcRenderer.on('jira:syncStart', start)
+    ipcRenderer.on('jira:syncSuccess', success)
+    ipcRenderer.on('jira:syncError', error)
+    return () => {
+      ipcRenderer.removeListener('jira:syncStart', start)
+      ipcRenderer.removeListener('jira:syncSuccess', success)
+      ipcRenderer.removeListener('jira:syncError', error)
+    }
+  },
 
   // Google Calendar
   gcalGetStatus: (): Promise<GcalStatus> => ipcRenderer.invoke('gcal:getStatus'),
