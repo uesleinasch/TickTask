@@ -312,13 +312,22 @@ export function initDatabase(): void {
     /* já existe */
   }
 
-  for (const column of ['scheduled_time', 'scheduled_end_time', 'due_time']) {
+  for (const column of [
+    'scheduled_time',
+    'scheduled_end_time',
+    'due_time',
+    'external_url',
+    'jira_key',
+    'jira_status'
+  ]) {
     try {
       db.exec(`ALTER TABLE tasks ADD COLUMN ${column} TEXT`)
     } catch {
       /* já existe */
     }
   }
+
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_jira_key ON tasks(jira_key)')
 
   // ===================== FASE 4.3: Blocos de Tempo =====================
 
@@ -752,8 +761,8 @@ export function createTask(data: CreateTaskInput): Task {
     const stmt = db.prepare(`
       INSERT INTO tasks (name, description, time_limit_seconds, category, project_id,
                          scheduled_date, due_date, recurrence_rule, parent_task_id, recurrence_source_id,
-                         energy_level, gcal_sync, scheduled_time, scheduled_end_time, due_time)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         energy_level, gcal_sync, scheduled_time, scheduled_end_time, due_time, external_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const result = stmt.run(
       data.name,
@@ -770,7 +779,8 @@ export function createTask(data: CreateTaskInput): Task {
       data.gcal_sync ? 1 : 0,
       times.scheduled_time,
       times.scheduled_end_time,
-      times.due_time
+      times.due_time,
+      data.external_url || null
     )
     const taskId = result.lastInsertRowid as number
 
@@ -811,6 +821,7 @@ const TASK_LIST_COLUMNS = `
   t.project_id, t.created_at, t.updated_at, t.scheduled_date, t.due_date,
   t.recurrence_rule, t.parent_task_id, t.recurrence_source_id, t.day_order,
   t.energy_level, t.scheduled_time, t.scheduled_end_time, t.due_time,
+  t.external_url, t.jira_key,
   p.name as project_name, p.color as project_color
 `
 
@@ -1025,6 +1036,10 @@ export function updateTask(id: number, data: UpdateTaskInput): void {
       updates.push('gcal_sync = ?')
       values.push(data.gcal_sync ? 1 : 0)
     }
+    if (data.external_url !== undefined) {
+      updates.push('external_url = ?')
+      values.push(data.external_url || null)
+    }
     const touchesTime = (
       ['scheduled_date', 'scheduled_time', 'scheduled_end_time', 'due_date', 'due_time'] as const
     ).some((key) => data[key] !== undefined)
@@ -1205,6 +1220,56 @@ export function unarchiveTask(id: number): void {
     'UPDATE tasks SET is_archived = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
   )
   stmt.run(id)
+}
+
+export interface JiraLinkedTask {
+  id: number
+  name: string
+  status: TaskStatus
+  due_date: string | null
+  external_url: string | null
+  jira_key: string
+  jira_status: string | null
+}
+
+export function listJiraLinkedTasks(): JiraLinkedTask[] {
+  return db
+    .prepare(
+      `SELECT id, name, status, due_date, external_url, jira_key, jira_status
+       FROM tasks WHERE jira_key IS NOT NULL`
+    )
+    .all() as JiraLinkedTask[]
+}
+
+export function createJiraLinkedTask(
+  data: CreateTaskInput,
+  link: { jiraKey: string; jiraStatus: string; status: TaskStatus }
+): number {
+  return db.transaction(() => {
+    const task = createTask(data)
+    db.prepare('UPDATE tasks SET jira_key = ?, jira_status = ?, status = ? WHERE id = ?').run(
+      link.jiraKey,
+      link.jiraStatus,
+      link.status,
+      task.id
+    )
+    return task.id
+  })()
+}
+
+export function updateJiraLinkedTask(
+  id: number,
+  patch: UpdateTaskInput & { jira_status?: string }
+): void {
+  const { jira_status, ...fields } = patch
+  db.transaction(() => {
+    if (Object.keys(fields).length > 0) updateTask(id, fields)
+    if (jira_status !== undefined) setTaskJiraStatus(id, jira_status)
+  })()
+}
+
+export function setTaskJiraStatus(id: number, jiraStatus: string): void {
+  db.prepare('UPDATE tasks SET jira_status = ? WHERE id = ?').run(jiraStatus, id)
 }
 
 export function updateTaskStatus(id: number, status: TaskStatus): void {
@@ -1950,7 +2015,8 @@ export function createNextRecurrence(sourceTaskId: number): Task | null {
     contextIds: ctxs.map((c) => c.id),
     gcal_sync: Boolean(source.gcal_sync),
     scheduled_time: source.scheduled_time,
-    scheduled_end_time: source.scheduled_end_time
+    scheduled_end_time: source.scheduled_end_time,
+    external_url: source.external_url
   })
 }
 

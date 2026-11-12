@@ -335,6 +335,12 @@ export async function createGTDDatabase(): Promise<string> {
             options: []
           }
         },
+        'Link Externo': {
+          url: {}
+        },
+        'Jira Key': {
+          rich_text: {}
+        },
         'Tempo Total (min)': {
           number: {
             format: 'number'
@@ -431,7 +437,7 @@ function getNotionColorForTag(_tag: Tag): NotionColor {
   return getNotionColorForName(_tag.name)
 }
 
-// Garante que o database tenha as propriedades Contextos, Projeto e Tarefa Pai.
+// Garante que o database tenha as propriedades Contextos, Projeto, Tarefa Pai, Link Externo e Jira Key.
 // Idempotente e com cache em memória; adiciona as que faltam (inclui databases já provisionados).
 let schemaEnsuredFor: string | null = null
 
@@ -448,12 +454,14 @@ async function ensureNotionSchema(client: Client, databaseId: string): Promise<v
         relation: { database_id: databaseId, type: 'single_property', single_property: {} }
       }
     }
+    if (!('Link Externo' in props)) toAdd['Link Externo'] = { url: {} }
+    if (!('Jira Key' in props)) toAdd['Jira Key'] = { rich_text: {} }
     if (Object.keys(toAdd).length > 0) {
       await client.databases.update({
         database_id: databaseId,
         properties: toAdd as Parameters<typeof client.databases.update>[0]['properties']
       })
-      console.log('Schema do Notion atualizado (Contextos/Projeto/Tarefa Pai)')
+      console.log('Schema do Notion atualizado')
     }
     schemaEnsuredFor = databaseId
   } catch (error) {
@@ -531,6 +539,12 @@ export async function syncTaskToNotion(task: Task): Promise<string> {
       Projeto: task.project_name ? { select: { name: task.project_name } } : { select: null },
       'Tarefa Pai': {
         relation: parentRelation
+      },
+      'Link Externo': {
+        url: task.external_url || null
+      },
+      'Jira Key': {
+        rich_text: task.jira_key ? [{ text: { content: task.jira_key } }] : []
       },
       'Tempo Total (min)': {
         number: formatSecondsToMinutes(task.total_seconds)

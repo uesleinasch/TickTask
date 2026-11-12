@@ -125,6 +125,9 @@ editada.
 - **Recorrência** — `RecurrenceSelect`.
 - **Nível de energia** — três botões de largura igual (`flex-1 h-8`) com emoji + rótulo. O ativo
   ganha fundo e borda coloridos (esmeralda / âmbar / slate). Clicar no ativo desmarca.
+- **Link externo** — `ExternalLinkField`: campo de URL `http(s)` salvo ao sair do campo ou com Enter
+  (valor inválido é descartado com aviso). Quando há link válido, um botão abre no navegador via
+  `appOpenExternal`, que revalida o esquema no main. Tasks importadas do Jira trazem o link da issue.
 - **Google Calendar** — `GoogleCalendarTaskToggle`, só renderizado com o Google conectado: switch
   que grava `gcal_sync` e sincroniza na hora (desligar apaga os eventos da task), mais um botão
   `RefreshCw` de ressincronizar quando ligado.

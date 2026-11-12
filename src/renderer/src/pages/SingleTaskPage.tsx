@@ -11,6 +11,7 @@ import { SubtaskList } from '@renderer/components/SubtaskList'
 import { DependencySelector } from '@renderer/components/DependencySelector'
 import { RecurrenceSelect } from '@renderer/components/RecurrenceSelect'
 import { GoogleCalendarTaskToggle } from '@renderer/components/GoogleCalendarTaskToggle'
+import { ExternalLinkField } from '@renderer/components/ExternalLinkField'
 import { TimeInput } from '@renderer/components/TimeInput'
 import {
   AlertDialog,
@@ -803,6 +804,12 @@ export function SingleTaskPage(): React.JSX.Element {
                   ))}
                 </div>
               </div>
+
+              <ExternalLinkField
+                value={task.external_url}
+                jiraKey={task.jira_key}
+                onSave={(value) => updateTask({ external_url: value })}
+              />
 
               <GoogleCalendarTaskToggle
                 taskId={task.id}

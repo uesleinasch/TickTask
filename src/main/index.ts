@@ -16,6 +16,7 @@ import icon from '../../resources/512.png?asset'
 import { HIDDEN_FLAG, shouldStartHidden } from './launchArgs'
 import { createTray, destroyTray } from './tray'
 import { isAutostartEnabled, setAutostartEnabled } from './autostart'
+import { isSafeHttpUrl } from '@shared/externalUrl'
 import {
   initDatabase,
   closeDatabase,
@@ -134,6 +135,22 @@ import {
   syncTaskToGoogle
 } from './googleCalendar'
 import {
+  disconnectJira,
+  getJiraStatus,
+  importJiraIssues,
+  jiraNotionFilter,
+  listJiraBoards,
+  scheduleJiraStatusPush,
+  startJiraScheduler,
+  saveJiraBoards,
+  saveJiraCredentials,
+  saveJiraMapping,
+  saveJiraOptions,
+  testJiraConnection
+} from './jira'
+import type { JiraCredentialsInput, JiraImportResult, JiraOptionsInput } from '@shared/types'
+import type { StatusMapping } from './jiraPlan'
+import {
   // Notion
   getNotionConfig,
   saveNotionConfig,
@@ -232,7 +249,7 @@ async function autoSyncToNotion(taskId: number): Promise<void> {
   if (config?.autoSync && config.databaseId) {
     try {
       const task = getTask(taskId)
-      if (task) {
+      if (task && jiraNotionFilter()(task)) {
         mainWindow?.webContents.send('notion:syncStart', task.name)
         await syncTaskToNotion(task)
         console.log('Tarefa sincronizada automaticamente:', task.name)
@@ -243,6 +260,31 @@ async function autoSyncToNotion(taskId: number): Promise<void> {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
       mainWindow?.webContents.send('notion:syncError', errorMessage)
     }
+  }
+}
+
+let jiraImporting = false
+
+async function runJiraImport(): Promise<JiraImportResult | null> {
+  if (jiraImporting) return null
+  jiraImporting = true
+  mainWindow?.webContents.send('jira:syncStart')
+  try {
+    const result = await importJiraIssues()
+    for (const taskId of result.taskIds) {
+      autoSyncToGoogle(taskId)
+      await autoSyncToNotion(taskId)
+    }
+    mainWindow?.webContents.send('tasks:refresh')
+    mainWindow?.webContents.send('jira:syncSuccess')
+    return result
+  } catch (error) {
+    console.error('[jira] erro na importação:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+    mainWindow?.webContents.send('jira:syncError', errorMessage)
+    throw error
+  } finally {
+    jiraImporting = false
   }
 }
 
@@ -277,7 +319,18 @@ function autoSyncToGoogle(...taskIds: number[]): void {
 
 function autoSyncTask(taskId: number): Promise<void> {
   autoSyncToGoogle(taskId)
+  void pushJiraStatus(taskId)
   return autoSyncToNotion(taskId)
+}
+
+async function pushJiraStatus(taskId: number): Promise<void> {
+  try {
+    await scheduleJiraStatusPush(taskId)
+  } catch (error) {
+    console.error('[jira] erro ao enviar status:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+    mainWindow?.webContents.send('jira:syncError', errorMessage)
+  }
 }
 
 // Renomear, mesclar ou excluir uma tag muda o multi_select das tarefas no Notion, que só é
@@ -290,9 +343,10 @@ async function syncTasksAfterTagChange(taskIds: number[]): Promise<void> {
   const label = `${taskIds.length} ${taskIds.length === 1 ? 'tarefa' : 'tarefas'}`
   mainWindow?.webContents.send('notion:syncStart', label)
   try {
+    const allowed = jiraNotionFilter()
     for (const id of taskIds) {
       const task = getTask(id)
-      if (task) {
+      if (task && allowed(task)) {
         await syncTaskToNotion(task)
       }
     }
@@ -991,7 +1045,7 @@ function setupIpcHandlers(): void {
     }
   })
   ipcMain.handle('notion:syncAllTasks', async () => {
-    const tasks = listTasksForSync()
+    const tasks = listTasksForSync().filter(jiraNotionFilter())
     return syncAllTasks(tasks)
   })
   ipcMain.handle('notion:createDatabase', () => findOrCreateDatabase())
@@ -1049,6 +1103,19 @@ function setupIpcHandlers(): void {
     if (before) autoSyncToGoogle(before.task_id)
   })
 
+  // Jira
+  ipcMain.handle('jira:getStatus', () => getJiraStatus())
+  ipcMain.handle('jira:importNow', () => runJiraImport())
+  ipcMain.handle('jira:saveCredentials', (_, input: JiraCredentialsInput) =>
+    saveJiraCredentials(input)
+  )
+  ipcMain.handle('jira:test', () => testJiraConnection())
+  ipcMain.handle('jira:listBoards', () => listJiraBoards())
+  ipcMain.handle('jira:saveBoards', (_, boardIds: number[]) => saveJiraBoards(boardIds))
+  ipcMain.handle('jira:saveMapping', (_, mapping: StatusMapping) => saveJiraMapping(mapping))
+  ipcMain.handle('jira:saveOptions', (_, input: JiraOptionsInput) => saveJiraOptions(input))
+  ipcMain.handle('jira:disconnect', () => disconnectJira())
+
   // Google Calendar
   ipcMain.handle('gcal:getStatus', () => getGcalStatus())
   ipcMain.handle('gcal:saveCredentials', (_, clientId: string, clientSecret: string) =>
@@ -1092,6 +1159,10 @@ function setupIpcHandlers(): void {
   // ===================== INICIALIZAÇÃO =====================
   ipcMain.handle('app:getVersion', () => app.getVersion())
   ipcMain.handle('app:getAutostart', () => isAutostartEnabled())
+  ipcMain.handle('app:openExternal', (_, url: string) => {
+    if (!isSafeHttpUrl(url)) throw new Error('URL inválida')
+    return shell.openExternal(url)
+  })
   ipcMain.handle('app:setAutostart', (_, enabled: boolean) => setAutostartEnabled(enabled))
 
   ipcMain.handle('backup:getStatus', () => getBackupStatus())
@@ -1201,6 +1272,9 @@ app.whenReady().then(() => {
   registerAssetProtocol()
   setupIpcHandlers()
   startNotificationScheduler()
+  startJiraScheduler(() => {
+    runJiraImport().catch(() => undefined)
+  })
 
   electronApp.setAppUserModelId('com.ticktask.app')
   try {

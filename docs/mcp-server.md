@@ -63,8 +63,8 @@ Ao subir a ponte com `ELECTRON_RUN_AS_NODE=1`, essa variável é removida do amb
 | `server_info` | Confirma que o TickTask está aberto e respondendo. |
 | `search_tasks` | Lista tasks com filtros (status, categoria, energia, projeto, contexto, busca, datas). Não inclui subtarefas. |
 | `get_task` | Detalhe completo de uma task: campos, notas em Markdown, subtarefas, dependências, registros de tempo. |
-| `create_task` | Cria uma task; projeto/contexto por nome ou id, tags criadas se não existirem. Aceita `scheduled_time`/`scheduled_end_time` (exigem `scheduled_date`) e `due_time` (exige `due_date`), em `HH:MM`. |
-| `update_task` | Altera campos de uma task; passar `tags`/`contexts` substitui a lista inteira. Horários em `HH:MM`, `null` remove; limpar a data remove a hora dela, limpar o início remove o fim. Fim ≤ início ou hora sem data → erro `validation`. |
+| `create_task` | Cria uma task; projeto/contexto por nome ou id, tags criadas se não existirem. Aceita `scheduled_time`/`scheduled_end_time` (exigem `scheduled_date`) e `due_time` (exige `due_date`), em `HH:MM`, e `external_url` (`http(s)`). |
+| `update_task` | Altera campos de uma task; passar `tags`/`contexts` substitui a lista inteira. Horários em `HH:MM`, `null` remove; limpar a data remove a hora dela, limpar o início remove o fim. `external_url` aceita `http(s)` ou `null` (remove). Fim ≤ início ou hora sem data → erro `validation`. |
 | `bulk_update_tasks` | Altera status/projeto/arquivamento de várias tasks; acima do `bulkThreshold` exige `confirm_token`. |
 | `delete_tasks` | Deleta tasks permanentemente, incluindo subtarefas em cascata; sempre exige `confirm_token`. |
 | `organize_overview` | Retrato GTD: inbox, sem projeto, atrasadas, bloqueadas, someday, métricas. Atrasada = prazo antes de `today`, ou em `today` com `due_time` já passado. |

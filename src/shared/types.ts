@@ -187,6 +187,9 @@ export interface Task {
   scheduled_time?: string | null
   scheduled_end_time?: string | null
   due_time?: string | null
+  external_url?: string | null
+  jira_key?: string | null
+  jira_status?: string | null
 }
 
 export interface CreateTaskInput {
@@ -210,6 +213,7 @@ export interface CreateTaskInput {
   scheduled_time?: string | null
   scheduled_end_time?: string | null
   due_time?: string | null
+  external_url?: string | null
 }
 
 export interface UpdateTaskInput {
@@ -233,6 +237,7 @@ export interface UpdateTaskInput {
   scheduled_time?: string | null
   scheduled_end_time?: string | null
   due_time?: string | null
+  external_url?: string | null
 }
 
 export interface GcalStatus {
@@ -240,6 +245,52 @@ export interface GcalStatus {
   hasClientSecret: boolean
   connected: boolean
   autoSync: boolean
+}
+
+export interface JiraBoardSummary {
+  id: number
+  name: string
+}
+
+export interface JiraKnownStatus {
+  name: string
+  category: 'new' | 'indeterminate' | 'done'
+}
+
+export interface JiraCredentialsInput {
+  site: string
+  email: string
+  apiToken: string
+}
+
+export interface JiraOptionsInput {
+  pushStatus?: boolean
+  syncToNotion?: boolean
+  autoImportMinutes?: number
+  projectId?: number | null
+}
+
+export interface JiraImportResult {
+  created: number
+  updated: number
+  unchanged: number
+  taskIds: number[]
+}
+
+export interface JiraStatus {
+  site: string
+  email: string
+  hasToken: boolean
+  connected: boolean
+  boardIds: number[]
+  boards: JiraBoardSummary[]
+  knownStatuses: JiraKnownStatus[]
+  statusMapping: Record<string, TaskStatus>
+  pushStatus: boolean
+  syncToNotion: boolean
+  autoImportMinutes: number
+  projectId: number | null
+  lastImportAt: string | null
 }
 
 export interface BackupCounts {

@@ -8,29 +8,32 @@ import {
   Info,
   Loader2,
   Server,
-  Settings
+  Settings,
+  Ticket
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { usePersistedState } from '@renderer/hooks/usePersistedState'
 import { cn } from '@renderer/lib/utils'
-import type { GcalStatus, McpStatus } from '@shared/types'
+import type { GcalStatus, JiraStatus, McpStatus } from '@shared/types'
 import { AboutSection } from '@renderer/components/settings/AboutSection'
 import { BackupSection } from '@renderer/components/settings/BackupSection'
 import { GeneralSection } from '@renderer/components/settings/GeneralSection'
 import { GoogleCalendarSection } from '@renderer/components/settings/GoogleCalendarSection'
+import { JiraSection } from '@renderer/components/settings/JiraSection'
 import { McpSection } from '@renderer/components/settings/McpSection'
 import { NotionSection } from '@renderer/components/settings/NotionSection'
 import {
   gcalStatusInfo,
+  jiraStatusInfo,
   mcpStatusInfo,
   notionStatus,
   type NotionConfig,
   type StatusTone
 } from '@renderer/components/settings/settingsStatus'
 
-type SectionId = 'geral' | 'backup' | 'notion' | 'google' | 'mcp' | 'sobre'
+type SectionId = 'geral' | 'backup' | 'notion' | 'google' | 'jira' | 'mcp' | 'sobre'
 
 interface NavItem {
   id: SectionId
@@ -50,6 +53,7 @@ export function SettingsPage(): React.JSX.Element {
   const [section, setSection] = usePersistedState<SectionId>('settings.section', 'geral')
   const [notion, setNotion] = useState<NotionConfig | null>(null)
   const [gcal, setGcal] = useState<GcalStatus | null>(null)
+  const [jira, setJira] = useState<JiraStatus | null>(null)
   const [mcp, setMcp] = useState<McpStatus | null>(null)
   const [autostart, setAutostart] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -59,11 +63,13 @@ export function SettingsPage(): React.JSX.Element {
       window.api.notionGetConfig(),
       window.api.gcalGetStatus(),
       window.api.mcpGetStatus(),
-      window.api.appGetAutostart()
+      window.api.appGetAutostart(),
+      window.api.jiraGetStatus()
     ])
-      .then(([notionConfig, gcalStatus, mcpStatus, autostartEnabled]) => {
+      .then(([notionConfig, gcalStatus, mcpStatus, autostartEnabled, jiraStatus]) => {
         setNotion(notionConfig)
         setGcal(gcalStatus)
+        setJira(jiraStatus)
         setMcp(mcpStatus)
         setAutostart(autostartEnabled)
       })
@@ -89,6 +95,7 @@ export function SettingsPage(): React.JSX.Element {
           icon: CalendarDays,
           status: gcalStatusInfo(gcal)
         },
+        { id: 'jira', label: 'Jira', icon: Ticket, status: jiraStatusInfo(jira) },
         { id: 'mcp', label: 'Servidor MCP', icon: Server, status: mcpStatusInfo(mcp) }
       ]
     }
@@ -168,6 +175,9 @@ export function SettingsPage(): React.JSX.Element {
                 )}
                 {section === 'google' && gcal && (
                   <GoogleCalendarSection status={gcal} onStatusChange={setGcal} />
+                )}
+                {section === 'jira' && jira && (
+                  <JiraSection status={jira} onStatusChange={setJira} />
                 )}
                 {section === 'mcp' && mcp && <McpSection status={mcp} onStatusChange={setMcp} />}
                 {section === 'sobre' && <AboutSection />}

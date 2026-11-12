@@ -2,6 +2,11 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
   GcalStatus,
+  JiraBoardSummary,
+  JiraCredentialsInput,
+  JiraImportResult,
+  JiraOptionsInput,
+  JiraStatus,
   Task,
   TimeEntry,
   CreateTaskInput,
@@ -279,6 +284,36 @@ const api = {
     ipcRenderer.invoke('notion:syncAllTasks'),
   notionCreateDatabase: (): Promise<string> => ipcRenderer.invoke('notion:createDatabase'),
 
+  // Jira
+  jiraGetStatus: (): Promise<JiraStatus> => ipcRenderer.invoke('jira:getStatus'),
+  jiraSaveCredentials: (input: JiraCredentialsInput): Promise<JiraStatus> =>
+    ipcRenderer.invoke('jira:saveCredentials', input),
+  jiraTest: (): Promise<{ displayName: string }> => ipcRenderer.invoke('jira:test'),
+  jiraListBoards: (): Promise<JiraBoardSummary[]> => ipcRenderer.invoke('jira:listBoards'),
+  jiraSaveBoards: (boardIds: number[]): Promise<JiraStatus> =>
+    ipcRenderer.invoke('jira:saveBoards', boardIds),
+  jiraSaveMapping: (mapping: Record<string, TaskStatus>): Promise<JiraStatus> =>
+    ipcRenderer.invoke('jira:saveMapping', mapping),
+  jiraSaveOptions: (input: JiraOptionsInput): Promise<JiraStatus> =>
+    ipcRenderer.invoke('jira:saveOptions', input),
+  jiraDisconnect: (): Promise<JiraStatus> => ipcRenderer.invoke('jira:disconnect'),
+  jiraImportNow: (): Promise<JiraImportResult | null> => ipcRenderer.invoke('jira:importNow'),
+  onJiraSync: (
+    callback: (status: 'syncing' | 'success' | 'error', detail?: string) => void
+  ): (() => void) => {
+    const start = (_: unknown, detail?: string): void => callback('syncing', detail)
+    const success = (_: unknown, detail?: string): void => callback('success', detail)
+    const error = (_: unknown, detail?: string): void => callback('error', detail)
+    ipcRenderer.on('jira:syncStart', start)
+    ipcRenderer.on('jira:syncSuccess', success)
+    ipcRenderer.on('jira:syncError', error)
+    return () => {
+      ipcRenderer.removeListener('jira:syncStart', start)
+      ipcRenderer.removeListener('jira:syncSuccess', success)
+      ipcRenderer.removeListener('jira:syncError', error)
+    }
+  },
+
   // Google Calendar
   gcalGetStatus: (): Promise<GcalStatus> => ipcRenderer.invoke('gcal:getStatus'),
   gcalSaveCredentials: (clientId: string, clientSecret: string): Promise<GcalStatus> =>
@@ -360,6 +395,7 @@ const api = {
   // ===================== INICIALIZAÇÃO =====================
   appGetVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
   appGetAutostart: (): Promise<boolean> => ipcRenderer.invoke('app:getAutostart'),
+  appOpenExternal: (url: string): Promise<void> => ipcRenderer.invoke('app:openExternal', url),
   appSetAutostart: (enabled: boolean): Promise<boolean> =>
     ipcRenderer.invoke('app:setAutostart', enabled),
 

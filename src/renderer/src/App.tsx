@@ -106,6 +106,16 @@ function AppContent(): React.JSX.Element {
 
   useEffect(
     () =>
+      window.api.onJiraSync((status, detail) => {
+        if (status === 'syncing') notifySyncStart(detail, 'Jira')
+        else if (status === 'success') notifySyncSuccess(detail, 'Jira')
+        else notifySyncError(`Jira: ${detail ?? 'erro na importação'}`)
+      }),
+    []
+  )
+
+  useEffect(
+    () =>
       window.api.onGcalSync((status, detail) => {
         if (status === 'syncing') notifySyncStart(detail, 'Google Calendar')
         else if (status === 'success') notifySyncSuccess(detail, 'Google Calendar')
