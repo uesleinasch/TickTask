@@ -187,6 +187,8 @@ export interface Task {
   scheduled_time?: string | null
   scheduled_end_time?: string | null
   due_time?: string | null
+  external_url?: string | null
+  jira_key?: string | null
 }
 
 export interface CreateTaskInput {
@@ -210,6 +212,7 @@ export interface CreateTaskInput {
   scheduled_time?: string | null
   scheduled_end_time?: string | null
   due_time?: string | null
+  external_url?: string | null
 }
 
 export interface UpdateTaskInput {
@@ -233,6 +236,7 @@ export interface UpdateTaskInput {
   scheduled_time?: string | null
   scheduled_end_time?: string | null
   due_time?: string | null
+  external_url?: string | null
 }
 
 export interface GcalStatus {

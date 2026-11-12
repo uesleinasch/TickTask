@@ -16,6 +16,7 @@ import icon from '../../resources/512.png?asset'
 import { HIDDEN_FLAG, shouldStartHidden } from './launchArgs'
 import { createTray, destroyTray } from './tray'
 import { isAutostartEnabled, setAutostartEnabled } from './autostart'
+import { isSafeHttpUrl } from '../shared/externalUrl'
 import {
   initDatabase,
   closeDatabase,
@@ -1092,6 +1093,10 @@ function setupIpcHandlers(): void {
   // ===================== INICIALIZAÇÃO =====================
   ipcMain.handle('app:getVersion', () => app.getVersion())
   ipcMain.handle('app:getAutostart', () => isAutostartEnabled())
+  ipcMain.handle('app:openExternal', (_, url: string) => {
+    if (!isSafeHttpUrl(url)) throw new Error('URL inválida')
+    return shell.openExternal(url)
+  })
   ipcMain.handle('app:setAutostart', (_, enabled: boolean) => setAutostartEnabled(enabled))
 
   ipcMain.handle('backup:getStatus', () => getBackupStatus())

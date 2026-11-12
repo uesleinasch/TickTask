@@ -279,6 +279,7 @@ interface API {
   // Inicialização
   appGetVersion: () => Promise<string>
   appGetAutostart: () => Promise<boolean>
+  appOpenExternal: (url: string) => Promise<void>
   appSetAutostart: (enabled: boolean) => Promise<boolean>
 
   // Backup

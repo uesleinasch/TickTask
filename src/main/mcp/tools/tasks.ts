@@ -26,6 +26,7 @@ import {
 } from '../../database'
 import { currentTime, localDateString } from '@shared/dueState'
 import { mergeTaskTimes, taskTimeError } from '@shared/taskTime'
+import { isSafeHttpUrl } from '@shared/externalUrl'
 import { prosemirrorToMarkdown } from '../../notesMarkdown'
 import { needsConfirmation } from '../confirmGuard'
 import { afterCalendarChange, afterTaskWrite, broadcastRefresh } from '../effects'
@@ -38,6 +39,7 @@ const CATEGORY = z.enum(['urgente', 'prioridade', 'normal', 'time_leak'])
 const ENERGY = z.enum(['alto', 'medio', 'baixo'])
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use o formato AAAA-MM-DD.')
 const TIME = z.string().regex(/^\d{2}:\d{2}$/, 'Use o formato HH:MM.')
+const EXTERNAL_URL = z.string().refine(isSafeHttpUrl, 'Use um link http:// ou https://.')
 
 type Resolution = { ok: true; id: number } | { ok: false; response: ReturnType<typeof fail> }
 
@@ -195,7 +197,8 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
         scheduled_end_time: TIME.optional().describe(
           'Fim do agendamento (exige scheduled_time). Sem fim, o Google Calendar usa o limite de tempo da task ou 1h.'
         ),
-        parent_task_id: z.number().int().positive().optional()
+        parent_task_id: z.number().int().positive().optional(),
+        external_url: EXTERNAL_URL.optional()
       }
     },
     async (args) => {
@@ -215,7 +218,8 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
         scheduled_date: args.scheduled_date,
         scheduled_time: args.scheduled_time,
         scheduled_end_time: args.scheduled_end_time,
-        parent_task_id: args.parent_task_id
+        parent_task_id: args.parent_task_id,
+        external_url: args.external_url
       }
 
       if (args.project !== undefined) {
@@ -276,7 +280,11 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
           .union([TIME, z.null()])
           .optional()
           .describe('Início do agendamento; null remove (e remove o fim).'),
-        scheduled_end_time: z.union([TIME, z.null()]).optional().describe('Fim do agendamento.')
+        scheduled_end_time: z.union([TIME, z.null()]).optional().describe('Fim do agendamento.'),
+        external_url: z
+          .union([EXTERNAL_URL, z.null()])
+          .optional()
+          .describe('Link externo; null remove.')
       }
     },
     async (args) => {
@@ -296,6 +304,7 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
       if (args.due_time !== undefined) patch.due_time = args.due_time
       if (args.scheduled_time !== undefined) patch.scheduled_time = args.scheduled_time
       if (args.scheduled_end_time !== undefined) patch.scheduled_end_time = args.scheduled_end_time
+      if (args.external_url !== undefined) patch.external_url = args.external_url
 
       if (args.project !== undefined) {
         if (args.project === null) {

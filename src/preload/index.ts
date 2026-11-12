@@ -360,6 +360,7 @@ const api = {
   // ===================== INICIALIZAÇÃO =====================
   appGetVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
   appGetAutostart: (): Promise<boolean> => ipcRenderer.invoke('app:getAutostart'),
+  appOpenExternal: (url: string): Promise<void> => ipcRenderer.invoke('app:openExternal', url),
   appSetAutostart: (enabled: boolean): Promise<boolean> =>
     ipcRenderer.invoke('app:setAutostart', enabled),
 

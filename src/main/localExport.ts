@@ -24,6 +24,8 @@ function buildFrontmatter(task: Task): string {
   if (task.due_date) lines.push(`prazo: ${yaml(task.due_date)}`)
   if (task.scheduled_date) lines.push(`agendado: ${yaml(task.scheduled_date)}`)
   if (task.energy_level) lines.push(`energia: ${yaml(task.energy_level)}`)
+  if (task.external_url) lines.push(`link: ${yaml(task.external_url)}`)
+  if (task.jira_key) lines.push(`jira: ${yaml(task.jira_key)}`)
   if (task.updated_at) lines.push(`atualizado_em: ${yaml(task.updated_at)}`)
   lines.push('---')
   return lines.join('\n')
