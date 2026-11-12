@@ -138,6 +138,7 @@ import {
   disconnectJira,
   getJiraStatus,
   importJiraIssues,
+  jiraAllowsNotionSync,
   listJiraBoards,
   scheduleJiraStatusPush,
   startJiraScheduler,
@@ -248,7 +249,7 @@ async function autoSyncToNotion(taskId: number): Promise<void> {
   if (config?.autoSync && config.databaseId) {
     try {
       const task = getTask(taskId)
-      if (task) {
+      if (task && jiraAllowsNotionSync(task)) {
         mainWindow?.webContents.send('notion:syncStart', task.name)
         await syncTaskToNotion(task)
         console.log('Tarefa sincronizada automaticamente:', task.name)
@@ -1043,7 +1044,7 @@ function setupIpcHandlers(): void {
     }
   })
   ipcMain.handle('notion:syncAllTasks', async () => {
-    const tasks = listTasksForSync()
+    const tasks = listTasksForSync().filter(jiraAllowsNotionSync)
     return syncAllTasks(tasks)
   })
   ipcMain.handle('notion:createDatabase', () => findOrCreateDatabase())

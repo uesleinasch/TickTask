@@ -2,6 +2,7 @@ import { app, safeStorage } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import type {
+  Task,
   JiraCredentialsInput,
   JiraImportResult,
   TaskStatus,
@@ -176,6 +177,10 @@ export function saveJiraOptions(input: JiraOptionsInput): JiraStatus {
   if (input.projectId !== undefined) patch.projectId = input.projectId
   updateConfig(patch)
   return getJiraStatus()
+}
+
+export function jiraAllowsNotionSync(task: Pick<Task, 'jira_key'>): boolean {
+  return !task.jira_key || (readConfig().syncToNotion ?? false)
 }
 
 export function disconnectJira(): JiraStatus {

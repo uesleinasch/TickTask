@@ -21,6 +21,7 @@ botão-ícone de engrenagem no `TitleBar`.
 │ INTEGRAÇÕES  │  │ ─────────────────────────────────────── │  │
 │ 📖 Notion  ● │  │ conteúdo da seção                       │  │
 │ 📅 Google  ● │  │                                         │  │
+│ 🎫 Jira    ● │  │                                         │  │
 │ 🖥 MCP     ● │  └─────────────────────────────────────────┘  │
 └──────────────┴───────────────────────────────────────────────┘
 ```
@@ -31,7 +32,7 @@ botão-ícone de engrenagem no `TitleBar`.
   completo vai no `title`.
 - A seção aberta persiste em `localStorage` (`settings.section`, via `usePersistedState`).
 - **Painel**: `max-w-2xl`, um único cartão branco `rounded-sm` com a seção. Enquanto os estados
-  carregam (`notionGetConfig`, `gcalGetStatus`, `mcpGetStatus`, `appGetAutostart` em paralelo), o
+  carregam (`notionGetConfig`, `gcalGetStatus`, `jiraGetStatus`, `mcpGetStatus`, `appGetAutostart` em paralelo), o
   painel mostra um `Loader2`; a barra lateral já aparece.
 - A página é dona dos estados e os repassa às seções com um callback de mudança. Por isso o ponto
   na barra lateral muda no mesmo instante em que a seção conecta ou desliga algo.
@@ -112,6 +113,22 @@ reabrir. Lógica em `stepProgress.ts` (pura, testada).
 - **Conectado** → `ToggleRow` de auto-sync, **Ressincronizar todas**, **Desconectar** (a agenda
   "TickTask" continua no Google) e o recolhível "Ver guia de configuração e trocar credenciais".
 - O secret nunca volta ao renderer: o campo mostra `•••••••• (salvo)`.
+
+### Jira
+
+- Autenticação por **site Jira Cloud + e-mail + API token** (Basic auth). O token vai para o
+  `safeStorage`; o campo mostra `•••••••• (salvo)` e nunca volta ao renderer. Trocar site ou e-mail
+  exige um token novo. "Salvar e testar" valida com `/myself`.
+- **Boards**: "Carregar boards" lista os boards do site; checkboxes escolhem quais alimentam o app.
+- **Importar agora**: traz as issues atribuídas a você nos boards marcados. Cria tasks com o link
+  da issue e o prazo; em re-importação atualiza nome, prazo, link e status. O status local vem do
+  mapeamento; a importação desconsidera mudanças locais de status que ainda não foram enviadas.
+- **Mapeamento de status**: a lista vem dos status vistos na última importação. "Padrão da
+  categoria" usa a categoria Jira (A fazer → Inbox, Em andamento → Executando, Concluído →
+  Finalizada); uma escolha explícita vence.
+- **Opções**: "Enviar status ao Jira" (transição na issue ao mudar o status local), "Sincronizar
+  com o Notion" (opt-in: tasks do Jira só vão ao Notion se ligado) e importação automática em
+  intervalos de 15 min / 30 min / 1 h.
 
 ### Servidor MCP
 
