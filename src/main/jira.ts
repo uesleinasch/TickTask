@@ -337,7 +337,13 @@ function applyImportOp(
         jiraKey: op.key,
         jiraStatus: fields.jira_status,
         jiraSpace: fields.jira_space,
-        status: fields.status
+        status: fields.status,
+        hierarchy: {
+          jira_issue_type: fields.jira_issue_type,
+          jira_issue_kind: fields.jira_issue_kind,
+          jira_parent_key: fields.jira_parent_key,
+          jira_parent_summary: fields.jira_parent_summary
+        }
       }
     )
   }
