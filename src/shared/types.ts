@@ -199,6 +199,21 @@ export interface Task {
 
 export type JiraIssueKind = 'epic' | 'story' | 'task' | 'bug' | 'subtask'
 
+export interface JiraChildIssue {
+  key: string
+  summary: string
+  statusName: string | null
+  issueType: string | null
+  issueKind: JiraIssueKind | null
+  url: string
+  taskId: number | null
+}
+
+export interface JiraChildrenResult {
+  children: JiraChildIssue[]
+  remoteError: string | null
+}
+
 export interface CreateTaskInput {
   name: string
   description?: string

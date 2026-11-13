@@ -3,6 +3,7 @@ import {
   buildIssueUrl,
   classifyIssueType,
   mapJiraStatusToLocal,
+  mergeChildIssues,
   normalizeJiraSite,
   planDescriptionImport,
   planImport,
@@ -292,6 +293,69 @@ describe('planDescriptionImport', () => {
       'paragraph',
       'horizontalRule',
       'paragraph'
+    ])
+  })
+})
+
+describe('mergeChildIssues', () => {
+  const local = [
+    {
+      id: 20,
+      name: 'Revisão local',
+      jira_key: 'CTL-20',
+      jira_status: 'Em andamento',
+      jira_issue_type: 'Tarefa',
+      jira_issue_kind: 'task' as const
+    }
+  ]
+
+  it('lista todas as filhas do Jira e liga as que já viraram task', () => {
+    const children = mergeChildIssues(
+      [
+        issue({ key: 'CTL-20', summary: 'Revisão' }),
+        issue({
+          key: 'CTL-9',
+          summary: 'Logs',
+          statusName: 'A fazer',
+          issueType: { name: 'História', hierarchyLevel: 0, subtask: false }
+        })
+      ],
+      local,
+      SITE
+    )
+    expect(children).toEqual([
+      {
+        key: 'CTL-9',
+        summary: 'Logs',
+        statusName: 'A fazer',
+        issueType: 'História',
+        issueKind: 'story',
+        url: 'https://jacto.atlassian.net/browse/CTL-9',
+        taskId: null
+      },
+      {
+        key: 'CTL-20',
+        summary: 'Revisão',
+        statusName: 'Em Progresso',
+        issueType: null,
+        issueKind: null,
+        url: 'https://jacto.atlassian.net/browse/CTL-20',
+        taskId: 20
+      }
+    ])
+  })
+
+  it('sem resposta do Jira, mostra só as filhas locais', () => {
+    expect(mergeChildIssues(null, local, SITE)).toEqual([
+      {
+        key: 'CTL-20',
+        summary: 'Revisão local',
+        statusName: 'Em andamento',
+        issueType: 'Tarefa',
+        issueKind: 'task',
+        url: 'https://jacto.atlassian.net/browse/CTL-20',
+        taskId: 20
+      }
     ])
   })
 })

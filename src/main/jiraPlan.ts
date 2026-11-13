@@ -1,4 +1,4 @@
-import type { JiraIssueKind, TaskStatus } from '@shared/types'
+import type { JiraChildIssue, JiraIssueKind, TaskStatus } from '@shared/types'
 import type { JiraIssue, JiraIssueType, JiraStatusCategory } from './jiraApi'
 import { adfToProsemirror, isEmptyDoc, parseDoc, type DocNode } from './jiraAdf'
 
@@ -129,6 +129,45 @@ export function planImport(
     )
   }
   return ops
+}
+
+export interface LocalJiraChild {
+  id: number
+  name: string
+  jira_key: string
+  jira_status: string | null
+  jira_issue_type: string | null
+  jira_issue_kind: JiraIssueKind | null
+}
+
+const keyNumber = (key: string): number => Number(key.split('-').pop()) || 0
+
+export function mergeChildIssues(
+  remote: JiraIssue[] | null,
+  local: LocalJiraChild[],
+  site: string
+): JiraChildIssue[] {
+  const localByKey = new Map(local.map((task) => [task.jira_key, task]))
+  const children: JiraChildIssue[] = remote
+    ? remote.map((issue) => ({
+        key: issue.key,
+        summary: issue.summary,
+        statusName: issue.statusName,
+        issueType: issue.issueType?.name ?? null,
+        issueKind: classifyIssueType(issue.issueType),
+        url: buildIssueUrl(site, issue.key),
+        taskId: localByKey.get(issue.key)?.id ?? null
+      }))
+    : local.map((task) => ({
+        key: task.jira_key,
+        summary: task.name,
+        statusName: task.jira_status,
+        issueType: task.jira_issue_type,
+        issueKind: task.jira_issue_kind,
+        url: buildIssueUrl(site, task.jira_key),
+        taskId: task.id
+      }))
+  return children.sort((a, b) => keyNumber(a.key) - keyNumber(b.key))
 }
 
 export interface DescriptionSyncState {
