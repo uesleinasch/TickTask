@@ -145,6 +145,7 @@ import {
   onJiraBackgroundError,
   scheduleJiraDescriptionPush,
   scheduleJiraWorklogPush,
+  getJiraChildren,
   captureJiraWorklogs,
   deleteJiraWorklogs,
   searchJiraUsers,
@@ -1140,6 +1141,7 @@ function setupIpcHandlers(): void {
     await afterJiraIssueChange(taskId)
   })
   ipcMain.handle('jira:getFields', (_, taskId: number) => getJiraIssueFields(taskId))
+  ipcMain.handle('jira:getChildren', (_, taskId: number) => getJiraChildren(taskId))
   ipcMain.handle(
     'jira:updateField',
     async (_, taskId: number, fieldId: string, value: JiraFieldInput) => {

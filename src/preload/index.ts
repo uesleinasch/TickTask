@@ -6,6 +6,7 @@ import type {
   JiraCredentialsInput,
   JiraFieldInput,
   JiraImportResult,
+  JiraChildrenResult,
   JiraIssueFields,
   JiraOptionsInput,
   JiraStatus,
@@ -308,6 +309,8 @@ const api = {
     ipcRenderer.invoke('jira:transition', taskId, transitionId),
   jiraGetFields: (taskId: number): Promise<JiraIssueFields> =>
     ipcRenderer.invoke('jira:getFields', taskId),
+  jiraGetChildren: (taskId: number): Promise<JiraChildrenResult> =>
+    ipcRenderer.invoke('jira:getChildren', taskId),
   jiraUpdateField: (
     taskId: number,
     fieldId: string,
