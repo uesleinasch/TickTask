@@ -166,6 +166,7 @@ A célula **Tarefa** empilha, da esquerda para a direita:
   há subtarefas, preservando o alinhamento;
 - caixa de 16px com o indicador de estado: `Lock` laranja se bloqueada, senão um ponto pulsante
   (esmeralda, ou amarelo se time leak) se rodando, senão nada;
+- `TaskIdBadge` (`#id` em mono cinza; o clique copia o número, sem abrir a task);
 - nome da tarefa (`font-medium truncate`, `font-semibold` quando rodando);
 - `DueDateBadge`, se houver prazo;
 - botão **Hoje** (`CalendarDays`) — azul sólido com "Hoje ✓" se já agendada para hoje, contorno cinza
@@ -206,7 +207,7 @@ Grade responsiva `grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4`. Cada card
    hover.
 2. **Topo:** cadeado laranja (se bloqueada) + título em `font-semibold text-[15px] line-clamp-2`;
    checkbox à direita, oculto até o hover ou até estar marcado.
-3. **Identidade:** bolinha + nome do projeto (truncado em 150px), `StatusBadge`, e `CategoryBadge`
+3. **Identidade:** `TaskIdBadge` (`#id`, clique copia), bolinha + nome do projeto (truncado em 150px), `StatusBadge`, e `CategoryBadge`
    **só quando a categoria não é "normal"** — diferente da tabela, que sempre mostra. Em task do
    Jira, também `JiraTaskControls`.
 4. **Descrição** em `line-clamp-2`, se houver.
