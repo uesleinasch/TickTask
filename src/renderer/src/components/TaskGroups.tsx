@@ -18,7 +18,7 @@ interface TaskGroupsProps {
   onTaskClick: (taskId: number) => void
   selectedTaskIds: Set<number>
   onToggleTaskSelection: (taskId: number, selected: boolean) => void
-  onToggleSelectAll: (selected: boolean) => void
+  onToggleGroupSelection: (taskIds: number[], selected: boolean) => void
   onScheduleForToday?: (taskId: number) => void
 }
 
@@ -28,7 +28,7 @@ export function TaskGroups({
   onTaskClick,
   selectedTaskIds,
   onToggleTaskSelection,
-  onToggleSelectAll,
+  onToggleGroupSelection,
   onScheduleForToday
 }: TaskGroupsProps): React.JSX.Element {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -92,7 +92,12 @@ export function TaskGroups({
                     onTaskClick={onTaskClick}
                     selectedTaskIds={selectedTaskIds}
                     onToggleTaskSelection={onToggleTaskSelection}
-                    onToggleSelectAll={onToggleSelectAll}
+                    onToggleSelectAll={(selected) =>
+                      onToggleGroupSelection(
+                        group.tasks.map((task) => task.id),
+                        selected
+                      )
+                    }
                     onScheduleForToday={onScheduleForToday}
                   />
                 )}
