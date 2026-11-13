@@ -158,6 +158,27 @@ describe('createJiraApi', () => {
     expect(calls[0].url).toContain('fields=summary,status,duedate,project,issuetype,parent')
   })
 
+  it('cria worklog e devolve o id', async () => {
+    const { api, calls } = setup(() => jsonResponse(201, { id: '10500' }))
+    const id = await api.addWorklog('ABC-1', {
+      started: '2026-11-13T10:00:00.000-0300',
+      timeSpentSeconds: 1800
+    })
+    expect(id).toBe('10500')
+    expect(calls[0]).toMatchObject({
+      method: 'POST',
+      url: 'https://jacto.atlassian.net/rest/api/3/issue/ABC-1/worklog?adjustEstimate=auto',
+      body: { started: '2026-11-13T10:00:00.000-0300', timeSpentSeconds: 1800 }
+    })
+  })
+
+  it('apagar worklog que já não existe não é erro', async () => {
+    const { api, calls } = setup(() => jsonResponse(404, { errorMessages: ['não existe'] }))
+    await expect(api.deleteWorklog('ABC-1', '10500')).resolves.toBeUndefined()
+    expect(calls[0].method).toBe('DELETE')
+    expect(calls[0].url).toContain('/issue/ABC-1/worklog/10500')
+  })
+
   it('corpo de erro que não é JSON vira JiraApiError com o status', async () => {
     const { api } = setup(() => new Response('<html>Bad gateway</html>', { status: 404 }))
     const error = await api.getMyself().catch((e: unknown) => e)

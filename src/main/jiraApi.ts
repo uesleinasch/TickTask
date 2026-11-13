@@ -76,6 +76,13 @@ export interface JiraApi {
   doTransition: (issueKey: string, transitionId: string) => Promise<void>
   listOpenSprints: (boardId: number) => Promise<JiraSprint[]>
   searchUsers: (query: string, assignableTo?: string) => Promise<JiraAccount[]>
+  addWorklog: (issueKey: string, worklog: JiraWorklogInput) => Promise<string>
+  deleteWorklog: (issueKey: string, worklogId: string) => Promise<void>
+}
+
+export interface JiraWorklogInput {
+  started: string
+  timeSpentSeconds: number
 }
 
 const RETRY_DELAY_MS = 1000
@@ -254,6 +261,27 @@ export function createJiraApi(deps: JiraApiDeps): JiraApi {
       return users
         .filter((u) => !u.accountType || u.accountType === 'atlassian')
         .map((u) => ({ accountId: u.accountId, displayName: u.displayName }))
+    },
+
+    async addWorklog(issueKey, worklog) {
+      const data = await request<{ id: string }>(
+        'POST',
+        `/rest/api/3/issue/${encodeURIComponent(issueKey)}/worklog?adjustEstimate=auto`,
+        worklog
+      )
+      return data.id
+    },
+
+    async deleteWorklog(issueKey, worklogId) {
+      try {
+        await request<void>(
+          'DELETE',
+          `/rest/api/3/issue/${encodeURIComponent(issueKey)}/worklog/${encodeURIComponent(worklogId)}?adjustEstimate=auto`
+        )
+      } catch (error) {
+        if (error instanceof JiraApiError && error.status === 404) return
+        throw error
+      }
     }
   }
 }
