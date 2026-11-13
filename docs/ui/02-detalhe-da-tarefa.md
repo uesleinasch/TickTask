@@ -108,7 +108,8 @@ Grade `[90px_1fr]` — rótulo cinza à esquerda, controle à direita.
 | Rótulo | Controle | Salvamento |
 | --- | --- | --- |
 | Status | `StatusSelect` (180px, `bg-slate-100`) | imediato + toast "Status alterado" |
-| Jira | `JiraTaskControls` com a chave da issue (só em task do Jira; ver `01-lista-de-tarefas.md`) | transição/campo direto no Jira |
+| Jira | `JiraTaskControls` com tipo e chave da issue, sem o botão de campos (só em task do Jira; ver `01-lista-de-tarefas.md`) | transição direto no Jira |
+| Pai no Jira | chave + resumo da issue pai (épico/história); clique abre a issue pai no navegador. Só quando a issue tem pai | — |
 | Projeto | `SearchableSelect` + link **"Abrir projeto →"** abaixo quando há projeto | imediato + toast |
 | Contextos | pílulas alternáveis (emoji + nome), coloridas pela cor do contexto quando ativas | imediato |
 | Tags | `TagInput` | imediato |
@@ -183,6 +184,10 @@ concluir.
 ### Botão "Notas"
 
 Canto superior direito. Alterna o painel direito. Ativo: `bg-slate-900 text-white`.
+
+Em task do Jira, à esquerda dele fica o botão **Campos do Jira** (`SlidersHorizontal`, azul forte
+`bg-blue-700`), que abre o `JiraFieldsSheet`. Ele substitui, nesta tela, o ícone pequeno do
+`JiraTaskControls` da sidebar, que ficava apertado e às vezes oculto.
 
 ### Aviso de bloqueio
 

@@ -142,8 +142,13 @@ reabrir. Lógica em `stepProgress.ts` (pura, testada).
   andamento → Executando, Concluído → Finalizada); uma escolha explícita vence.
 - **Opções**: "Sincronizar
   com o Notion" (opt-in: tasks do Jira só vão ao Notion se ligado, inclusive no sync em lote e no
-  ressync após mudança de tag) e importação automática em intervalos de 15 min / 30 min / 1 h (só
-  roda com board escolhido).
+  ressync após mudança de tag), "Registrar o tempo no Jira (worklog)" e importação automática em
+  intervalos de 15 min / 30 min / 1 h (só roda com board escolhido).
+- **Worklog** (opt-in): ligar grava `worklogSince` (agora) em `jira-config.json`. A partir daí, cada
+  sessão encerrada de 1 min ou mais (play/pause ou tempo manual) em task vinculada vira um worklog
+  na issue (`adjustEstimate=auto`), e o id volta para `time_entries.jira_worklog_id`. Tempo anterior
+  a ligar nunca é enviado. "Zerar" o timer apaga no Jira os worklogs que o app criou. Ajustar o
+  total direto ("definir tempo total") não gera worklog — não há sessão para enviar.
 
 ### Servidor MCP
 
