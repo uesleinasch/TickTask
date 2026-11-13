@@ -672,6 +672,27 @@ export function SingleTaskPage(): React.JSX.Element {
                 </div>
               )}
 
+              {task.jira_parent_key && (
+                <div className="grid grid-cols-[90px_1fr] items-center gap-3">
+                  <span className="text-xs text-slate-400">Pai no Jira</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = task.external_url?.replace(
+                        /\/browse\/[^/]+$/,
+                        `/browse/${encodeURIComponent(task.jira_parent_key ?? '')}`
+                      )
+                      if (url) void window.api.appOpenExternal(url)
+                    }}
+                    title="Abrir a issue pai no Jira"
+                    className="min-w-0 text-left text-xs text-slate-600 hover:text-blue-700 hover:underline truncate"
+                  >
+                    <span className="font-mono text-slate-500">{task.jira_parent_key}</span>
+                    {task.jira_parent_summary && ` · ${task.jira_parent_summary}`}
+                  </button>
+                </div>
+              )}
+
               {/* Projeto */}
               <div className="grid grid-cols-[90px_1fr] items-start gap-3">
                 <span className="text-xs text-slate-400 pt-2">Projeto</span>

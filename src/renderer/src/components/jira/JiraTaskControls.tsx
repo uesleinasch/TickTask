@@ -3,10 +3,21 @@ import { Layers, SlidersHorizontal } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import type { Task } from '@shared/types'
 import { JiraFieldsSheet } from './JiraFieldsSheet'
+import { JiraIssueTypeBadge } from './JiraIssueTypeBadge'
 import { JiraStatusSelect } from './JiraStatusSelect'
 
 interface JiraTaskControlsProps {
-  task: Pick<Task, 'id' | 'jira_key' | 'jira_status' | 'jira_space'>
+  task: Pick<
+    Task,
+    | 'id'
+    | 'jira_key'
+    | 'jira_status'
+    | 'jira_space'
+    | 'jira_issue_type'
+    | 'jira_issue_kind'
+    | 'jira_parent_key'
+    | 'jira_parent_summary'
+  >
   className?: string
   showKey?: boolean
   showFieldsButton?: boolean
@@ -35,6 +46,7 @@ export function JiraTaskControls({
         <Layers size={11} className="shrink-0 text-slate-400" />
         <span className="truncate">{space}</span>
       </span>
+      <JiraIssueTypeBadge kind={task.jira_issue_kind} name={task.jira_issue_type} />
       {showKey && <span className="font-mono text-xs text-slate-500">{task.jira_key}</span>}
       <JiraStatusSelect taskId={task.id} status={task.jira_status} />
       {showFieldsButton && (
