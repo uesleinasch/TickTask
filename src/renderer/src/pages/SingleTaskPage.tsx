@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@renderer/components/ui/button'
 import { SearchableSelect } from '@renderer/components/ui/searchable-select'
 import { StatusSelect } from '@renderer/components/StatusSelect'
+import { JiraTaskControls } from '@renderer/components/jira/JiraTaskControls'
 import { CategorySelect } from '@renderer/components/CategorySelect'
 import { TimeEntryList } from '@renderer/components/TimeEntryList'
 import { DeleteConfirmDialog } from '@renderer/components/DeleteConfirmDialog'
@@ -658,6 +659,13 @@ export function SingleTaskPage(): React.JSX.Element {
                 <span className="text-xs text-slate-400">Status</span>
                 <StatusSelect value={task.status} onChange={handleStatusChange} />
               </div>
+
+              {task.jira_key && (
+                <div className="grid grid-cols-[90px_1fr] items-center gap-3">
+                  <span className="text-xs text-slate-400">Jira</span>
+                  <JiraTaskControls task={task} showKey />
+                </div>
+              )}
 
               {/* Projeto */}
               <div className="grid grid-cols-[90px_1fr] items-start gap-3">

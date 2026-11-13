@@ -108,6 +108,7 @@ Grade `[90px_1fr]` — rótulo cinza à esquerda, controle à direita.
 | Rótulo | Controle | Salvamento |
 | --- | --- | --- |
 | Status | `StatusSelect` (180px, `bg-slate-100`) | imediato + toast "Status alterado" |
+| Jira | `JiraTaskControls` com a chave da issue (só em task do Jira; ver `01-lista-de-tarefas.md`) | transição/campo direto no Jira |
 | Projeto | `SearchableSelect` + link **"Abrir projeto →"** abaixo quando há projeto | imediato + toast |
 | Contextos | pílulas alternáveis (emoji + nome), coloridas pela cor do contexto quando ativas | imediato |
 | Tags | `TagInput` | imediato |
@@ -127,7 +128,10 @@ editada.
   ganha fundo e borda coloridos (esmeralda / âmbar / slate). Clicar no ativo desmarca.
 - **Link externo** — `ExternalLinkField`: campo de URL `http(s)` salvo ao sair do campo ou com Enter
   (valor inválido é descartado com aviso). Quando há link válido, um botão abre no navegador via
-  `appOpenExternal`, que revalida o esquema no main. Tasks importadas do Jira trazem o link da issue.
+  `appOpenExternal`, que revalida o esquema no main. Tasks importadas do Jira trazem o link da issue. Nelas, as **Notas** espelham a descrição da
+  issue: a importação as substitui quando a descrição muda no Jira, e salvar as notas envia a
+  descrição de volta (~2s depois). O editor aberto não recarrega sozinho se uma importação trouxer
+  descrição nova.
 - **Google Calendar** — `GoogleCalendarTaskToggle`, só renderizado com o Google conectado: switch
   que grava `gcal_sync` e sincroniza na hora (desligar apaga os eventos da task), mais um botão
   `RefreshCw` de ressincronizar quando ligado.

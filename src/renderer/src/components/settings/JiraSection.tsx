@@ -3,7 +3,13 @@ import { Loader2, LogOut, RefreshCw, Ticket } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { toast } from '@renderer/components/ui/sonner'
-import { STATUS_LABELS, type JiraStatus, type Project, type TaskStatus } from '@shared/types'
+import {
+  STATUS_LABELS,
+  type JiraBoardSummary,
+  type JiraStatus,
+  type Project,
+  type TaskStatus
+} from '@shared/types'
 import { SectionHeader, ToggleRow } from './SettingsPrimitives'
 import { errorMessage, jiraStatusInfo } from './settingsStatus'
 
@@ -24,6 +30,53 @@ const AUTO_IMPORT_OPTIONS = [
   { value: 30, label: 'A cada 30 min' },
   { value: 60, label: 'A cada hora' }
 ]
+
+function ProjectSelect({
+  value,
+  projects,
+  emptyLabel,
+  onChange
+}: {
+  value: number | null
+  projects: Project[]
+  emptyLabel: string
+  onChange: (projectId: number | null) => void
+}): React.JSX.Element {
+  return (
+    <select
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+      className="h-8 max-w-[14rem] rounded-md border border-slate-200 bg-white px-2 text-sm"
+    >
+      <option value="">{emptyLabel}</option>
+      {projects.map((project) => (
+        <option key={project.id} value={project.id}>
+          {project.name}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+interface BoardGroup {
+  key: string | null
+  name: string
+  boards: JiraBoardSummary[]
+}
+
+function groupBoardsBySpace(boards: JiraBoardSummary[]): BoardGroup[] {
+  const groups = new Map<string, BoardGroup>()
+  for (const board of boards) {
+    const name = board.spaceName ?? 'Sem espaço'
+    const group = groups.get(name) ?? { key: board.spaceKey ?? null, name, boards: [] }
+    group.boards.push(board)
+    groups.set(name, group)
+  }
+  return [...groups.values()].sort((a, b) => {
+    if (!a.key !== !b.key) return a.key ? -1 : 1
+    return a.name.localeCompare(b.name, 'pt-BR')
+  })
+}
 
 export function JiraSection({
   status,
@@ -94,6 +147,13 @@ export function JiraSection({
     onStatusChange(await window.api.jiraSaveMapping(mapping))
   }
 
+  async function changeSpaceProject(spaceKey: string, projectId: number | null): Promise<void> {
+    const spaceProjects = { ...status.spaceProjects }
+    if (projectId) spaceProjects[spaceKey] = projectId
+    else delete spaceProjects[spaceKey]
+    onStatusChange(await window.api.jiraSaveOptions({ spaceProjects }))
+  }
+
   async function toggleBoard(boardId: number): Promise<void> {
     const next = status.boardIds.includes(boardId)
       ? status.boardIds.filter((id) => id !== boardId)
@@ -120,7 +180,7 @@ export function JiraSection({
       <SectionHeader
         icon={Ticket}
         title="Jira"
-        description="Carrega as issues atribuídas a você dos boards escolhidos como tasks e pode refletir o status de volta no Jira."
+        description="Carrega as issues atribuídas a você dos boards escolhidos como tasks. O status do Jira fica separado do status da task e muda pelo seletor no card."
         status={jiraStatusInfo(status)}
       />
 
@@ -208,21 +268,35 @@ export function JiraSection({
                 Carregue os boards do seu Jira e marque os que devem alimentar o TickTask.
               </p>
             ) : (
-              <ul className="grid gap-1.5">
-                {status.boards.map((board) => (
-                  <li key={board.id}>
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={status.boardIds.includes(board.id)}
-                        onChange={() => toggleBoard(board.id)}
-                        className="h-4 w-4 accent-slate-900"
-                      />
-                      {board.name}
-                    </label>
-                  </li>
+              <div className="grid gap-4">
+                {groupBoardsBySpace(status.boards).map((group) => (
+                  <div key={group.name} className="space-y-1.5">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {group.name}
+                      {group.key && (
+                        <span className="ml-1.5 font-mono font-normal normal-case text-slate-400">
+                          {group.key}
+                        </span>
+                      )}
+                    </h4>
+                    <ul className="grid gap-1.5">
+                      {group.boards.map((board) => (
+                        <li key={board.id}>
+                          <label className="flex items-center gap-2 text-sm text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={status.boardIds.includes(board.id)}
+                              onChange={() => toggleBoard(board.id)}
+                              className="h-4 w-4 accent-slate-900"
+                            />
+                            {board.name}
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ))}
-              </ul>
+              </div>
             )}
           </div>
 
@@ -251,12 +325,55 @@ export function JiraSection({
             </div>
           </div>
 
+          <div className="space-y-3 pt-4 border-t border-slate-200">
+            <h3 className="text-sm font-medium text-slate-800">Projeto por espaço</h3>
+            <p className="text-xs text-slate-500">
+              Tasks novas vão para o projeto do seu espaço; sem escolha, para o projeto padrão. Na
+              importação, task já vinculada e sem projeto também recebe o projeto do espaço.
+            </p>
+            <ul className="grid gap-2">
+              <li className="flex items-center justify-between gap-3 text-sm text-slate-700">
+                <span className="font-medium">Projeto padrão</span>
+                <ProjectSelect
+                  value={status.projectId}
+                  projects={projects}
+                  emptyLabel="Sem projeto"
+                  onChange={async (projectId) =>
+                    onStatusChange(await window.api.jiraSaveOptions({ projectId }))
+                  }
+                />
+              </li>
+              {status.knownSpaces.map((space) => (
+                <li
+                  key={space.key}
+                  className="flex items-center justify-between gap-3 text-sm text-slate-700"
+                >
+                  <span className="min-w-0 truncate">
+                    {space.name}{' '}
+                    <span className="font-mono text-xs text-slate-400">{space.key}</span>
+                  </span>
+                  <ProjectSelect
+                    value={status.spaceProjects[space.key] ?? null}
+                    projects={projects}
+                    emptyLabel="Projeto padrão"
+                    onChange={(projectId) => changeSpaceProject(space.key, projectId)}
+                  />
+                </li>
+              ))}
+            </ul>
+            {status.knownSpaces.length === 0 && (
+              <p className="text-xs text-slate-400">
+                Os espaços aparecem aqui ao marcar boards ou depois da primeira importação.
+              </p>
+            )}
+          </div>
+
           {status.knownStatuses.length > 0 && (
             <div className="space-y-3 pt-4 border-t border-slate-200">
-              <h3 className="text-sm font-medium text-slate-800">Mapeamento de status</h3>
+              <h3 className="text-sm font-medium text-slate-800">Status inicial das tasks novas</h3>
               <p className="text-xs text-slate-500">
-                Sem escolha, o status segue a categoria do Jira. Escolha um status local para
-                sobrescrever.
+                Vale só quando a importação cria a task. Depois disso o status da task e o status do
+                Jira andam separados. Sem escolha, segue a categoria do Jira.
               </p>
               <ul className="grid gap-2">
                 {status.knownStatuses.map((known) => (
@@ -290,14 +407,6 @@ export function JiraSection({
 
           <div className="space-y-3 pt-4 border-t border-slate-200">
             <ToggleRow
-              title="Enviar status ao Jira"
-              description="Ao mudar o status de uma task vinculada, o TickTask tenta fazer a transição correspondente na issue."
-              checked={status.pushStatus}
-              onChange={async () =>
-                onStatusChange(await window.api.jiraSaveOptions({ pushStatus: !status.pushStatus }))
-              }
-            />
-            <ToggleRow
               title="Sincronizar tasks do Jira com o Notion"
               description="Envia as tasks vinculadas ao Jira para o banco do Notion, junto com as demais."
               checked={status.syncToNotion}
@@ -321,27 +430,6 @@ export function JiraSection({
                 {AUTO_IMPORT_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center justify-between gap-3 text-sm text-slate-700">
-              Projeto das tasks novas
-              <select
-                value={status.projectId ?? ''}
-                onChange={async (e) =>
-                  onStatusChange(
-                    await window.api.jiraSaveOptions({
-                      projectId: e.target.value ? Number(e.target.value) : null
-                    })
-                  )
-                }
-                className="h-8 max-w-[14rem] rounded-md border border-slate-200 bg-white px-2 text-sm"
-              >
-                <option value="">Sem projeto</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
                   </option>
                 ))}
               </select>

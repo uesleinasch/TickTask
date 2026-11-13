@@ -1,33 +1,42 @@
 import { app, safeStorage } from 'electron'
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import {
-  STATUS_LABELS,
-  type JiraCredentialsInput,
-  type JiraImportResult,
-  type JiraKnownStatus,
-  type JiraOptionsInput,
-  type JiraStatus,
-  type Task,
-  type TaskStatus
+import type {
+  JiraCredentialsInput,
+  JiraFieldInput,
+  JiraFieldOption,
+  JiraImportResult,
+  JiraIssueFields,
+  JiraKnownStatus,
+  JiraOptionsInput,
+  JiraSpace,
+  JiraStatus,
+  JiraTransitionOption,
+  JiraUser,
+  Task
 } from '@shared/types'
 import {
   createJiraLinkedTask,
+  getJiraDescriptionState,
   getTask,
   listJiraLinkedTasks,
-  setTaskJiraStatus,
+  listProjects,
+  saveJiraDescriptionSync,
   updateJiraLinkedTask,
   type JiraLinkedTask
 } from './database'
 import { createKeyedQueue } from './gcalSyncQueue'
+import { collectAdfMedia, parseDoc, prosemirrorToAdf, type DocNode } from './jiraAdf'
 import { createJiraApi, type JiraApi, type JiraBoard, type JiraIssue } from './jiraApi'
+import { describeIssueFields, isSprintField, toJiraValue } from './jiraFields'
 import {
-  hasJiraEquivalent,
-  mapJiraStatusToLocal,
+  buildIssueUrl,
   normalizeJiraSite,
-  pickTransitionFor,
+  planDescriptionImport,
   planImport,
   type ImportOp,
+  type SpaceProjects,
   type StatusMapping
 } from './jiraPlan'
 
@@ -39,8 +48,9 @@ interface StoredConfig {
   boardIds?: number[]
   boards?: JiraBoard[]
   knownStatuses?: JiraKnownStatus[]
+  knownSpaces?: JiraSpace[]
+  spaceProjects?: SpaceProjects
   statusMapping?: StatusMapping
-  pushStatus?: boolean
   syncToNotion?: boolean
   autoImportMinutes?: number
   projectId?: number | null
@@ -109,10 +119,16 @@ function apiFor(connection: Connection): JiraApi {
   })
 }
 
-function requireApi(): JiraApi {
+const NOT_CONNECTED = 'Jira não está conectado. Preencha o site, e-mail e API token.'
+
+function requireConnection(): Connection {
   const connection = currentConnection()
-  if (!connection) throw new Error('Jira não está conectado. Preencha o site, e-mail e API token.')
-  return apiFor(connection)
+  if (!connection) throw new Error(NOT_CONNECTED)
+  return connection
+}
+
+function requireApi(): JiraApi {
+  return apiFor(requireConnection())
 }
 
 export function getJiraStatus(): JiraStatus {
@@ -125,8 +141,9 @@ export function getJiraStatus(): JiraStatus {
     boardIds: config.boardIds ?? [],
     boards: config.boards ?? [],
     knownStatuses: config.knownStatuses ?? [],
+    knownSpaces: knownSpaces(config),
+    spaceProjects: config.spaceProjects ?? {},
     statusMapping: config.statusMapping ?? {},
-    pushStatus: config.pushStatus ?? false,
     syncToNotion: config.syncToNotion ?? false,
     autoImportMinutes: config.autoImportMinutes ?? 0,
     projectId: config.projectId ?? null,
@@ -151,12 +168,14 @@ export function saveJiraCredentials(input: JiraCredentialsInput): JiraStatus {
     site,
     email,
     ...(token ? sealToken(token) : {}),
-    ...(accountChanged ? { boardIds: [], boards: [], knownStatuses: [], lastImportAt: null } : {})
+    ...(accountChanged
+      ? { boardIds: [], boards: [], knownStatuses: [], knownSpaces: [], lastImportAt: null }
+      : {})
   })
   return getJiraStatus()
 }
 
-export async function testJiraConnection(): Promise<{ displayName: string }> {
+export async function testJiraConnection(): Promise<JiraUser> {
   return requireApi().getMyself()
 }
 
@@ -173,21 +192,23 @@ export function saveJiraBoards(boardIds: number[]): JiraStatus {
 
 export function saveJiraMapping(mapping: StatusMapping): JiraStatus {
   updateConfig({ statusMapping: mapping })
-  lastSyncedStatus.clear()
   return getJiraStatus()
 }
 
 export function saveJiraOptions(input: JiraOptionsInput): JiraStatus {
   const patch: Partial<StoredConfig> = {}
-  if (input.pushStatus !== undefined) {
-    patch.pushStatus = input.pushStatus
-    lastSyncedStatus.clear()
-  }
   if (input.syncToNotion !== undefined) patch.syncToNotion = input.syncToNotion
   if (input.autoImportMinutes !== undefined) {
     patch.autoImportMinutes = Math.max(0, Math.round(input.autoImportMinutes))
   }
   if (input.projectId !== undefined) patch.projectId = input.projectId
+  if (input.spaceProjects !== undefined) {
+    patch.spaceProjects = Object.fromEntries(
+      Object.entries(input.spaceProjects).filter(
+        ([key, id]) => key && Number.isInteger(id) && id > 0
+      )
+    )
+  }
   updateConfig(patch)
   return getJiraStatus()
 }
@@ -206,6 +227,7 @@ export function disconnectJira(): JiraStatus {
     boardIds: [],
     boards: [],
     knownStatuses: [],
+    knownSpaces: [],
     lastImportAt: null
   })
   return getJiraStatus()
@@ -216,7 +238,7 @@ const IMPORT_TICK_MS = 60_000
 export async function importJiraIssues(): Promise<JiraImportResult> {
   const config = readConfig()
   const connection = currentConnection(config)
-  if (!connection) throw new Error('Jira não está conectado. Preencha o site, e-mail e API token.')
+  if (!connection) throw new Error(NOT_CONNECTED)
   if (!config.boardIds?.length) throw new Error('Escolha ao menos um board antes de importar.')
 
   updateConfig({ lastImportAt: new Date().toISOString() })
@@ -231,10 +253,31 @@ export async function importJiraIssues(): Promise<JiraImportResult> {
 
   const linked = new Map<string, JiraLinkedTask>()
   for (const task of listJiraLinkedTasks()) linked.set(task.jira_key, task)
-  const ops = planImport(issues, linked, connection.site, config.statusMapping ?? {})
+  const projects = existingProjects(config)
+  const ops = planImport(
+    issues,
+    linked,
+    connection.site,
+    config.statusMapping ?? {},
+    projects.spaceProjects
+  )
 
-  const taskIds = ops.flatMap((op) => (op.type === 'noop' ? [] : [applyImportOp(op, config)]))
-  updateConfig({ knownStatuses: collectKnownStatuses(issues) })
+  const taskIdByKey = new Map<string, number>()
+  const changedIds = new Set<number>()
+  for (const op of ops) {
+    if (op.type === 'noop') taskIdByKey.set(op.key, op.id)
+    else {
+      const id = applyImportOp(op, projects.defaultProjectId)
+      taskIdByKey.set(op.key, id)
+      changedIds.add(id)
+    }
+  }
+  for (const id of await importDescriptions(api, taskIdByKey)) changedIds.add(id)
+  updateConfig({
+    knownStatuses: collectKnownStatuses(issues),
+    knownSpaces: mergeKnownSpaces(config.knownSpaces ?? [], issues)
+  })
+  const taskIds = [...changedIds]
 
   return {
     created: ops.filter((op) => op.type === 'create').length,
@@ -244,7 +287,43 @@ export async function importJiraIssues(): Promise<JiraImportResult> {
   }
 }
 
-function applyImportOp(op: Exclude<ImportOp, { type: 'noop' }>, config: StoredConfig): number {
+function existingProjects(config: StoredConfig): {
+  spaceProjects: SpaceProjects
+  defaultProjectId: number | null
+} {
+  const ids = new Set(listProjects().map((project) => project.id))
+  const spaceProjects = Object.fromEntries(
+    Object.entries(config.spaceProjects ?? {}).filter(([, id]) => ids.has(id))
+  )
+  const defaultProjectId = config.projectId && ids.has(config.projectId) ? config.projectId : null
+  return { spaceProjects, defaultProjectId }
+}
+
+function knownSpaces(config: StoredConfig): JiraSpace[] {
+  const byKey = new Map<string, JiraSpace>()
+  for (const board of config.boards ?? []) {
+    if (board.spaceKey && config.boardIds?.includes(board.id)) {
+      byKey.set(board.spaceKey, { key: board.spaceKey, name: board.spaceName ?? board.spaceKey })
+    }
+  }
+  for (const space of config.knownSpaces ?? []) byKey.set(space.key, space)
+  return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+}
+
+function mergeKnownSpaces(previous: JiraSpace[], issues: JiraIssue[]): JiraSpace[] {
+  const byKey = new Map(previous.map((space) => [space.key, space]))
+  for (const issue of issues) {
+    if (issue.spaceKey) {
+      byKey.set(issue.spaceKey, { key: issue.spaceKey, name: issue.spaceName ?? issue.spaceKey })
+    }
+  }
+  return [...byKey.values()]
+}
+
+function applyImportOp(
+  op: Exclude<ImportOp, { type: 'noop' }>,
+  defaultProjectId: number | null
+): number {
   if (op.type === 'create') {
     const { fields } = op
     return createJiraLinkedTask(
@@ -252,13 +331,17 @@ function applyImportOp(op: Exclude<ImportOp, { type: 'noop' }>, config: StoredCo
         name: fields.name,
         due_date: fields.due_date ?? undefined,
         external_url: fields.external_url,
-        project_id: config.projectId ?? undefined
+        project_id: fields.project_id ?? defaultProjectId ?? undefined
       },
-      { jiraKey: op.key, jiraStatus: fields.jira_status, status: fields.status }
+      {
+        jiraKey: op.key,
+        jiraStatus: fields.jira_status,
+        jiraSpace: fields.jira_space,
+        status: fields.status
+      }
     )
   }
   updateJiraLinkedTask(op.id, op.patch)
-  lastSyncedStatus.delete(op.id)
   return op.id
 }
 
@@ -283,44 +366,212 @@ export function startJiraScheduler(onDue: () => void): () => void {
   return () => clearInterval(timer)
 }
 
-const lastSyncedStatus = new Map<number, TaskStatus>()
+let reportBackgroundError: (error: unknown) => void = (error) =>
+  console.error('[jira] erro em segundo plano:', error)
 
-async function pushStatusToJira(taskId: number): Promise<void> {
-  const config = readConfig()
-  if (!config.pushStatus) return
-  const connection = currentConnection(config)
-  const task = getTask(taskId)
-  if (!connection || !task?.jira_key || lastSyncedStatus.get(taskId) === task.status) return
-
-  const mapping = config.statusMapping ?? {}
-  if (!hasJiraEquivalent(task.status, mapping)) {
-    lastSyncedStatus.set(taskId, task.status)
-    return
-  }
-
-  const api = apiFor(connection)
-  const current = await api.getIssueStatus(task.jira_key)
-  let jiraStatus = current.statusName
-  if (mapJiraStatusToLocal(current, mapping) !== task.status) {
-    const transition = pickTransitionFor(
-      task.status,
-      await api.listTransitions(task.jira_key),
-      mapping
-    )
-    if (!transition) {
-      throw new Error(
-        `${task.jira_key}: o Jira não tem transição de "${current.statusName}" para um status equivalente a "${STATUS_LABELS[task.status]}".`
-      )
-    }
-    await api.doTransition(task.jira_key, transition.id)
-    jiraStatus = transition.toName
-  }
-  setTaskJiraStatus(taskId, jiraStatus)
-  lastSyncedStatus.set(taskId, task.status)
+export function onJiraBackgroundError(handler: (error: unknown) => void): void {
+  reportBackgroundError = handler
 }
 
-const schedulePush = createKeyedQueue(pushStatusToJira)
+const sha1 = (text: string): string => createHash('sha1').update(text).digest('hex')
+const hashDescription = (adf: DocNode | null): string => sha1(JSON.stringify(adf ?? null))
+const hashNotes = (notes: string | null): string => sha1(notes ?? '')
 
-export function scheduleJiraStatusPush(taskId: number): Promise<void> {
-  return schedulePush(taskId)
+async function importDescriptions(
+  api: JiraApi,
+  taskIdByKey: Map<string, number>
+): Promise<number[]> {
+  if (taskIdByKey.size === 0) return []
+  const descriptions = await api.getDescriptions([...taskIdByKey.keys()])
+  const changed: number[] = []
+  for (const [key, taskId] of taskIdByKey) {
+    if (!descriptions.has(key)) continue
+    const state = getJiraDescriptionState(taskId)
+    if (!state) continue
+    const description = descriptions.get(key) ?? null
+    const descHash = hashDescription(description)
+    const plan = planDescriptionImport(description, descHash, state)
+    switch (plan.type) {
+      case 'none':
+        break
+      case 'replace':
+        saveJiraDescriptionSync(taskId, {
+          descHash,
+          notesHash: hashNotes(plan.notes),
+          notes: plan.notes
+        })
+        changed.push(taskId)
+        break
+      case 'merge':
+        saveJiraDescriptionSync(taskId, { descHash, notesHash: '', notes: plan.notes })
+        changed.push(taskId)
+        scheduleJiraDescriptionPush(taskId)
+        break
+      case 'push':
+        saveJiraDescriptionSync(taskId, { descHash, notesHash: '' })
+        scheduleJiraDescriptionPush(taskId)
+        break
+    }
+  }
+  return changed
+}
+
+async function pushDescription(taskId: number): Promise<void> {
+  const state = getJiraDescriptionState(taskId)
+  if (!state?.jira_key || state.jira_desc_hash === null) return
+  const notesHash = hashNotes(state.notes)
+  if (notesHash === state.jira_notes_hash) return
+  const connection = currentConnection()
+  if (!connection) return
+
+  const api = apiFor(connection)
+  const [current] = (await api.getDescriptions([state.jira_key])).values()
+  const description = prosemirrorToAdf(parseDoc(state.notes), collectAdfMedia(current ?? null))
+  await api.updateIssue(state.jira_key, { description })
+  const [saved] = (await api.getDescriptions([state.jira_key])).values()
+  saveJiraDescriptionSync(taskId, { descHash: hashDescription(saved ?? null), notesHash })
+}
+
+const runDescriptionPush = createKeyedQueue(pushDescription)
+const DESCRIPTION_PUSH_DELAY_MS = 2000
+const pendingDescriptionPush = new Map<number, ReturnType<typeof setTimeout>>()
+
+function needsDescriptionPush(taskId: number): boolean {
+  const state = getJiraDescriptionState(taskId)
+  return (
+    !!state?.jira_key &&
+    state.jira_desc_hash !== null &&
+    hashNotes(state.notes) !== state.jira_notes_hash
+  )
+}
+
+export function scheduleJiraDescriptionPush(taskId: number): void {
+  if (!needsDescriptionPush(taskId)) return
+  clearTimeout(pendingDescriptionPush.get(taskId))
+  pendingDescriptionPush.set(
+    taskId,
+    setTimeout(() => {
+      pendingDescriptionPush.delete(taskId)
+      runDescriptionPush(taskId).catch(reportBackgroundError)
+    }, DESCRIPTION_PUSH_DELAY_MS)
+  )
+}
+
+function linkedIssueKey(taskId: number): string {
+  const key = getTask(taskId)?.jira_key
+  if (!key) throw new Error('Esta task não está vinculada ao Jira.')
+  return key
+}
+
+async function refreshLinkedTask(
+  api: JiraApi,
+  connection: Connection,
+  taskId: number
+): Promise<void> {
+  const existing = listJiraLinkedTasks().find((task) => task.id === taskId)
+  if (!existing) return
+  const issue = await api.getIssue(existing.jira_key)
+  const config = readConfig()
+  const [op] = planImport(
+    [issue],
+    new Map([[issue.key, existing]]),
+    connection.site,
+    config.statusMapping ?? {},
+    existingProjects(config).spaceProjects
+  )
+  if (op?.type === 'update') updateJiraLinkedTask(op.id, op.patch)
+}
+
+export async function listJiraTransitions(taskId: number): Promise<JiraTransitionOption[]> {
+  const transitions = await requireApi().listTransitions(linkedIssueKey(taskId))
+  return transitions.map((t) => ({ id: t.id, name: t.toName, category: t.toCategory }))
+}
+
+export async function transitionJiraIssue(taskId: number, transitionId: string): Promise<void> {
+  const connection = requireConnection()
+  const api = apiFor(connection)
+  await api.doTransition(linkedIssueKey(taskId), transitionId)
+  await refreshLinkedTask(api, connection, taskId)
+}
+
+let cachedMe: { account: string; me: JiraUser } | null = null
+
+async function currentUser(api: JiraApi, connection: Connection): Promise<JiraUser | null> {
+  const account = `${connection.site}|${connection.email}`
+  if (cachedMe?.account !== account) {
+    try {
+      cachedMe = { account, me: await api.getMyself() }
+    } catch {
+      return null
+    }
+  }
+  return cachedMe.me
+}
+
+async function sprintOptions(
+  api: JiraApi,
+  issue: { fields: Record<string, unknown> },
+  sprintFieldIds: string[]
+): Promise<JiraFieldOption[]> {
+  if (sprintFieldIds.length === 0) return []
+  const boardIds = new Set(readConfig().boardIds ?? [])
+  for (const id of sprintFieldIds) {
+    const value = issue.fields[id]
+    if (!Array.isArray(value)) continue
+    for (const sprint of value as { boardId?: number }[]) {
+      if (typeof sprint?.boardId === 'number') boardIds.add(sprint.boardId)
+    }
+  }
+  const options = new Map<string, JiraFieldOption>()
+  for (const boardId of boardIds) {
+    const sprints = await api.listOpenSprints(boardId).catch(() => [])
+    for (const sprint of sprints) {
+      const label = sprint.state === 'active' ? `${sprint.name} (ativa)` : sprint.name
+      options.set(String(sprint.id), { id: String(sprint.id), label })
+    }
+  }
+  return [...options.values()]
+}
+
+export async function getJiraIssueFields(taskId: number): Promise<JiraIssueFields> {
+  const connection = requireConnection()
+  const api = apiFor(connection)
+  const key = linkedIssueKey(taskId)
+  const raw = await api.getIssueWithEditMeta(key)
+  const meta = raw.editmeta?.fields ?? {}
+  const sprintIds = Object.keys(meta).filter((id) => isSprintField(meta[id]))
+  const status = raw.fields.status as { name?: string } | undefined
+  return {
+    key,
+    url: buildIssueUrl(connection.site, key),
+    statusName: status?.name ?? '',
+    fields: describeIssueFields(raw, await sprintOptions(api, raw, sprintIds)),
+    me: await currentUser(api, connection)
+  }
+}
+
+export async function updateJiraIssueField(
+  taskId: number,
+  fieldId: string,
+  input: JiraFieldInput
+): Promise<JiraIssueFields> {
+  const connection = requireConnection()
+  const api = apiFor(connection)
+  const key = linkedIssueKey(taskId)
+  const field = describeIssueFields(await api.getIssueWithEditMeta(key)).find(
+    (f) => f.id === fieldId
+  )
+  if (!field) throw new Error('Este campo não pode ser editado nesta issue.')
+  await api.updateIssue(key, { [fieldId]: toJiraValue(field, input) })
+  await refreshLinkedTask(api, connection, taskId)
+  return getJiraIssueFields(taskId)
+}
+
+export async function searchJiraUsers(
+  taskId: number,
+  fieldId: string,
+  query: string
+): Promise<JiraUser[]> {
+  const key = linkedIssueKey(taskId)
+  return requireApi().searchUsers(query, fieldId === 'assignee' ? key : undefined)
 }

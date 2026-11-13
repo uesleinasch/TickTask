@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { StatusBadge } from './StatusBadge'
+import { JiraTaskControls } from './jira/JiraTaskControls'
 import { CategoryBadge } from './CategoryBadge'
 import { DueDateBadge } from './DueDateBadge'
 import { ScheduledTimeBadge } from './ScheduledTimeBadge'
@@ -253,6 +254,7 @@ export function TaskTable({
                             {task.completed_subtask_count}/{task.subtask_count}
                           </span>
                         )}
+                        <JiraTaskControls task={task} className="shrink-0" />
                       </div>
                       {task.description && (
                         <p className="text-xs text-slate-400 truncate max-w-md">

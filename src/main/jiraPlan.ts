@@ -1,7 +1,9 @@
 import type { TaskStatus } from '@shared/types'
-import type { JiraIssue, JiraStatusCategory, JiraTransition } from './jiraApi'
+import type { JiraIssue, JiraStatusCategory } from './jiraApi'
+import { adfToProsemirror, isEmptyDoc, parseDoc, type DocNode } from './jiraAdf'
 
 export type StatusMapping = Record<string, TaskStatus>
+export type SpaceProjects = Record<string, number>
 
 export const DEFAULT_STATUS_BY_CATEGORY: Record<JiraStatusCategory, TaskStatus> = {
   new: 'inbox',
@@ -16,26 +18,6 @@ export function mapJiraStatusToLocal(
   return mapping[issue.statusName] ?? DEFAULT_STATUS_BY_CATEGORY[issue.statusCategory]
 }
 
-export function hasJiraEquivalent(local: TaskStatus, mapping: StatusMapping): boolean {
-  return (
-    Object.values(mapping).includes(local) ||
-    Object.values(DEFAULT_STATUS_BY_CATEGORY).includes(local)
-  )
-}
-
-export function pickTransitionFor(
-  local: TaskStatus,
-  transitions: JiraTransition[],
-  mapping: StatusMapping
-): JiraTransition | undefined {
-  const reaching = transitions.filter(
-    (t) =>
-      mapJiraStatusToLocal({ statusName: t.toName, statusCategory: t.toCategory }, mapping) ===
-      local
-  )
-  return reaching.find((t) => mapping[t.toName] === local) ?? reaching[0]
-}
-
 export function buildIssueUrl(site: string, key: string): string {
   return `https://${site}/browse/${encodeURIComponent(key)}`
 }
@@ -43,35 +25,38 @@ export function buildIssueUrl(site: string, key: string): string {
 export interface ExistingJiraTask {
   id: number
   name: string
-  status: TaskStatus
   due_date: string | null
   external_url: string | null
   jira_status: string | null
+  jira_space: string | null
+  project_id: number | null
 }
 
 export interface JiraTaskFields {
   name: string
-  status: TaskStatus
   due_date: string | null
   external_url: string
   jira_status: string
+  jira_space: string | null
+  project_id: number | null
 }
 
 export type ImportOp =
-  | { type: 'create'; key: string; fields: JiraTaskFields }
-  | { type: 'update'; id: number; patch: Partial<JiraTaskFields> }
-  | { type: 'noop'; id: number }
+  | { type: 'create'; key: string; fields: JiraTaskFields & { status: TaskStatus } }
+  | { type: 'update'; key: string; id: number; patch: Partial<JiraTaskFields> }
+  | { type: 'noop'; key: string; id: number }
 
 export function planImport(
   issues: JiraIssue[],
   existingByKey: Map<string, ExistingJiraTask>,
   site: string,
-  mapping: StatusMapping
+  mapping: StatusMapping,
+  spaceProjects: SpaceProjects = {}
 ): ImportOp[] {
   const ops: ImportOp[] = []
   for (const issue of issues) {
-    const status = mapJiraStatusToLocal(issue, mapping)
     const url = buildIssueUrl(site, issue.key)
+    const spaceProject = issue.spaceKey ? (spaceProjects[issue.spaceKey] ?? null) : null
     const existing = existingByKey.get(issue.key)
 
     if (!existing) {
@@ -81,10 +66,12 @@ export function planImport(
         key: issue.key,
         fields: {
           name: issue.summary,
-          status,
+          status: mapJiraStatusToLocal(issue, mapping),
           due_date: issue.dueDate,
           external_url: url,
-          jira_status: issue.statusName
+          jira_status: issue.statusName,
+          jira_space: issue.spaceName,
+          project_id: spaceProject
         }
       })
       continue
@@ -96,18 +83,51 @@ export function planImport(
     if (issue.dueDate && existing.due_date?.slice(0, 10) !== issue.dueDate) {
       patch.due_date = issue.dueDate
     }
-    if (existing.jira_status !== issue.statusName) {
-      patch.jira_status = issue.statusName
-      if (existing.status !== status) patch.status = status
+    if (existing.jira_status !== issue.statusName) patch.jira_status = issue.statusName
+    if (issue.spaceName && existing.jira_space !== issue.spaceName) {
+      patch.jira_space = issue.spaceName
     }
+    if (existing.project_id === null && spaceProject !== null) patch.project_id = spaceProject
 
     ops.push(
       Object.keys(patch).length > 0
-        ? { type: 'update', id: existing.id, patch }
-        : { type: 'noop', id: existing.id }
+        ? { type: 'update', key: issue.key, id: existing.id, patch }
+        : { type: 'noop', key: issue.key, id: existing.id }
     )
   }
   return ops
+}
+
+export interface DescriptionSyncState {
+  notes: string | null
+  jira_desc_hash: string | null
+}
+
+export type DescriptionImport =
+  | { type: 'none' }
+  | { type: 'replace'; notes: string | null }
+  | { type: 'merge'; notes: string }
+  | { type: 'push' }
+
+export function planDescriptionImport(
+  description: DocNode | null,
+  descriptionHash: string,
+  state: DescriptionSyncState
+): DescriptionImport {
+  if (state.jira_desc_hash === descriptionHash) return { type: 'none' }
+
+  const fromJira = isEmptyDoc(description) ? null : adfToProsemirror(description)
+  const local = parseDoc(state.notes)
+  const firstSync = state.jira_desc_hash === null
+  if (!firstSync || isEmptyDoc(local)) {
+    return { type: 'replace', notes: fromJira ? JSON.stringify(fromJira) : null }
+  }
+  if (!fromJira) return { type: 'push' }
+  const merged: DocNode = {
+    type: 'doc',
+    content: [...(fromJira.content ?? []), { type: 'horizontalRule' }, ...(local?.content ?? [])]
+  }
+  return { type: 'merge', notes: JSON.stringify(merged) }
 }
 
 const JIRA_CLOUD_HOST = /^[a-z0-9-]+\.atlassian\.net$/

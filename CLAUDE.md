@@ -162,19 +162,28 @@ block também sincronizam. No MCP, use `afterCalendarChange(ids)`.
 
 ## Jira
 
-Jira Cloud com e-mail + API token (Basic auth), em duas vias só para status. Mesmo desenho do
-Google: `jiraApi.ts` (REST puro, `fetch` injetado), `jiraPlan.ts` (mapeamento, escolha de transição
-e diff de importação, puros e testados) e `jira.ts` (lado Electron: `userData/jira-config.json`,
-token via `safeStorage`, importação, envio de status e agendador).
+Jira Cloud com e-mail + API token (Basic auth). Mesmo desenho do Google: `jiraApi.ts` (REST puro,
+`fetch` injetado), `jiraPlan.ts` (mapeamento inicial, diff de importação e plano da descrição),
+`jiraAdf.ts` (ADF ↔ ProseMirror), `jiraFields.ts` (editmeta → campos editáveis e valor do PUT) —
+todos puros e testados — e `jira.ts` (lado Electron: `userData/jira-config.json`, token via
+`safeStorage`, importação, transições, campos, envio da descrição e agendador).
 
 - A importação traz as issues atribuídas ao usuário nos boards escolhidos e faz upsert por
-  `tasks.jira_key` (índice único). Ela escreve direto no banco, sem passar pelos handlers `task:*`,
-  para não reenviar ao Jira o que acabou de ler.
-- `tasks.jira_status` guarda o último status lido no Jira. A importação só muda o status local
-  quando esse valor muda; o envio grava o status de destino. É isso que impede uma importação de
-  desfazer uma mudança local.
-- O envio ao Jira sai de `autoSyncTask(id)` (então cobre IPC e MCP) e é serializado por task com
-  `createKeyedQueue`. Status local sem equivalente no mapeamento não é enviado.
+  `tasks.jira_key` (índice único). Ela escreve direto no banco, sem passar pelos handlers `task:*`.
+- **Status do Jira e status da task são independentes.** O mapeamento só escolhe o status inicial
+  de task nova; depois a importação atualiza só `tasks.jira_status` (e `tasks.jira_space`, o nome do
+  espaço/projeto da issue). `spaceProjects` (config) leva cada espaço a um projeto local: vale para
+  task nova e para task vinculada ainda sem projeto. O status no Jira muda apenas
+  pelo seletor de transições (`jira:transition`), nunca ao mover a task no TickTask.
+- O painel lateral (`components/jira/JiraFieldsSheet.tsx`) lê `issue?expand=editmeta` e grava cada
+  campo com PUT na issue (`jira:updateField`). Depois de transição ou edição, a task é relida do
+  Jira (nome, prazo, status Jira).
+- **Descrição ↔ notas**: a importação converte a descrição (ADF) em notas Tiptap; salvar as notas
+  envia de volta (`scheduleJiraDescriptionPush`, com debounce, chamado por `task:updateNotes` e por
+  `autoSyncTask`, então cobre o MCP). `jira_desc_hash`/`jira_notes_hash` guardam o último estado
+  sincronizado dos dois lados e evitam laço. Se a descrição mudou no Jira, ela vence. Imagens do
+  Jira viram o marcador `🖼 jira-media:<id>` nas notas e voltam como o nó original no envio;
+  imagens locais não vão ao Jira.
 - Tasks com `jira_key` só vão ao Notion com o opt-in ligado: todo caminho que sincroniza com o
   Notion filtra com `jiraNotionFilter()`.
 - `jira-config.json` fica fora do backup pelo mesmo motivo do `gcal-config.json`.
