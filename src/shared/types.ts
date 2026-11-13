@@ -191,7 +191,13 @@ export interface Task {
   jira_key?: string | null
   jira_status?: string | null
   jira_space?: string | null
+  jira_issue_type?: string | null
+  jira_issue_kind?: JiraIssueKind | null
+  jira_parent_key?: string | null
+  jira_parent_summary?: string | null
 }
+
+export type JiraIssueKind = 'epic' | 'story' | 'task' | 'bug' | 'subtask'
 
 export interface CreateTaskInput {
   name: string

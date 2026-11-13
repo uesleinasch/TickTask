@@ -1,5 +1,5 @@
-import type { TaskStatus } from '@shared/types'
-import type { JiraIssue, JiraStatusCategory } from './jiraApi'
+import type { JiraIssueKind, TaskStatus } from '@shared/types'
+import type { JiraIssue, JiraIssueType, JiraStatusCategory } from './jiraApi'
 import { adfToProsemirror, isEmptyDoc, parseDoc, type DocNode } from './jiraAdf'
 
 export type StatusMapping = Record<string, TaskStatus>
@@ -22,7 +22,26 @@ export function buildIssueUrl(site: string, key: string): string {
   return `https://${site}/browse/${encodeURIComponent(key)}`
 }
 
-export interface ExistingJiraTask {
+export function classifyIssueType(type: JiraIssueType | null): JiraIssueKind | null {
+  if (!type) return null
+  if (type.subtask || (type.hierarchyLevel !== null && type.hierarchyLevel < 0)) return 'subtask'
+  if (type.hierarchyLevel !== null && type.hierarchyLevel > 0) return 'epic'
+  const name = type.name.toLowerCase()
+  if (/epic|épico/.test(name)) return 'epic'
+  if (/sub-?task|subtarefa/.test(name)) return 'subtask'
+  if (/story|hist[oó]ria/.test(name)) return 'story'
+  if (/bug|defeito/.test(name)) return 'bug'
+  return 'task'
+}
+
+export interface JiraHierarchyFields {
+  jira_issue_type: string | null
+  jira_issue_kind: JiraIssueKind | null
+  jira_parent_key: string | null
+  jira_parent_summary: string | null
+}
+
+export interface ExistingJiraTask extends JiraHierarchyFields {
   id: number
   name: string
   due_date: string | null
@@ -32,13 +51,22 @@ export interface ExistingJiraTask {
   project_id: number | null
 }
 
-export interface JiraTaskFields {
+export interface JiraTaskFields extends JiraHierarchyFields {
   name: string
   due_date: string | null
   external_url: string
   jira_status: string
   jira_space: string | null
   project_id: number | null
+}
+
+function hierarchyOf(issue: JiraIssue): JiraHierarchyFields {
+  return {
+    jira_issue_type: issue.issueType?.name ?? null,
+    jira_issue_kind: classifyIssueType(issue.issueType),
+    jira_parent_key: issue.parentKey,
+    jira_parent_summary: issue.parentSummary
+  }
 }
 
 export type ImportOp =
@@ -58,6 +86,7 @@ export function planImport(
     const url = buildIssueUrl(site, issue.key)
     const spaceProject = issue.spaceKey ? (spaceProjects[issue.spaceKey] ?? null) : null
     const existing = existingByKey.get(issue.key)
+    const hierarchy = hierarchyOf(issue)
 
     if (!existing) {
       if (issue.statusCategory === 'done') continue
@@ -71,7 +100,8 @@ export function planImport(
           external_url: url,
           jira_status: issue.statusName,
           jira_space: issue.spaceName,
-          project_id: spaceProject
+          project_id: spaceProject,
+          ...hierarchy
         }
       })
       continue
@@ -88,6 +118,9 @@ export function planImport(
       patch.jira_space = issue.spaceName
     }
     if (existing.project_id === null && spaceProject !== null) patch.project_id = spaceProject
+    for (const field of Object.keys(hierarchy) as (keyof JiraHierarchyFields)[]) {
+      if (existing[field] !== hierarchy[field]) Object.assign(patch, { [field]: hierarchy[field] })
+    }
 
     ops.push(
       Object.keys(patch).length > 0
