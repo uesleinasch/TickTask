@@ -76,6 +76,7 @@ export interface JiraApi {
   doTransition: (issueKey: string, transitionId: string) => Promise<void>
   listOpenSprints: (boardId: number) => Promise<JiraSprint[]>
   searchUsers: (query: string, assignableTo?: string) => Promise<JiraAccount[]>
+  listChildIssues: (parentKey: string) => Promise<JiraIssue[]>
   addWorklog: (issueKey: string, worklog: JiraWorklogInput) => Promise<string>
   deleteWorklog: (issueKey: string, worklogId: string) => Promise<void>
 }
@@ -261,6 +262,26 @@ export function createJiraApi(deps: JiraApiDeps): JiraApi {
       return users
         .filter((u) => !u.accountType || u.accountType === 'atlassian')
         .map((u) => ({ accountId: u.accountId, displayName: u.displayName }))
+    },
+
+    async listChildIssues(parentKey) {
+      const issues: JiraIssue[] = []
+      let nextPageToken: string | undefined
+      do {
+        const page = await request<{ issues: RawIssue[]; nextPageToken?: string }>(
+          'POST',
+          '/rest/api/3/search/jql',
+          {
+            jql: `parent = "${parentKey.replace(/"/g, '')}" ORDER BY key`,
+            fields: ISSUE_FIELDS.split(','),
+            maxResults: SEARCH_BATCH,
+            ...(nextPageToken ? { nextPageToken } : {})
+          }
+        )
+        issues.push(...page.issues.map(toIssue))
+        nextPageToken = page.nextPageToken
+      } while (nextPageToken)
+      return issues
     },
 
     async addWorklog(issueKey, worklog) {

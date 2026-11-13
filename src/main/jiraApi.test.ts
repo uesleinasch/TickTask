@@ -158,6 +158,23 @@ describe('createJiraApi', () => {
     expect(calls[0].url).toContain('fields=summary,status,duedate,project,issuetype,parent')
   })
 
+  it('lista as issues filhas pelo JQL de parent, paginando', async () => {
+    const { api, calls } = setup((_, init) => {
+      const body = JSON.parse(String(init.body)) as { nextPageToken?: string }
+      return body.nextPageToken
+        ? jsonResponse(200, { issues: [issue('ABC-3', 'A Fazer', 'new')] })
+        : jsonResponse(200, { issues: [issue('ABC-2', 'A Fazer', 'new')], nextPageToken: 'p2' })
+    })
+    const children = await api.listChildIssues('ABC-1')
+    expect(children.map((c) => c.key)).toEqual(['ABC-2', 'ABC-3'])
+    expect(calls[0]).toMatchObject({
+      method: 'POST',
+      url: 'https://jacto.atlassian.net/rest/api/3/search/jql',
+      body: { jql: 'parent = "ABC-1" ORDER BY key' }
+    })
+    expect(calls[1].body).toMatchObject({ nextPageToken: 'p2' })
+  })
+
   it('cria worklog e devolve o id', async () => {
     const { api, calls } = setup(() => jsonResponse(201, { id: '10500' }))
     const id = await api.addWorklog('ABC-1', {
