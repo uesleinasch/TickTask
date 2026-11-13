@@ -57,9 +57,11 @@ import {
   Activity,
   NotebookPen,
   Minimize2,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Network
 } from 'lucide-react'
 import { JiraFieldsSheet } from '@renderer/components/jira/JiraFieldsSheet'
+import { JiraChildIssues } from '@renderer/components/jira/JiraChildIssues'
 import { toast } from '@renderer/components/ui/sonner'
 import type { TaskNotesEditorHandle } from '@renderer/components/editor/TaskNotesEditor'
 import { parseNotes } from '@renderer/components/editor/notesFormat'
@@ -852,6 +854,14 @@ export function SingleTaskPage(): React.JSX.Element {
               />
             </div>
           </div>
+
+          {task.jira_key && task.jira_issue_kind !== 'subtask' && (
+            <JiraChildIssues
+              taskId={task.id}
+              className="px-5 pb-5"
+              header={<SectionHeader icon={Network} label="Issues filhas no Jira" />}
+            />
+          )}
 
           {/* ── SUBTAREFAS ── */}
           {!task.parent_task_id && (
