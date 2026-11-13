@@ -4,6 +4,7 @@ import { Button } from '@renderer/components/ui/button'
 import { SearchableSelect } from '@renderer/components/ui/searchable-select'
 import { StatusSelect } from '@renderer/components/StatusSelect'
 import { JiraTaskControls } from '@renderer/components/jira/JiraTaskControls'
+import { TaskIdBadge } from '@renderer/components/TaskIdBadge'
 import { CategorySelect } from '@renderer/components/CategorySelect'
 import { TimeEntryList } from '@renderer/components/TimeEntryList'
 import { DeleteConfirmDialog } from '@renderer/components/DeleteConfirmDialog'
@@ -625,6 +626,7 @@ export function SingleTaskPage(): React.JSX.Element {
               <ArrowLeft size={16} />
               <span>Voltar</span>
             </button>
+            <TaskIdBadge id={task.id} className="ml-auto mr-2" />
             <div className="scale-90 origin-right">
               <CategorySelect value={task.category || 'normal'} onChange={handleCategoryChange} />
             </div>
