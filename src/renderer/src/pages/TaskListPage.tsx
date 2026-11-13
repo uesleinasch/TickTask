@@ -375,6 +375,18 @@ export function TaskListPage(): React.JSX.Element {
     [filteredTaskIds]
   )
 
+  const toggleGroupSelection = useCallback((taskIds: number[], selected: boolean): void => {
+    setSelectedTaskIds((current) => {
+      if (selected) {
+        const next = new Set(current)
+        for (const id of taskIds) next.add(id)
+        return Array.from(next)
+      }
+      const removed = new Set(taskIds)
+      return current.filter((id) => !removed.has(id))
+    })
+  }, [])
+
   const openConfirm = (action: BulkAction): void => {
     if (selectedCount === 0) {
       toast.error('Selecione pelo menos uma tarefa')
@@ -924,7 +936,7 @@ export function TaskListPage(): React.JSX.Element {
               onTaskClick={handleTaskClick}
               selectedTaskIds={selectedTaskIdSet}
               onToggleTaskSelection={toggleTaskSelection}
-              onToggleSelectAll={toggleSelectAllVisible}
+              onToggleGroupSelection={toggleGroupSelection}
               onScheduleForToday={handleScheduleForToday}
             />
           ) : viewMode === 'cards' ? (
