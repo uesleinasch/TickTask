@@ -228,10 +228,15 @@ Envolve cards ou tabela — respeita o alternador de visualização. Cada grupo 
 cabeçalho clicável que recolhe/expande:
 
 ```
-[▾] [● cor | 🏠 emoji] Nome do grupo   (N)
+[⠿] [▾] [● cor | 🏠 emoji] Nome do grupo   (N)
 ```
 
-Ordenação dos grupos: alfabética `pt-BR`, com "Sem projeto" / "Sem contexto" sempre por último.
+Ordenação dos grupos: alfabética `pt-BR`, com "Sem projeto" / "Sem contexto" por último — até o
+usuário arrastar um grupo pela alça `⠿` (`GripVertical`). A ordem personalizada fica em
+`localStorage` (`ticktask:taskListGroupOrder`), separada para projeto e contexto, e vale também para
+as colunas do Kanban. Grupos que ainda não têm posição salva entram depois dos ordenados, na ordem
+alfabética; grupos fora da tela (filtrados) mantêm a posição. A lógica é pura, em
+`lib/groupOrder.ts` (testada), e o arrastar vem de `components/SortableGroups.tsx` (`@dnd-kit`).
 
 **Agrupar por contexto duplica tarefas:** uma tarefa com três contextos aparece nos três grupos. O
 contador de cada grupo é local, então a soma dos contadores pode exceder o total real.
@@ -242,8 +247,9 @@ Só na aba Executando. Colunas horizontais de `300px` (`overflow-x-auto`) com ca
 cor do grupo (`{cor}18` de fundo, `{cor}40` de borda), emoji ou bolinha, nome e contador. O corpo
 empilha `TaskCard` completos com `gap-3`.
 
-**Não há drag-and-drop no Kanban** — as colunas são projeto/contexto, não status, e servem apenas
-como leitura agrupada.
+As **colunas** podem ser reordenadas pela alça `⠿` do cabeçalho (mesma ordem do modo agrupado).
+**Os cards não se arrastam entre colunas** — as colunas são projeto/contexto, não status, e servem
+apenas como leitura agrupada.
 
 ## ⑥ Carregamento incremental
 

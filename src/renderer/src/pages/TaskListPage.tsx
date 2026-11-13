@@ -21,6 +21,7 @@ import { useTasks } from '@renderer/hooks/useTasks'
 import { usePersistedState } from '@renderer/hooks/usePersistedState'
 import { useIncrementalList } from '@renderer/hooks/useIncrementalList'
 import { TaskGroups, type TaskGroup } from '@renderer/components/TaskGroups'
+import { applyGroupOrder, moveGroupKey } from '@renderer/lib/groupOrder'
 import { TaskKanban } from '@renderer/components/TaskKanban'
 import { eventEmitter } from '@renderer/App'
 import {
@@ -113,6 +114,10 @@ export function TaskListPage(): React.JSX.Element {
   const [groupBy, setGroupBy] = usePersistedState<'project' | 'context'>(
     'ticktask:taskListGroupBy',
     'project'
+  )
+  const [groupOrder, setGroupOrder] = usePersistedState<Record<'project' | 'context', string[]>>(
+    'ticktask:taskListGroupOrder',
+    { project: [], context: [] }
   )
   const [kanbanEnabled, setKanbanEnabled] = usePersistedState<boolean>(
     'ticktask:executandoKanban',
@@ -235,7 +240,7 @@ export function TaskListPage(): React.JSX.Element {
 
   const filteredTaskIds = useMemo(() => tasks.map((task) => task.id), [tasks])
 
-  const taskGroups = useMemo<TaskGroup[]>(() => {
+  const defaultTaskGroups = useMemo<TaskGroup[]>(() => {
     if (!groupingEnabled && !kanbanEnabled) return []
 
     if (groupBy === 'project') {
@@ -288,6 +293,26 @@ export function TaskListPage(): React.JSX.Element {
     }
     return groups
   }, [groupingEnabled, kanbanEnabled, groupBy, tasks])
+
+  const taskGroups = useMemo(
+    () => applyGroupOrder(defaultTaskGroups, groupOrder[groupBy] ?? []),
+    [defaultTaskGroups, groupOrder, groupBy]
+  )
+
+  const handleReorderGroups = useCallback(
+    (activeKey: string, overKey: string): void => {
+      setGroupOrder({
+        ...groupOrder,
+        [groupBy]: moveGroupKey(
+          groupOrder[groupBy] ?? [],
+          taskGroups.map((group) => group.key),
+          activeKey,
+          overKey
+        )
+      })
+    },
+    [groupOrder, groupBy, taskGroups, setGroupOrder]
+  )
   const selectedTaskIdSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds])
   const selectedCount = selectedTaskIds.length
 
@@ -928,6 +953,7 @@ export function TaskListPage(): React.JSX.Element {
               selectedTaskIds={selectedTaskIdSet}
               onToggleTaskSelection={toggleTaskSelection}
               onScheduleForToday={handleScheduleForToday}
+              onReorderColumns={handleReorderGroups}
             />
           ) : groupingEnabled ? (
             <TaskGroups
@@ -938,6 +964,7 @@ export function TaskListPage(): React.JSX.Element {
               onToggleTaskSelection={toggleTaskSelection}
               onToggleGroupSelection={toggleGroupSelection}
               onScheduleForToday={handleScheduleForToday}
+              onReorderGroups={handleReorderGroups}
             />
           ) : viewMode === 'cards' ? (
             <TaskList
