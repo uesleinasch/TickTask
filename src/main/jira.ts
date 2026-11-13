@@ -6,6 +6,7 @@ import type {
   JiraCredentialsInput,
   JiraFieldInput,
   JiraFieldOption,
+  JiraChildrenResult,
   JiraImportResult,
   JiraIssueFields,
   JiraKnownStatus,
@@ -20,6 +21,7 @@ import {
   createJiraLinkedTask,
   getJiraDescriptionState,
   getTask,
+  listJiraChildTasks,
   listJiraLinkedTasks,
   listJiraWorklogEntries,
   listProjects,
@@ -34,6 +36,7 @@ import { createJiraApi, type JiraApi, type JiraBoard, type JiraIssue } from './j
 import { describeIssueFields, isSprintField, toJiraValue } from './jiraFields'
 import {
   buildIssueUrl,
+  mergeChildIssues,
   normalizeJiraSite,
   planDescriptionImport,
   planImport,
@@ -519,6 +522,22 @@ export function deleteJiraWorklogs(captured: CapturedWorklogs | null): void {
       await api.deleteWorklog(captured.issueKey, worklogId)
     }
   })().catch(reportBackgroundError)
+}
+
+export async function getJiraChildren(taskId: number): Promise<JiraChildrenResult> {
+  const issueKey = linkedIssueKey(taskId)
+  const local = listJiraChildTasks(issueKey)
+  const connection = currentConnection()
+  if (!connection) return { children: [], remoteError: NOT_CONNECTED }
+  try {
+    const remote = await apiFor(connection).listChildIssues(issueKey)
+    return { children: mergeChildIssues(remote, local, connection.site), remoteError: null }
+  } catch (error) {
+    return {
+      children: mergeChildIssues(null, local, connection.site),
+      remoteError: error instanceof Error ? error.message : 'Falha ao consultar o Jira.'
+    }
+  }
 }
 
 function linkedIssueKey(taskId: number): string {

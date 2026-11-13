@@ -33,6 +33,7 @@ import type {
 } from '@shared/types'
 import { DEFAULT_CONTEXTS } from '@shared/types'
 import { buildTaskCountQuery, buildTaskListQuery } from './taskQuery'
+import type { LocalJiraChild } from './jiraPlan'
 import {
   listTagsWithUsage as listTagsWithUsageQuery,
   listTaskIdsWithTag as listTaskIdsWithTagQuery,
@@ -1323,6 +1324,15 @@ export function updateJiraLinkedTask(
     }
     setJiraHierarchy(id, { jira_issue_type, jira_issue_kind, jira_parent_key, jira_parent_summary })
   })()
+}
+
+export function listJiraChildTasks(parentKey: string): LocalJiraChild[] {
+  return db
+    .prepare(
+      `SELECT id, name, jira_key, jira_status, jira_issue_type, jira_issue_kind
+       FROM tasks WHERE jira_parent_key = ? AND jira_key IS NOT NULL`
+    )
+    .all(parentKey) as LocalJiraChild[]
 }
 
 export interface JiraWorklogEntry {
