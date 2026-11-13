@@ -9,12 +9,14 @@ interface JiraTaskControlsProps {
   task: Pick<Task, 'id' | 'jira_key' | 'jira_status' | 'jira_space'>
   className?: string
   showKey?: boolean
+  showFieldsButton?: boolean
 }
 
 export function JiraTaskControls({
   task,
   className,
-  showKey = false
+  showKey = false,
+  showFieldsButton = true
 }: JiraTaskControlsProps): React.JSX.Element | null {
   const [sheetOpen, setSheetOpen] = useState(false)
   if (!task.jira_key) return null
@@ -35,16 +37,20 @@ export function JiraTaskControls({
       </span>
       {showKey && <span className="font-mono text-xs text-slate-500">{task.jira_key}</span>}
       <JiraStatusSelect taskId={task.id} status={task.jira_status} />
-      <button
-        type="button"
-        onClick={() => setSheetOpen(true)}
-        title="Campos do Jira"
-        aria-label="Abrir campos do Jira"
-        className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
-      >
-        <SlidersHorizontal size={12} />
-      </button>
-      <JiraFieldsSheet taskId={task.id} open={sheetOpen} onOpenChange={setSheetOpen} />
+      {showFieldsButton && (
+        <>
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            title="Campos do Jira"
+            aria-label="Abrir campos do Jira"
+            className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
+          >
+            <SlidersHorizontal size={12} />
+          </button>
+          <JiraFieldsSheet taskId={task.id} open={sheetOpen} onOpenChange={setSheetOpen} />
+        </>
+      )}
     </div>
   )
 }

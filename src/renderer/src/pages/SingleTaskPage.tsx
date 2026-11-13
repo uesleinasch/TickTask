@@ -56,8 +56,10 @@ import {
   RotateCcw,
   Activity,
   NotebookPen,
-  Minimize2
+  Minimize2,
+  SlidersHorizontal
 } from 'lucide-react'
+import { JiraFieldsSheet } from '@renderer/components/jira/JiraFieldsSheet'
 import { toast } from '@renderer/components/ui/sonner'
 import type { TaskNotesEditorHandle } from '@renderer/components/editor/TaskNotesEditor'
 import { parseNotes } from '@renderer/components/editor/notesFormat'
@@ -143,6 +145,7 @@ export function SingleTaskPage(): React.JSX.Element {
 
   // Painel de notas (Tiptap)
   const [notesOpen, setNotesOpen] = useState(false)
+  const [jiraFieldsOpen, setJiraFieldsOpen] = useState(false)
   const [viewMode, setViewMode] = useState<NotesViewMode>('normal')
   const [notesWidth, setNotesWidth] = usePersistedState('ticktask.notesWidth', DEFAULT_NOTES_WIDTH)
   const [zenWidth, setZenWidth] = usePersistedState('ticktask.notesZenWidth', DEFAULT_ZEN_WIDTH)
@@ -665,7 +668,7 @@ export function SingleTaskPage(): React.JSX.Element {
               {task.jira_key && (
                 <div className="grid grid-cols-[90px_1fr] items-center gap-3">
                   <span className="text-xs text-slate-400">Jira</span>
-                  <JiraTaskControls task={task} showKey />
+                  <JiraTaskControls task={task} showKey showFieldsButton={false} />
                 </div>
               )}
 
@@ -876,7 +879,23 @@ export function SingleTaskPage(): React.JSX.Element {
       {/* ==================== CENTER — TIMER HERO ==================== */}
       {viewMode === 'normal' && (
         <div ref={centerColumnRef} className="flex-1 min-w-0 flex flex-col bg-slate-50">
-          <div className="flex justify-end px-6 pt-4">
+          <div className="flex justify-end gap-2 px-6 pt-4">
+            {task.jira_key && (
+              <>
+                <button
+                  onClick={() => setJiraFieldsOpen(true)}
+                  className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium border border-blue-700 bg-blue-700 text-white hover:bg-blue-800 transition-colors"
+                >
+                  <SlidersHorizontal size={14} />
+                  Campos do Jira
+                </button>
+                <JiraFieldsSheet
+                  taskId={task.id}
+                  open={jiraFieldsOpen}
+                  onOpenChange={setJiraFieldsOpen}
+                />
+              </>
+            )}
             <button
               onClick={() => setNotesOpen((v) => !v)}
               className={cn(
