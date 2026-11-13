@@ -175,6 +175,15 @@ todos puros e testados — e `jira.ts` (lado Electron: `userData/jira-config.jso
   espaço/projeto da issue). `spaceProjects` (config) leva cada espaço a um projeto local: vale para
   task nova e para task vinculada ainda sem projeto. O status no Jira muda apenas
   pelo seletor de transições (`jira:transition`), nunca ao mover a task no TickTask.
+- A importação também grava o tipo da issue (`jira_issue_type`, e a classe em `jira_issue_kind`:
+  epic/story/task/bug/subtask) e a issue pai (`jira_parent_key`/`jira_parent_summary`). A
+  hierarquia do Jira **não** vira subtarefa local (`parent_task_id`): isso tiraria a issue da lista e
+  a apagaria junto com o pai. O agrupamento "Pai Jira" da listagem (`lib/taskGrouping.ts`) cobre isso.
+- **Worklog** (opt-in, `worklogSince` na config): `autoSyncTask` chama `scheduleJiraWorklogPush`,
+  que envia cada sessão de tempo encerrada (≥ 1 min, posterior a ligar) e guarda o id em
+  `time_entries.jira_worklog_id` — a coluna é o que impede envio duplo. `task:reset` captura esses
+  ids **antes** de apagar as sessões e depois os apaga no Jira (`captureJiraWorklogs` →
+  `deleteJiraWorklogs`). Regras puras em `jiraWorklog.ts`.
 - O painel lateral (`components/jira/JiraFieldsSheet.tsx`) lê `issue?expand=editmeta` e grava cada
   campo com PUT na issue (`jira:updateField`). Depois de transição ou edição, a task é relida do
   Jira (nome, prazo, status Jira).
