@@ -30,6 +30,15 @@ export interface JiraIssue {
   dueDate: string | null
   spaceKey: string | null
   spaceName: string | null
+  issueType: JiraIssueType | null
+  parentKey: string | null
+  parentSummary: string | null
+}
+
+export interface JiraIssueType {
+  name: string
+  hierarchyLevel: number | null
+  subtask: boolean
 }
 
 export interface JiraTransition {
@@ -67,11 +76,19 @@ export interface JiraApi {
   doTransition: (issueKey: string, transitionId: string) => Promise<void>
   listOpenSprints: (boardId: number) => Promise<JiraSprint[]>
   searchUsers: (query: string, assignableTo?: string) => Promise<JiraAccount[]>
+  listChildIssues: (parentKey: string) => Promise<JiraIssue[]>
+  addWorklog: (issueKey: string, worklog: JiraWorklogInput) => Promise<string>
+  deleteWorklog: (issueKey: string, worklogId: string) => Promise<void>
+}
+
+export interface JiraWorklogInput {
+  started: string
+  timeSpentSeconds: number
 }
 
 const RETRY_DELAY_MS = 1000
 const PAGE_SIZE = 100
-const ISSUE_FIELDS = 'summary,status,duedate,project'
+const ISSUE_FIELDS = 'summary,status,duedate,project,issuetype,parent'
 const SEARCH_BATCH = 100
 const ASSIGNED_ISSUES_JQL =
   'assignee = currentUser() AND (statusCategory != Done OR updated >= -30d)'
@@ -245,6 +262,47 @@ export function createJiraApi(deps: JiraApiDeps): JiraApi {
       return users
         .filter((u) => !u.accountType || u.accountType === 'atlassian')
         .map((u) => ({ accountId: u.accountId, displayName: u.displayName }))
+    },
+
+    async listChildIssues(parentKey) {
+      const issues: JiraIssue[] = []
+      let nextPageToken: string | undefined
+      do {
+        const page = await request<{ issues: RawIssue[]; nextPageToken?: string }>(
+          'POST',
+          '/rest/api/3/search/jql',
+          {
+            jql: `parent = "${parentKey.replace(/"/g, '')}" ORDER BY key`,
+            fields: ISSUE_FIELDS.split(','),
+            maxResults: SEARCH_BATCH,
+            ...(nextPageToken ? { nextPageToken } : {})
+          }
+        )
+        issues.push(...page.issues.map(toIssue))
+        nextPageToken = page.nextPageToken
+      } while (nextPageToken)
+      return issues
+    },
+
+    async addWorklog(issueKey, worklog) {
+      const data = await request<{ id: string }>(
+        'POST',
+        `/rest/api/3/issue/${encodeURIComponent(issueKey)}/worklog?adjustEstimate=auto`,
+        worklog
+      )
+      return data.id
+    },
+
+    async deleteWorklog(issueKey, worklogId) {
+      try {
+        await request<void>(
+          'DELETE',
+          `/rest/api/3/issue/${encodeURIComponent(issueKey)}/worklog/${encodeURIComponent(worklogId)}?adjustEstimate=auto`
+        )
+      } catch (error) {
+        if (error instanceof JiraApiError && error.status === 404) return
+        throw error
+      }
     }
   }
 }
@@ -256,10 +314,13 @@ interface RawIssue {
     duedate: string | null
     status: { name: string; statusCategory: { key: string } }
     project?: { key: string; name: string }
+    issuetype?: { name: string; hierarchyLevel?: number; subtask?: boolean }
+    parent?: { key: string; fields?: { summary?: string } }
   }
 }
 
 function toIssue(raw: RawIssue): JiraIssue {
+  const type = raw.fields.issuetype
   return {
     key: raw.key,
     summary: raw.fields.summary,
@@ -267,7 +328,12 @@ function toIssue(raw: RawIssue): JiraIssue {
     statusCategory: raw.fields.status.statusCategory.key as JiraStatusCategory,
     dueDate: raw.fields.duedate,
     spaceKey: raw.fields.project?.key ?? null,
-    spaceName: raw.fields.project?.name ?? null
+    spaceName: raw.fields.project?.name ?? null,
+    issueType: type
+      ? { name: type.name, hierarchyLevel: type.hierarchyLevel ?? null, subtask: !!type.subtask }
+      : null,
+    parentKey: raw.fields.parent?.key ?? null,
+    parentSummary: raw.fields.parent?.fields?.summary ?? null
   }
 }
 

@@ -140,6 +140,62 @@ describe('createJiraApi', () => {
     expect(calls[1].url).toContain('startAt=1&')
   })
 
+  it('lê tipo da issue e issue pai', async () => {
+    const raw = issue('ABC-3', 'A Fazer', 'new')
+    const withMeta = {
+      ...raw,
+      fields: {
+        ...raw.fields,
+        issuetype: { name: 'Subtarefa', hierarchyLevel: -1, subtask: true },
+        parent: { key: 'ABC-2', fields: { summary: 'História mãe' } }
+      }
+    }
+    const { api, calls } = setup(() => jsonResponse(200, withMeta))
+    const result = await api.getIssue('ABC-3')
+    expect(result.issueType).toEqual({ name: 'Subtarefa', hierarchyLevel: -1, subtask: true })
+    expect(result.parentKey).toBe('ABC-2')
+    expect(result.parentSummary).toBe('História mãe')
+    expect(calls[0].url).toContain('fields=summary,status,duedate,project,issuetype,parent')
+  })
+
+  it('lista as issues filhas pelo JQL de parent, paginando', async () => {
+    const { api, calls } = setup((_, init) => {
+      const body = JSON.parse(String(init.body)) as { nextPageToken?: string }
+      return body.nextPageToken
+        ? jsonResponse(200, { issues: [issue('ABC-3', 'A Fazer', 'new')] })
+        : jsonResponse(200, { issues: [issue('ABC-2', 'A Fazer', 'new')], nextPageToken: 'p2' })
+    })
+    const children = await api.listChildIssues('ABC-1')
+    expect(children.map((c) => c.key)).toEqual(['ABC-2', 'ABC-3'])
+    expect(calls[0]).toMatchObject({
+      method: 'POST',
+      url: 'https://jacto.atlassian.net/rest/api/3/search/jql',
+      body: { jql: 'parent = "ABC-1" ORDER BY key' }
+    })
+    expect(calls[1].body).toMatchObject({ nextPageToken: 'p2' })
+  })
+
+  it('cria worklog e devolve o id', async () => {
+    const { api, calls } = setup(() => jsonResponse(201, { id: '10500' }))
+    const id = await api.addWorklog('ABC-1', {
+      started: '2026-11-13T10:00:00.000-0300',
+      timeSpentSeconds: 1800
+    })
+    expect(id).toBe('10500')
+    expect(calls[0]).toMatchObject({
+      method: 'POST',
+      url: 'https://jacto.atlassian.net/rest/api/3/issue/ABC-1/worklog?adjustEstimate=auto',
+      body: { started: '2026-11-13T10:00:00.000-0300', timeSpentSeconds: 1800 }
+    })
+  })
+
+  it('apagar worklog que já não existe não é erro', async () => {
+    const { api, calls } = setup(() => jsonResponse(404, { errorMessages: ['não existe'] }))
+    await expect(api.deleteWorklog('ABC-1', '10500')).resolves.toBeUndefined()
+    expect(calls[0].method).toBe('DELETE')
+    expect(calls[0].url).toContain('/issue/ABC-1/worklog/10500')
+  })
+
   it('corpo de erro que não é JSON vira JiraApiError com o status', async () => {
     const { api } = setup(() => new Response('<html>Bad gateway</html>', { status: 404 }))
     const error = await api.getMyself().catch((e: unknown) => e)
@@ -165,7 +221,10 @@ describe('createJiraApi', () => {
         statusCategory: 'indeterminate',
         dueDate: null,
         spaceKey: 'ABC',
-        spaceName: 'Conecta'
+        spaceName: 'Conecta',
+        issueType: null,
+        parentKey: null,
+        parentSummary: null
       }
     ])
     expect(decodeURIComponent(calls[0].url)).toContain(

@@ -191,6 +191,27 @@ export interface Task {
   jira_key?: string | null
   jira_status?: string | null
   jira_space?: string | null
+  jira_issue_type?: string | null
+  jira_issue_kind?: JiraIssueKind | null
+  jira_parent_key?: string | null
+  jira_parent_summary?: string | null
+}
+
+export type JiraIssueKind = 'epic' | 'story' | 'task' | 'bug' | 'subtask'
+
+export interface JiraChildIssue {
+  key: string
+  summary: string
+  statusName: string | null
+  issueType: string | null
+  issueKind: JiraIssueKind | null
+  url: string
+  taskId: number | null
+}
+
+export interface JiraChildrenResult {
+  children: JiraChildIssue[]
+  remoteError: string | null
 }
 
 export interface CreateTaskInput {
@@ -323,6 +344,7 @@ export interface JiraOptionsInput {
   autoImportMinutes?: number
   projectId?: number | null
   spaceProjects?: Record<string, number>
+  syncWorklogs?: boolean
 }
 
 export interface JiraImportResult {
@@ -347,6 +369,7 @@ export interface JiraStatus {
   autoImportMinutes: number
   projectId: number | null
   lastImportAt: string | null
+  syncWorklogs: boolean
 }
 
 export interface BackupCounts {

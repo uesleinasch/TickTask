@@ -108,7 +108,8 @@ Grade `[90px_1fr]` — rótulo cinza à esquerda, controle à direita.
 | Rótulo | Controle | Salvamento |
 | --- | --- | --- |
 | Status | `StatusSelect` (180px, `bg-slate-100`) | imediato + toast "Status alterado" |
-| Jira | `JiraTaskControls` com a chave da issue (só em task do Jira; ver `01-lista-de-tarefas.md`) | transição/campo direto no Jira |
+| Jira | `JiraTaskControls` com tipo e chave da issue, sem o botão de campos (só em task do Jira; ver `01-lista-de-tarefas.md`) | transição direto no Jira |
+| Pai no Jira | chave + resumo da issue pai (épico/história); clique abre a issue pai no navegador. Só quando a issue tem pai | — |
 | Projeto | `SearchableSelect` + link **"Abrir projeto →"** abaixo quando há projeto | imediato + toast |
 | Contextos | pílulas alternáveis (emoji + nome), coloridas pela cor do contexto quando ativas | imediato |
 | Tags | `TagInput` | imediato |
@@ -180,9 +181,22 @@ concluir.
 
 `flex-1`, fundo `bg-slate-50`, conteúdo centralizado numa coluna de `max-w-sm`.
 
+### Issues filhas no Jira
+
+Seção da sidebar, antes de **Subtarefas**, em task do Jira que não é subtarefa
+(`JiraChildIssues`). Ao abrir, busca no Jira as issues com `parent = <chave>` (`jira:getChildren`)
+— **todas**, inclusive as de outras pessoas, que a importação não traz. Cada linha: tipo, chave,
+resumo e status Jira. Clique abre a task no TickTask se a issue já foi importada; senão abre a
+issue no navegador (ícone `ExternalLink`). Sem filhas, a seção some. Se o Jira falhar, mostra um
+aviso âmbar e só as filhas já importadas (`jira_parent_key` local).
+
 ### Botão "Notas"
 
 Canto superior direito. Alterna o painel direito. Ativo: `bg-slate-900 text-white`.
+
+Em task do Jira, à esquerda dele fica o botão **Campos do Jira** (`SlidersHorizontal`, azul forte
+`bg-blue-700`), que abre o `JiraFieldsSheet`. Ele substitui, nesta tela, o ícone pequeno do
+`JiraTaskControls` da sidebar, que ficava apertado e às vezes oculto.
 
 ### Aviso de bloqueio
 

@@ -8,6 +8,7 @@ import type {
   CreateTaskInput,
   UpdateTaskInput,
   TaskStatus,
+  JiraIssueKind,
   Project,
   CreateProjectInput,
   UpdateProjectInput,
@@ -32,6 +33,7 @@ import type {
 } from '@shared/types'
 import { DEFAULT_CONTEXTS } from '@shared/types'
 import { buildTaskCountQuery, buildTaskListQuery } from './taskQuery'
+import type { LocalJiraChild } from './jiraPlan'
 import {
   listTagsWithUsage as listTagsWithUsageQuery,
   listTaskIdsWithTag as listTaskIdsWithTagQuery,
@@ -321,7 +323,11 @@ export function initDatabase(): void {
     'jira_status',
     'jira_desc_hash',
     'jira_notes_hash',
-    'jira_space'
+    'jira_space',
+    'jira_issue_type',
+    'jira_issue_kind',
+    'jira_parent_key',
+    'jira_parent_summary'
   ]) {
     try {
       db.exec(`ALTER TABLE tasks ADD COLUMN ${column} TEXT`)
@@ -331,6 +337,12 @@ export function initDatabase(): void {
   }
 
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_jira_key ON tasks(jira_key)')
+
+  try {
+    db.exec('ALTER TABLE time_entries ADD COLUMN jira_worklog_id TEXT')
+  } catch {
+    /* já existe */
+  }
 
   // ===================== FASE 4.3: Blocos de Tempo =====================
 
@@ -824,7 +836,8 @@ const TASK_LIST_COLUMNS = `
   t.project_id, t.created_at, t.updated_at, t.scheduled_date, t.due_date,
   t.recurrence_rule, t.parent_task_id, t.recurrence_source_id, t.day_order,
   t.energy_level, t.scheduled_time, t.scheduled_end_time, t.due_time,
-  t.external_url, t.jira_key, t.jira_status, t.jira_space,
+  t.external_url, t.jira_key, t.jira_status, t.jira_space, t.jira_issue_type, t.jira_issue_kind,
+  t.jira_parent_key, t.jira_parent_summary,
   p.name as project_name, p.color as project_color
 `
 
@@ -1225,7 +1238,14 @@ export function unarchiveTask(id: number): void {
   stmt.run(id)
 }
 
-export interface JiraLinkedTask {
+export interface JiraHierarchyColumns {
+  jira_issue_type: string | null
+  jira_issue_kind: JiraIssueKind | null
+  jira_parent_key: string | null
+  jira_parent_summary: string | null
+}
+
+export interface JiraLinkedTask extends JiraHierarchyColumns {
   id: number
   name: string
   due_date: string | null
@@ -1239,37 +1259,101 @@ export interface JiraLinkedTask {
 export function listJiraLinkedTasks(): JiraLinkedTask[] {
   return db
     .prepare(
-      `SELECT id, name, due_date, external_url, jira_key, jira_status, jira_space, project_id
+      `SELECT id, name, due_date, external_url, jira_key, jira_status, jira_space, project_id,
+              jira_issue_type, jira_issue_kind, jira_parent_key, jira_parent_summary
        FROM tasks WHERE jira_key IS NOT NULL`
     )
     .all() as JiraLinkedTask[]
 }
 
+const JIRA_HIERARCHY_COLUMNS = [
+  'jira_issue_type',
+  'jira_issue_kind',
+  'jira_parent_key',
+  'jira_parent_summary'
+] as const
+
+function setJiraHierarchy(id: number, values: Partial<JiraHierarchyColumns>): void {
+  const columns = JIRA_HIERARCHY_COLUMNS.filter((column) => values[column] !== undefined)
+  if (columns.length === 0) return
+  db.prepare(`UPDATE tasks SET ${columns.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`).run(
+    ...columns.map((column) => values[column] ?? null),
+    id
+  )
+}
+
 export function createJiraLinkedTask(
   data: CreateTaskInput,
-  link: { jiraKey: string; jiraStatus: string; jiraSpace: string | null; status: TaskStatus }
+  link: {
+    jiraKey: string
+    jiraStatus: string
+    jiraSpace: string | null
+    status: TaskStatus
+    hierarchy: JiraHierarchyColumns
+  }
 ): number {
   return db.transaction(() => {
     const task = createTask(data)
     db.prepare(
       'UPDATE tasks SET jira_key = ?, jira_status = ?, jira_space = ?, status = ? WHERE id = ?'
     ).run(link.jiraKey, link.jiraStatus, link.jiraSpace, link.status, task.id)
+    setJiraHierarchy(task.id, link.hierarchy)
     return task.id
   })()
 }
 
 export function updateJiraLinkedTask(
   id: number,
-  patch: UpdateTaskInput & { jira_status?: string; jira_space?: string | null }
+  patch: UpdateTaskInput &
+    Partial<JiraHierarchyColumns> & { jira_status?: string; jira_space?: string | null }
 ): void {
-  const { jira_status, jira_space, ...fields } = patch
+  const {
+    jira_status,
+    jira_space,
+    jira_issue_type,
+    jira_issue_kind,
+    jira_parent_key,
+    jira_parent_summary,
+    ...fields
+  } = patch
   db.transaction(() => {
     if (Object.keys(fields).length > 0) updateTask(id, fields)
     if (jira_status !== undefined) setTaskJiraStatus(id, jira_status)
     if (jira_space !== undefined) {
       db.prepare('UPDATE tasks SET jira_space = ? WHERE id = ?').run(jira_space, id)
     }
+    setJiraHierarchy(id, { jira_issue_type, jira_issue_kind, jira_parent_key, jira_parent_summary })
   })()
+}
+
+export function listJiraChildTasks(parentKey: string): LocalJiraChild[] {
+  return db
+    .prepare(
+      `SELECT id, name, jira_key, jira_status, jira_issue_type, jira_issue_kind
+       FROM tasks WHERE jira_parent_key = ? AND jira_key IS NOT NULL`
+    )
+    .all(parentKey) as LocalJiraChild[]
+}
+
+export interface JiraWorklogEntry {
+  id: number
+  start_time: string
+  end_time: string | null
+  duration_seconds: number | null
+  jira_worklog_id: string | null
+}
+
+export function listJiraWorklogEntries(taskId: number): JiraWorklogEntry[] {
+  return db
+    .prepare(
+      `SELECT id, start_time, end_time, duration_seconds, jira_worklog_id
+       FROM time_entries WHERE task_id = ? ORDER BY id`
+    )
+    .all(taskId) as JiraWorklogEntry[]
+}
+
+export function setTimeEntryWorklogId(entryId: number, worklogId: string): void {
+  db.prepare('UPDATE time_entries SET jira_worklog_id = ? WHERE id = ?').run(worklogId, entryId)
 }
 
 export function setTaskJiraStatus(id: number, jiraStatus: string): void {

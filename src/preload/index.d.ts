@@ -5,6 +5,7 @@ import type {
   JiraCredentialsInput,
   JiraFieldInput,
   JiraImportResult,
+  JiraChildrenResult,
   JiraIssueFields,
   JiraOptionsInput,
   JiraStatus,
@@ -255,6 +256,7 @@ interface API {
   jiraListTransitions: (taskId: number) => Promise<JiraTransitionOption[]>
   jiraTransition: (taskId: number, transitionId: string) => Promise<void>
   jiraGetFields: (taskId: number) => Promise<JiraIssueFields>
+  jiraGetChildren: (taskId: number) => Promise<JiraChildrenResult>
   jiraUpdateField: (
     taskId: number,
     fieldId: string,

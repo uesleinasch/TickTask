@@ -22,11 +22,11 @@ import { usePersistedState } from '@renderer/hooks/usePersistedState'
 import { useIncrementalList } from '@renderer/hooks/useIncrementalList'
 import { TaskGroups, type TaskGroup } from '@renderer/components/TaskGroups'
 import { applyGroupOrder, moveGroupKey } from '@renderer/lib/groupOrder'
+import { buildTaskGroups, JIRA_GROUP_MODES, type GroupBy } from '@renderer/lib/taskGrouping'
 import { TaskKanban } from '@renderer/components/TaskKanban'
 import { eventEmitter } from '@renderer/App'
 import {
   STATUS_LABELS,
-  type Task,
   type TaskStatus,
   type TaskCategory,
   type CreateTaskInput,
@@ -91,6 +91,13 @@ const CATEGORY_COLOR_MAP: Record<TaskCategory | 'all', string> = {
   time_leak: '#eab308'
 }
 
+const GROUP_BY_OPTIONS: { value: GroupBy; label: string }[] = [
+  { value: 'project', label: 'Projeto' },
+  { value: 'context', label: 'Contexto' },
+  { value: 'jira_space', label: 'Espaço Jira' },
+  { value: 'jira_parent', label: 'Pai Jira' }
+]
+
 export function TaskListPage(): React.JSX.Element {
   const navigate = useNavigate()
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -111,13 +118,13 @@ export function TaskListPage(): React.JSX.Element {
     'ticktask:taskListGrouping',
     false
   )
-  const [groupBy, setGroupBy] = usePersistedState<'project' | 'context'>(
+  const [groupBy, setGroupBy] = usePersistedState<GroupBy>(
     'ticktask:taskListGroupBy',
     'project'
   )
-  const [groupOrder, setGroupOrder] = usePersistedState<Record<'project' | 'context', string[]>>(
+  const [groupOrder, setGroupOrder] = usePersistedState<Partial<Record<GroupBy, string[]>>>(
     'ticktask:taskListGroupOrder',
-    { project: [], context: [] }
+    {}
   )
   const [kanbanEnabled, setKanbanEnabled] = usePersistedState<boolean>(
     'ticktask:executandoKanban',
@@ -240,59 +247,11 @@ export function TaskListPage(): React.JSX.Element {
 
   const filteredTaskIds = useMemo(() => tasks.map((task) => task.id), [tasks])
 
-  const defaultTaskGroups = useMemo<TaskGroup[]>(() => {
-    if (!groupingEnabled && !kanbanEnabled) return []
-
-    if (groupBy === 'project') {
-      const map = new Map<string, TaskGroup>()
-      const noProject: Task[] = []
-      for (const task of tasks) {
-        if (task.project_id && task.project_name) {
-          const key = `p:${task.project_id}`
-          let group = map.get(key)
-          if (!group) {
-            group = { key, label: task.project_name, color: task.project_color, tasks: [] }
-            map.set(key, group)
-          }
-          group.tasks.push(task)
-        } else {
-          noProject.push(task)
-        }
-      }
-      const groups = Array.from(map.values()).sort((a, b) =>
-        a.label.localeCompare(b.label, 'pt-BR')
-      )
-      if (noProject.length > 0) {
-        groups.push({ key: 'p:none', label: 'Sem projeto', tasks: noProject })
-      }
-      return groups
-    }
-
-    // groupBy === 'context' — task com múltiplos contextos aparece em todos os grupos
-    const map = new Map<string, TaskGroup>()
-    const noContext: Task[] = []
-    for (const task of tasks) {
-      const contexts = task.contexts ?? []
-      if (contexts.length === 0) {
-        noContext.push(task)
-      } else {
-        for (const ctx of contexts) {
-          const key = `c:${ctx.id}`
-          let group = map.get(key)
-          if (!group) {
-            group = { key, label: ctx.name, color: ctx.color, icon: ctx.icon, tasks: [] }
-            map.set(key, group)
-          }
-          group.tasks.push(task)
-        }
-      }
-    }
-    const groups = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'))
-    if (noContext.length > 0) {
-      groups.push({ key: 'c:none', label: 'Sem contexto', tasks: noContext })
-    }
-    return groups
-  }, [groupingEnabled, kanbanEnabled, groupBy, tasks])
+  const defaultTaskGroups = useMemo<TaskGroup[]>(
+    () => (groupingEnabled || kanbanEnabled ? buildTaskGroups(tasks, groupBy) : []),
+    [groupingEnabled, kanbanEnabled, groupBy, tasks]
+  )
+  const hasJiraTasks = useMemo(() => tasks.some((task) => task.jira_key), [tasks])
 
   const taskGroups = useMemo(
     () => applyGroupOrder(defaultTaskGroups, groupOrder[groupBy] ?? []),
@@ -648,26 +607,24 @@ export function TaskListPage(): React.JSX.Element {
               )}
               {(groupingEnabled || (statusFilter === 'executando' && kanbanEnabled)) && (
                 <div className="flex items-center gap-1 pl-1 ml-1 border-l border-slate-200">
-                  <button
-                    onClick={() => setGroupBy('project')}
-                    className={`px-2 py-1 rounded-md text-xs font-medium transition-all ${
-                      groupBy === 'project'
-                        ? 'bg-slate-200 text-slate-900'
-                        : 'text-slate-500 hover:bg-slate-100'
-                    }`}
-                  >
-                    Projeto
-                  </button>
-                  <button
-                    onClick={() => setGroupBy('context')}
-                    className={`px-2 py-1 rounded-md text-xs font-medium transition-all ${
-                      groupBy === 'context'
-                        ? 'bg-slate-200 text-slate-900'
-                        : 'text-slate-500 hover:bg-slate-100'
-                    }`}
-                  >
-                    Contexto
-                  </button>
+                  {GROUP_BY_OPTIONS.filter(
+                    (option) =>
+                      !JIRA_GROUP_MODES.includes(option.value) ||
+                      hasJiraTasks ||
+                      groupBy === option.value
+                  ).map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setGroupBy(option.value)}
+                      className={`px-2 py-1 rounded-md text-xs font-medium transition-all ${
+                        groupBy === option.value
+                          ? 'bg-slate-200 text-slate-900'
+                          : 'text-slate-500 hover:bg-slate-100'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>

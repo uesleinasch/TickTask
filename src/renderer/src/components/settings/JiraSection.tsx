@@ -416,6 +416,16 @@ export function JiraSection({
                 )
               }
             />
+            <ToggleRow
+              title="Registrar o tempo no Jira (worklog)"
+              description="Cada sessão de 1 min ou mais em task vinculada vira um registro de trabalho na issue. Vale só para o tempo contado depois de ligar; zerar o timer apaga os registros criados pelo app."
+              checked={status.syncWorklogs}
+              onChange={async () =>
+                onStatusChange(
+                  await window.api.jiraSaveOptions({ syncWorklogs: !status.syncWorklogs })
+                )
+              }
+            />
             <label className="flex items-center justify-between gap-3 text-sm text-slate-700">
               Importação automática
               <select

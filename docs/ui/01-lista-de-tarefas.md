@@ -76,7 +76,13 @@ No mesmo contêiner:
 - **Agrupar** (`Layers`) — liga o agrupamento; desliga o Kanban.
 - **Kanban** (`Columns3`) — **só aparece na aba Executando**; liga o Kanban e desliga o agrupamento.
 - Quando um dos dois está ligado, surge um sub-alternador à direita de uma barra divisória:
-  **Projeto** | **Contexto** (`ticktask:taskListGroupBy`).
+  **Projeto** | **Contexto** | **Espaço Jira** | **Pai Jira** (`ticktask:taskListGroupBy`). Os dois
+  modos do Jira só aparecem quando há task do Jira na lista (ou quando um deles já está escolhido).
+  O agrupamento é puro, em `lib/taskGrouping.ts` (testado):
+  - **Espaço Jira** — por `jira_space` (ou prefixo da chave); o resto vai para "Fora do Jira".
+  - **Pai Jira** — por `jira_parent_key` (épico ou história da issue). Se a própria issue pai foi
+    importada, ela entra no grupo, no topo; o resto vai para "Sem issue pai". Não usa subtarefa
+    local (`parent_task_id`): issue filha continua aparecendo na lista.
 
 Os dois modos são mutuamente exclusivos por código, mas cada um tem sua própria chave em
 `localStorage`, o que permite estados de reabertura contraintuitivos.
@@ -185,13 +191,18 @@ tempo. Clicar navega para a subtarefa. As subtarefas são carregadas sob demanda
 sobrescreve tudo com `!bg-sky-50`.
 
 **`JiraTaskControls`** (`components/jira/`) — usado no card, na tabela e no detalhe, só quando a
-task tem `jira_key`. Três peças, num wrapper que para a propagação do clique (senão abriria a task):
+task tem `jira_key`. Quatro peças, num wrapper que para a propagação do clique (senão abriria a task):
 - chip cinza com `Layers` e o **espaço** da issue (`tasks.jira_space`, gravado pela importação; antes
   da primeira importação que o preenche, mostra o prefixo da chave, ex.: `CON`).
+- `JiraIssueTypeBadge`: chip colorido com o **tipo** da issue (`tasks.jira_issue_type`), cor e ícone
+  pela classe em `tasks.jira_issue_kind` — épico roxo, história verde, tarefa azul, bug vermelho,
+  subtarefa cinza. A classe vem de `classifyIssueType` (`jiraPlan.ts`): nível da hierarquia do
+  Jira primeiro (>0 épico, <0 subtarefa), nome do tipo depois. Some antes da primeira importação.
 - chip azul **Jira · {status}**: um `Select` que, ao abrir, busca as transições da issue
   (`jira:listTransitions`) e aplica a escolhida (`jira:transition`). É independente do `StatusBadge`
   local — mudar um não muda o outro.
-- botão `SlidersHorizontal` que abre o `JiraFieldsSheet`: painel lateral direito com os campos
+- botão `SlidersHorizontal` (só no card e na tabela; o detalhe usa o botão azul "Campos do Jira",
+  ver `02-detalhe-da-tarefa.md`) que abre o `JiraFieldsSheet`: painel lateral direito com os campos
   editáveis da issue (vindos do `editmeta`), um editor por tipo (texto, número, data, seleção,
   múltipla escolha, rótulos, pessoa com "Atribuir a mim", sprint). Múltipla escolha (ex.: Cliente,
   Equipe) é um `SearchableSelect` "Adicionar opção…" com as escolhidas em chips removíveis. Cada campo grava ao sair do

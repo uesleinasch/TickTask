@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildIssueUrl,
+  classifyIssueType,
   mapJiraStatusToLocal,
+  mergeChildIssues,
   normalizeJiraSite,
   planDescriptionImport,
   planImport,
   type ExistingJiraTask
 } from './jiraPlan'
-import type { JiraIssue } from './jiraApi'
+import type { JiraIssue, JiraIssueType } from './jiraApi'
 import type { DocNode } from './jiraAdf'
 
 const SITE = 'jacto.atlassian.net'
@@ -20,6 +22,9 @@ const issue = (over: Partial<JiraIssue> = {}): JiraIssue => ({
   dueDate: null,
   spaceKey: 'CON',
   spaceName: 'Conecta',
+  issueType: null,
+  parentKey: null,
+  parentSummary: null,
   ...over
 })
 
@@ -31,7 +36,42 @@ const existing = (over: Partial<ExistingJiraTask> = {}): ExistingJiraTask => ({
   jira_status: 'Em Progresso',
   jira_space: 'Conecta',
   project_id: 5,
+  jira_issue_type: null,
+  jira_issue_kind: null,
+  jira_parent_key: null,
+  jira_parent_summary: null,
   ...over
+})
+
+describe('classifyIssueType', () => {
+  const type = (
+    name: string,
+    hierarchyLevel: number | null = 0,
+    subtask = false
+  ): JiraIssueType => ({
+    name,
+    hierarchyLevel,
+    subtask
+  })
+
+  it('usa o nível da hierarquia quando existe', () => {
+    expect(classifyIssueType(type('Iniciativa', 1))).toBe('epic')
+    expect(classifyIssueType(type('Qualquer', -1))).toBe('subtask')
+    expect(classifyIssueType(type('Item', 0, true))).toBe('subtask')
+  })
+
+  it('separa história, bug e tarefa pelo nome no mesmo nível', () => {
+    expect(classifyIssueType(type('História'))).toBe('story')
+    expect(classifyIssueType(type('Story'))).toBe('story')
+    expect(classifyIssueType(type('Bug'))).toBe('bug')
+    expect(classifyIssueType(type('Tarefa'))).toBe('task')
+  })
+
+  it('cai no nome quando não há nível', () => {
+    expect(classifyIssueType(type('Épico', null))).toBe('epic')
+    expect(classifyIssueType(type('Sub-task', null))).toBe('subtask')
+    expect(classifyIssueType(null)).toBeNull()
+  })
 })
 
 const linked = (task: ExistingJiraTask, key = 'ABC-1'): Map<string, ExistingJiraTask> =>
@@ -63,8 +103,48 @@ describe('planImport', () => {
         external_url: 'https://jacto.atlassian.net/browse/ABC-1',
         jira_status: 'Em Progresso',
         jira_space: 'Conecta',
-        project_id: null
+        project_id: null,
+        jira_issue_type: null,
+        jira_issue_kind: null,
+        jira_parent_key: null,
+        jira_parent_summary: null
       }
+    })
+  })
+
+  it('guarda tipo e issue pai e atualiza quando mudam no Jira', () => {
+    const story = issue({
+      issueType: { name: 'História', hierarchyLevel: 0, subtask: false },
+      parentKey: 'ABC-100',
+      parentSummary: 'Épico de login'
+    })
+    const [created] = planImport([story], new Map(), SITE, {})
+    expect(created.type === 'create' && created.fields).toMatchObject({
+      jira_issue_type: 'História',
+      jira_issue_kind: 'story',
+      jira_parent_key: 'ABC-100',
+      jira_parent_summary: 'Épico de login'
+    })
+
+    const known = existing({
+      jira_issue_type: 'História',
+      jira_issue_kind: 'story',
+      jira_parent_key: 'ABC-100',
+      jira_parent_summary: 'Épico de login'
+    })
+    expect(planImport([story], linked(known), SITE, {})[0].type).toBe('noop')
+
+    const moved = planImport(
+      [{ ...story, parentKey: 'ABC-200', parentSummary: 'Outro épico' }],
+      linked(known),
+      SITE,
+      {}
+    )
+    expect(moved[0]).toEqual({
+      type: 'update',
+      key: 'ABC-1',
+      id: 9,
+      patch: { jira_parent_key: 'ABC-200', jira_parent_summary: 'Outro épico' }
     })
   })
 
@@ -213,6 +293,69 @@ describe('planDescriptionImport', () => {
       'paragraph',
       'horizontalRule',
       'paragraph'
+    ])
+  })
+})
+
+describe('mergeChildIssues', () => {
+  const local = [
+    {
+      id: 20,
+      name: 'Revisão local',
+      jira_key: 'CTL-20',
+      jira_status: 'Em andamento',
+      jira_issue_type: 'Tarefa',
+      jira_issue_kind: 'task' as const
+    }
+  ]
+
+  it('lista todas as filhas do Jira e liga as que já viraram task', () => {
+    const children = mergeChildIssues(
+      [
+        issue({ key: 'CTL-20', summary: 'Revisão' }),
+        issue({
+          key: 'CTL-9',
+          summary: 'Logs',
+          statusName: 'A fazer',
+          issueType: { name: 'História', hierarchyLevel: 0, subtask: false }
+        })
+      ],
+      local,
+      SITE
+    )
+    expect(children).toEqual([
+      {
+        key: 'CTL-9',
+        summary: 'Logs',
+        statusName: 'A fazer',
+        issueType: 'História',
+        issueKind: 'story',
+        url: 'https://jacto.atlassian.net/browse/CTL-9',
+        taskId: null
+      },
+      {
+        key: 'CTL-20',
+        summary: 'Revisão',
+        statusName: 'Em Progresso',
+        issueType: null,
+        issueKind: null,
+        url: 'https://jacto.atlassian.net/browse/CTL-20',
+        taskId: 20
+      }
+    ])
+  })
+
+  it('sem resposta do Jira, mostra só as filhas locais', () => {
+    expect(mergeChildIssues(null, local, SITE)).toEqual([
+      {
+        key: 'CTL-20',
+        summary: 'Revisão local',
+        statusName: 'Em andamento',
+        issueType: 'Tarefa',
+        issueKind: 'task',
+        url: 'https://jacto.atlassian.net/browse/CTL-20',
+        taskId: 20
+      }
     ])
   })
 })
