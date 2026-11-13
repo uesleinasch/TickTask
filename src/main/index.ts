@@ -144,6 +144,9 @@ import {
   listJiraTransitions,
   onJiraBackgroundError,
   scheduleJiraDescriptionPush,
+  scheduleJiraWorklogPush,
+  captureJiraWorklogs,
+  deleteJiraWorklogs,
   searchJiraUsers,
   startJiraScheduler,
   saveJiraBoards,
@@ -331,11 +334,12 @@ function autoSyncToGoogle(...taskIds: number[]): void {
 function autoSyncTask(taskId: number): Promise<void> {
   autoSyncToGoogle(taskId)
   scheduleJiraDescriptionPush(taskId)
+  scheduleJiraWorklogPush(taskId)
   return autoSyncToNotion(taskId)
 }
 
 onJiraBackgroundError((error) => {
-  console.error('[jira] erro ao enviar a descrição:', error)
+  console.error('[jira] erro na sincronização em segundo plano:', error)
   const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
   mainWindow?.webContents.send('jira:syncError', errorMessage)
 })
@@ -807,7 +811,9 @@ function setupIpcHandlers(): void {
   })
   ipcMain.handle('task:updateTimer', (_, id: number, seconds: number) => updateTimer(id, seconds))
   ipcMain.handle('task:reset', (_, id: number) => {
+    const worklogs = captureJiraWorklogs(id)
     resetTaskTimer(id)
+    deleteJiraWorklogs(worklogs)
     autoSyncTask(id)
   })
   ipcMain.handle('task:addManualTime', (_, id: number, seconds: number) => {
