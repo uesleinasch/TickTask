@@ -1,5 +1,6 @@
 import { TaskCard } from './TaskCard'
 import type { TaskGroup } from './TaskGroups'
+import { SortableGroups, GroupDragHandle } from './SortableGroups'
 
 interface TaskKanbanProps {
   columns: TaskGroup[]
@@ -7,6 +8,7 @@ interface TaskKanbanProps {
   selectedTaskIds: Set<number>
   onToggleTaskSelection: (taskId: number, selected: boolean) => void
   onScheduleForToday?: (taskId: number) => void
+  onReorderColumns?: (activeKey: string, overKey: string) => void
 }
 
 export function TaskKanban({
@@ -14,15 +16,22 @@ export function TaskKanban({
   onTaskClick,
   selectedTaskIds,
   onToggleTaskSelection,
-  onScheduleForToday
+  onScheduleForToday,
+  onReorderColumns
 }: TaskKanbanProps): React.JSX.Element {
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4">
+    <SortableGroups
+      keys={columns.map((col) => col.key)}
+      direction="horizontal"
+      onReorder={onReorderColumns}
+      className="flex gap-4 overflow-x-auto pb-4"
+    >
       {columns.map((col) => {
         const accent = col.color || '#94a3b8'
         return (
-          <div
+          <SortableGroups.Item
             key={col.key}
+            id={col.key}
             className="flex flex-col w-[300px] shrink-0 bg-slate-50 border border-slate-200 rounded-sm"
           >
             {/* Cabeçalho colorido */}
@@ -30,6 +39,7 @@ export function TaskKanban({
               className="flex items-center gap-2 px-3 py-2.5 rounded-t-sm border-b"
               style={{ backgroundColor: `${accent}18`, borderBottomColor: `${accent}40` }}
             >
+              {onReorderColumns && <GroupDragHandle className="-ml-1" />}
               {col.icon ? (
                 <span className="text-base leading-none">{col.icon}</span>
               ) : (
@@ -59,9 +69,9 @@ export function TaskKanban({
                 />
               ))}
             </div>
-          </div>
+          </SortableGroups.Item>
         )
       })}
-    </div>
+    </SortableGroups>
   )
 }
