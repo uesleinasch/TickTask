@@ -3,6 +3,7 @@ import { StatusBadge } from './StatusBadge'
 import { CategoryBadge } from './CategoryBadge'
 import { DueDateBadge } from './DueDateBadge'
 import { ScheduledTimeBadge } from './ScheduledTimeBadge'
+import { TaskIdBadge } from './TaskIdBadge'
 import { JiraTaskControls } from './jira/JiraTaskControls'
 import { formatTime } from '@renderer/lib/utils'
 import type { Task } from '../../../shared/types'
@@ -125,6 +126,7 @@ export function TaskCard({
 
         {/* Identidade: projeto + status (+ categoria se relevante) */}
         <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-xs">
+          <TaskIdBadge id={task.id} />
           {task.project_name && (
             <span className="inline-flex items-center gap-1.5 text-slate-500 min-w-0">
               <span

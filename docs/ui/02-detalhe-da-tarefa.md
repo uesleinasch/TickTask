@@ -84,8 +84,8 @@ Essa paleta **diverge** da usada nos badges de categoria (onde time leak é amar
 
 ### Cabeçalho
 
-`← Voltar` (usa `navigate(-1)`, não uma rota fixa) e, à direita, o `CategorySelect` reduzido a 90%
-(`scale-90 origin-right`).
+`← Voltar` (usa `navigate(-1)`, não uma rota fixa) e, à direita, o `TaskIdBadge` (`#id`, clique
+copia o número) seguido do `CategorySelect` reduzido a 90% (`scale-90 origin-right`).
 
 ### Identidade
 

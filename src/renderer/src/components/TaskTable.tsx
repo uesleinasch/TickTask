@@ -4,6 +4,7 @@ import { JiraTaskControls } from './jira/JiraTaskControls'
 import { CategoryBadge } from './CategoryBadge'
 import { DueDateBadge } from './DueDateBadge'
 import { ScheduledTimeBadge } from './ScheduledTimeBadge'
+import { TaskIdBadge } from './TaskIdBadge'
 import { formatTime } from '@renderer/lib/utils'
 import type { Task } from '../../../shared/types'
 import {
@@ -211,6 +212,7 @@ export function TaskTable({
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 min-w-0">
+                        <TaskIdBadge id={task.id} />
                         <p
                           className={cn(
                             'font-medium text-slate-900 truncate min-w-0 group-hover:text-slate-700',
