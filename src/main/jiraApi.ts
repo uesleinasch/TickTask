@@ -30,6 +30,15 @@ export interface JiraIssue {
   dueDate: string | null
   spaceKey: string | null
   spaceName: string | null
+  issueType: JiraIssueType | null
+  parentKey: string | null
+  parentSummary: string | null
+}
+
+export interface JiraIssueType {
+  name: string
+  hierarchyLevel: number | null
+  subtask: boolean
 }
 
 export interface JiraTransition {
@@ -71,7 +80,7 @@ export interface JiraApi {
 
 const RETRY_DELAY_MS = 1000
 const PAGE_SIZE = 100
-const ISSUE_FIELDS = 'summary,status,duedate,project'
+const ISSUE_FIELDS = 'summary,status,duedate,project,issuetype,parent'
 const SEARCH_BATCH = 100
 const ASSIGNED_ISSUES_JQL =
   'assignee = currentUser() AND (statusCategory != Done OR updated >= -30d)'
@@ -256,10 +265,13 @@ interface RawIssue {
     duedate: string | null
     status: { name: string; statusCategory: { key: string } }
     project?: { key: string; name: string }
+    issuetype?: { name: string; hierarchyLevel?: number; subtask?: boolean }
+    parent?: { key: string; fields?: { summary?: string } }
   }
 }
 
 function toIssue(raw: RawIssue): JiraIssue {
+  const type = raw.fields.issuetype
   return {
     key: raw.key,
     summary: raw.fields.summary,
@@ -267,7 +279,12 @@ function toIssue(raw: RawIssue): JiraIssue {
     statusCategory: raw.fields.status.statusCategory.key as JiraStatusCategory,
     dueDate: raw.fields.duedate,
     spaceKey: raw.fields.project?.key ?? null,
-    spaceName: raw.fields.project?.name ?? null
+    spaceName: raw.fields.project?.name ?? null,
+    issueType: type
+      ? { name: type.name, hierarchyLevel: type.hierarchyLevel ?? null, subtask: !!type.subtask }
+      : null,
+    parentKey: raw.fields.parent?.key ?? null,
+    parentSummary: raw.fields.parent?.fields?.summary ?? null
   }
 }
 

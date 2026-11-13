@@ -140,6 +140,24 @@ describe('createJiraApi', () => {
     expect(calls[1].url).toContain('startAt=1&')
   })
 
+  it('lê tipo da issue e issue pai', async () => {
+    const raw = issue('ABC-3', 'A Fazer', 'new')
+    const withMeta = {
+      ...raw,
+      fields: {
+        ...raw.fields,
+        issuetype: { name: 'Subtarefa', hierarchyLevel: -1, subtask: true },
+        parent: { key: 'ABC-2', fields: { summary: 'História mãe' } }
+      }
+    }
+    const { api, calls } = setup(() => jsonResponse(200, withMeta))
+    const result = await api.getIssue('ABC-3')
+    expect(result.issueType).toEqual({ name: 'Subtarefa', hierarchyLevel: -1, subtask: true })
+    expect(result.parentKey).toBe('ABC-2')
+    expect(result.parentSummary).toBe('História mãe')
+    expect(calls[0].url).toContain('fields=summary,status,duedate,project,issuetype,parent')
+  })
+
   it('corpo de erro que não é JSON vira JiraApiError com o status', async () => {
     const { api } = setup(() => new Response('<html>Bad gateway</html>', { status: 404 }))
     const error = await api.getMyself().catch((e: unknown) => e)
@@ -165,7 +183,10 @@ describe('createJiraApi', () => {
         statusCategory: 'indeterminate',
         dueDate: null,
         spaceKey: 'ABC',
-        spaceName: 'Conecta'
+        spaceName: 'Conecta',
+        issueType: null,
+        parentKey: null,
+        parentSummary: null
       }
     ])
     expect(decodeURIComponent(calls[0].url)).toContain(
