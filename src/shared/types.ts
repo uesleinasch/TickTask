@@ -329,6 +329,7 @@ export interface JiraOptionsInput {
   autoImportMinutes?: number
   projectId?: number | null
   spaceProjects?: Record<string, number>
+  syncWorklogs?: boolean
 }
 
 export interface JiraImportResult {
@@ -353,6 +354,7 @@ export interface JiraStatus {
   autoImportMinutes: number
   projectId: number | null
   lastImportAt: string | null
+  syncWorklogs: boolean
 }
 
 export interface BackupCounts {

@@ -21,8 +21,10 @@ import {
   getJiraDescriptionState,
   getTask,
   listJiraLinkedTasks,
+  listJiraWorklogEntries,
   listProjects,
   saveJiraDescriptionSync,
+  setTimeEntryWorklogId,
   updateJiraLinkedTask,
   type JiraLinkedTask
 } from './database'
@@ -39,6 +41,7 @@ import {
   type SpaceProjects,
   type StatusMapping
 } from './jiraPlan'
+import { pendingWorklogEntries, worklogFor } from './jiraWorklog'
 
 interface StoredConfig {
   site?: string
@@ -55,6 +58,7 @@ interface StoredConfig {
   autoImportMinutes?: number
   projectId?: number | null
   lastImportAt?: string | null
+  worklogSince?: string | null
 }
 
 const configPath = (): string => path.join(app.getPath('userData'), 'jira-config.json')
@@ -147,7 +151,8 @@ export function getJiraStatus(): JiraStatus {
     syncToNotion: config.syncToNotion ?? false,
     autoImportMinutes: config.autoImportMinutes ?? 0,
     projectId: config.projectId ?? null,
-    lastImportAt: config.lastImportAt ?? null
+    lastImportAt: config.lastImportAt ?? null,
+    syncWorklogs: Boolean(config.worklogSince)
   }
 }
 
@@ -202,6 +207,12 @@ export function saveJiraOptions(input: JiraOptionsInput): JiraStatus {
     patch.autoImportMinutes = Math.max(0, Math.round(input.autoImportMinutes))
   }
   if (input.projectId !== undefined) patch.projectId = input.projectId
+  if (input.syncWorklogs !== undefined) {
+    const enabled = Boolean(readConfig().worklogSince)
+    if (input.syncWorklogs !== enabled) {
+      patch.worklogSince = input.syncWorklogs ? new Date().toISOString() : null
+    }
+  }
   if (input.spaceProjects !== undefined) {
     patch.spaceProjects = Object.fromEntries(
       Object.entries(input.spaceProjects).filter(
@@ -461,6 +472,53 @@ export function scheduleJiraDescriptionPush(taskId: number): void {
       runDescriptionPush(taskId).catch(reportBackgroundError)
     }, DESCRIPTION_PUSH_DELAY_MS)
   )
+}
+
+async function pushWorklogs(taskId: number): Promise<void> {
+  const config = readConfig()
+  const issueKey = getTask(taskId)?.jira_key
+  if (!issueKey || !config.worklogSince) return
+  const pending = pendingWorklogEntries(listJiraWorklogEntries(taskId), config.worklogSince)
+  if (pending.length === 0) return
+  const connection = currentConnection(config)
+  if (!connection) return
+
+  const api = apiFor(connection)
+  for (const entry of pending) {
+    setTimeEntryWorklogId(entry.id, await api.addWorklog(issueKey, worklogFor(entry)))
+  }
+}
+
+const runWorklogPush = createKeyedQueue(pushWorklogs)
+
+export function scheduleJiraWorklogPush(taskId: number): void {
+  if (!readConfig().worklogSince || !getTask(taskId)?.jira_key) return
+  runWorklogPush(taskId).catch(reportBackgroundError)
+}
+
+export interface CapturedWorklogs {
+  issueKey: string
+  worklogIds: string[]
+}
+
+export function captureJiraWorklogs(taskId: number): CapturedWorklogs | null {
+  const issueKey = getTask(taskId)?.jira_key
+  if (!issueKey || !readConfig().worklogSince) return null
+  const worklogIds = listJiraWorklogEntries(taskId)
+    .map((entry) => entry.jira_worklog_id)
+    .filter((id): id is string => id !== null)
+  return worklogIds.length > 0 ? { issueKey, worklogIds } : null
+}
+
+export function deleteJiraWorklogs(captured: CapturedWorklogs | null): void {
+  const connection = currentConnection()
+  if (!captured || !connection) return
+  const api = apiFor(connection)
+  void (async () => {
+    for (const worklogId of captured.worklogIds) {
+      await api.deleteWorklog(captured.issueKey, worklogId)
+    }
+  })().catch(reportBackgroundError)
 }
 
 function linkedIssueKey(taskId: number): string {
