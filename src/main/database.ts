@@ -337,6 +337,12 @@ export function initDatabase(): void {
 
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_jira_key ON tasks(jira_key)')
 
+  try {
+    db.exec('ALTER TABLE time_entries ADD COLUMN jira_worklog_id TEXT')
+  } catch {
+    /* já existe */
+  }
+
   // ===================== FASE 4.3: Blocos de Tempo =====================
 
   db.exec(`
@@ -1317,6 +1323,27 @@ export function updateJiraLinkedTask(
     }
     setJiraHierarchy(id, { jira_issue_type, jira_issue_kind, jira_parent_key, jira_parent_summary })
   })()
+}
+
+export interface JiraWorklogEntry {
+  id: number
+  start_time: string
+  end_time: string | null
+  duration_seconds: number | null
+  jira_worklog_id: string | null
+}
+
+export function listJiraWorklogEntries(taskId: number): JiraWorklogEntry[] {
+  return db
+    .prepare(
+      `SELECT id, start_time, end_time, duration_seconds, jira_worklog_id
+       FROM time_entries WHERE task_id = ? ORDER BY id`
+    )
+    .all(taskId) as JiraWorklogEntry[]
+}
+
+export function setTimeEntryWorklogId(entryId: number, worklogId: string): void {
+  db.prepare('UPDATE time_entries SET jira_worklog_id = ? WHERE id = ?').run(worklogId, entryId)
 }
 
 export function setTaskJiraStatus(id: number, jiraStatus: string): void {
