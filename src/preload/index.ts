@@ -44,7 +44,18 @@ import type {
   UpdateTagInput,
   McpStatus,
   BackupSnapshot,
-  BackupStatus
+  BackupStatus,
+  NotesOwner,
+  Notebook,
+  NotebookSection,
+  NotebookPage,
+  NotebookPageSummary,
+  CreateNotebookInput,
+  UpdateNotebookInput,
+  CreateSectionInput,
+  UpdateSectionInput,
+  CreatePageInput,
+  MovePageInput
 } from '../shared/types'
 
 // Custom APIs for renderer
@@ -53,6 +64,46 @@ const api = {
   minimizeWindow: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
   maximizeWindow: (): Promise<void> => ipcRenderer.invoke('window:maximize'),
   closeWindow: (): Promise<void> => ipcRenderer.invoke('window:close'),
+
+  // Cadernos
+  listNotebooks: (): Promise<Notebook[]> => ipcRenderer.invoke('notebook:list'),
+  createNotebook: (input: CreateNotebookInput): Promise<Notebook> =>
+    ipcRenderer.invoke('notebook:create', input),
+  updateNotebook: (id: number, input: UpdateNotebookInput): Promise<void> =>
+    ipcRenderer.invoke('notebook:update', id, input),
+  deleteNotebook: (id: number): Promise<void> => ipcRenderer.invoke('notebook:delete', id),
+  reorderNotebooks: (ids: number[]): Promise<void> => ipcRenderer.invoke('notebook:reorder', ids),
+  listSections: (notebookId: number): Promise<NotebookSection[]> =>
+    ipcRenderer.invoke('section:list', notebookId),
+  createSection: (input: CreateSectionInput): Promise<NotebookSection> =>
+    ipcRenderer.invoke('section:create', input),
+  updateSection: (id: number, input: UpdateSectionInput): Promise<void> =>
+    ipcRenderer.invoke('section:update', id, input),
+  deleteSection: (id: number): Promise<void> => ipcRenderer.invoke('section:delete', id),
+  reorderSections: (notebookId: number, ids: number[]): Promise<void> =>
+    ipcRenderer.invoke('section:reorder', notebookId, ids),
+  listPages: (sectionId: number): Promise<NotebookPageSummary[]> =>
+    ipcRenderer.invoke('page:list', sectionId),
+  getPage: (id: number): Promise<NotebookPage | null> => ipcRenderer.invoke('page:get', id),
+  createPage: (input: CreatePageInput): Promise<NotebookPage> =>
+    ipcRenderer.invoke('page:create', input),
+  updatePageTitle: (id: number, title: string): Promise<void> =>
+    ipcRenderer.invoke('page:updateTitle', id, title),
+  deletePage: (id: number): Promise<void> => ipcRenderer.invoke('page:delete', id),
+  movePage: (id: number, input: MovePageInput): Promise<void> =>
+    ipcRenderer.invoke('page:move', id, input),
+  savePageNotes: (id: number, notes: string | null): Promise<void> =>
+    ipcRenderer.invoke('page:saveNotes', id, notes),
+  savePageDrawing: (
+    id: number,
+    drawing: string | null,
+    preview: Uint8Array | null
+  ): Promise<void> => ipcRenderer.invoke('page:saveDrawing', id, drawing, preview),
+  onNotebooksRefresh: (callback: () => void): (() => void) => {
+    const handler = (): void => callback()
+    ipcRenderer.on('notebooks:refresh', handler)
+    return () => ipcRenderer.removeListener('notebooks:refresh', handler)
+  },
 
   // Task CRUD
   createTask: (data: CreateTaskInput): Promise<Task> => ipcRenderer.invoke('task:create', data),
@@ -74,12 +125,12 @@ const api = {
   ): Promise<Array<{ id: number; label: string; type: 'task' | 'project' | 'context' }>> =>
     ipcRenderer.invoke('notes:searchMentions', query),
   saveNoteImage: (
-    taskId: number,
+    owner: NotesOwner,
     bytes: Uint8Array,
     filename: string,
     mime: string
   ): Promise<{ assetId: string; src: string }> =>
-    ipcRenderer.invoke('notes:saveImage', taskId, bytes, filename, mime),
+    ipcRenderer.invoke('notes:saveImage', owner, bytes, filename, mime),
   exportNotesLocalChoose: (taskId: number): Promise<string | null> =>
     ipcRenderer.invoke('notes:exportLocalChoose', taskId),
   exportNotesLocal: (taskId: number): Promise<boolean> =>

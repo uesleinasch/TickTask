@@ -1,4 +1,5 @@
 import type { Extensions } from '@tiptap/core'
+import type { NotesOwner } from '@shared/types'
 import StarterKit from '@tiptap/starter-kit'
 import Highlight from '@tiptap/extension-highlight'
 import { TaskList, TaskItem } from '@tiptap/extension-list'
@@ -20,7 +21,7 @@ const ImageWithAsset = Image.extend({
   }
 })
 
-export function buildExtensions(taskId: number): Extensions {
+export function buildExtensions(owner: NotesOwner): Extensions {
   return [
     // StarterKit v3: paragraph, heading, listas, blockquote, codeBlock, hr,
     // bold, italic, strike, code, link, underline, histórico (undo/redo).
@@ -33,7 +34,7 @@ export function buildExtensions(taskId: number): Extensions {
     TaskItem.configure({ nested: true }),
     Placeholder.configure({ placeholder: 'Escreva suas anotações... (digite / para comandos)' }),
     TableKit.configure({ table: { resizable: true } }),
-    SlashCommand.configure({ taskId }),
+    SlashCommand.configure({ owner }),
     MentionExtension,
     ImageWithAsset,
     FileHandler.configure({
@@ -42,10 +43,10 @@ export function buildExtensions(taskId: number): Extensions {
       // rules insiram conteúdo duplicado.
       consumePasteEvent: true,
       onDrop: (editor, files, pos) => {
-        files.forEach((file) => void uploadAndInsert(editor, taskId, file, pos))
+        files.forEach((file) => void uploadAndInsert(editor, owner, file, pos))
       },
       onPaste: (editor, files) => {
-        files.forEach((file) => void uploadAndInsert(editor, taskId, file))
+        files.forEach((file) => void uploadAndInsert(editor, owner, file))
       }
     })
   ]

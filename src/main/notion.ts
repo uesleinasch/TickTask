@@ -624,7 +624,7 @@ export async function syncTaskToNotion(task: Task): Promise<string> {
 async function buildDrawingBlock(client: Client, task: Task): Promise<NotionBlock | null> {
   if (!task.drawing) return null
 
-  const filePath = drawingPreviewPath(task.id)
+  const filePath = drawingPreviewPath({ kind: 'task', id: task.id })
   if (!fs.existsSync(filePath)) return null
 
   try {

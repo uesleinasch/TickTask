@@ -1,7 +1,9 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { Excalidraw, exportToBlob } from '@excalidraw/excalidraw'
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
+import type { NotesOwner } from '@shared/types'
 import { ensureExcalidrawAssetPath } from './drawingAssetPath'
+import { saveOwnerDrawing } from './notesOwner'
 import '@excalidraw/excalidraw/index.css'
 
 ensureExcalidrawAssetPath()
@@ -11,7 +13,7 @@ export interface TaskDrawingEditorHandle {
 }
 
 interface TaskDrawingEditorProps {
-  taskId: number
+  owner: NotesOwner
   initialDrawing: string | null
   onChange?: () => void
   onSaved?: (drawing: string) => void
@@ -36,7 +38,8 @@ function parseDrawing(raw: string | null): StoredDrawing | null {
 }
 
 export const TaskDrawingEditor = forwardRef<TaskDrawingEditorHandle, TaskDrawingEditorProps>(
-  function TaskDrawingEditor({ taskId, initialDrawing, onChange, onSaved }, ref) {
+  function TaskDrawingEditor({ owner, initialDrawing, onChange, onSaved }, ref) {
+    const { kind, id } = owner
     const apiRef = useRef<ExcalidrawImperativeAPI | null>(null)
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const onChangeRef = useRef(onChange)
@@ -72,9 +75,9 @@ export const TaskDrawingEditor = forwardRef<TaskDrawingEditorHandle, TaskDrawing
         preview = new Uint8Array(await blob.arrayBuffer())
       }
 
-      await window.api.saveDrawing(taskId, drawing, preview)
+      await saveOwnerDrawing({ kind, id }, drawing, preview)
       onSavedRef.current?.(drawing)
-    }, [taskId])
+    }, [kind, id])
 
     const handleChange = useCallback((): void => {
       onChangeRef.current?.()
@@ -99,7 +102,7 @@ export const TaskDrawingEditor = forwardRef<TaskDrawingEditorHandle, TaskDrawing
       return () => {
         if (debounceRef.current) clearTimeout(debounceRef.current)
       }
-    }, [taskId])
+    }, [kind, id])
 
     return (
       <div className="h-full w-full">

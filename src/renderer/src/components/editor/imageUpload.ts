@@ -1,4 +1,5 @@
 import type { Editor } from '@tiptap/core'
+import type { NotesOwner } from '@shared/types'
 
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
@@ -6,7 +7,7 @@ export const IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/
 
 export async function uploadAndInsert(
   editor: Editor,
-  taskId: number,
+  owner: NotesOwner,
   file: File,
   pos?: number
 ): Promise<void> {
@@ -16,7 +17,7 @@ export async function uploadAndInsert(
     return
   }
   const bytes = new Uint8Array(await file.arrayBuffer())
-  const { assetId, src } = await window.api.saveNoteImage(taskId, bytes, file.name, file.type)
+  const { assetId, src } = await window.api.saveNoteImage(owner, bytes, file.name, file.type)
   const node = { type: 'image', attrs: { src, assetId } }
   const chain = editor.chain().focus()
   if (typeof pos === 'number') chain.insertContentAt(pos, node)

@@ -1,11 +1,12 @@
 import { Extension } from '@tiptap/core'
 import Suggestion from '@tiptap/suggestion'
+import type { NotesOwner } from '@shared/types'
 import { createSuggestionRenderer } from '../suggestionPopup'
 import { pickImageFile, uploadAndInsert } from '../imageUpload'
 import { SlashMenu, type SlashItem } from './SlashMenu'
 
 export interface SlashCommandOptions {
-  taskId: number
+  owner: NotesOwner | null
 }
 
 // Precisa acompanhar o número de itens: um limite menor que a lista esconde os últimos
@@ -69,7 +70,8 @@ const ITEMS: SlashItem[] = [
   }
 ]
 
-function itemsFor(taskId: number): SlashItem[] {
+function itemsFor(owner: NotesOwner | null): SlashItem[] {
+  if (!owner) return ITEMS
   return [
     ...ITEMS,
     {
@@ -79,7 +81,7 @@ function itemsFor(taskId: number): SlashItem[] {
         // posição registrada aqui não sobrevive ao retorno.
         editor.chain().focus().deleteRange(range).run()
         void pickImageFile().then((file) => {
-          if (file) void uploadAndInsert(editor, taskId, file)
+          if (file) void uploadAndInsert(editor, owner, file)
         })
       }
     }
@@ -89,10 +91,10 @@ function itemsFor(taskId: number): SlashItem[] {
 export const SlashCommand = Extension.create<SlashCommandOptions>({
   name: 'slashCommand',
   addOptions() {
-    return { taskId: 0 }
+    return { owner: null }
   },
   addProseMirrorPlugins() {
-    const items = itemsFor(this.options.taskId)
+    const items = itemsFor(this.options.owner)
     return [
       Suggestion<SlashItem>({
         editor: this.editor,
