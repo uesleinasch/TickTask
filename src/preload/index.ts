@@ -55,7 +55,9 @@ import type {
   CreateSectionInput,
   UpdateSectionInput,
   CreatePageInput,
-  MovePageInput
+  MovePageInput,
+  PageLocation,
+  PageSearchResult
 } from '../shared/types'
 
 // Custom APIs for renderer
@@ -99,6 +101,13 @@ const api = {
     drawing: string | null,
     preview: Uint8Array | null
   ): Promise<void> => ipcRenderer.invoke('page:saveDrawing', id, drawing, preview),
+  searchPages: (query: string): Promise<PageSearchResult[]> =>
+    ipcRenderer.invoke('page:search', query),
+  locatePage: (id: number): Promise<PageLocation | null> => ipcRenderer.invoke('page:locate', id),
+  exportPageLocal: (id: number): Promise<string | null> =>
+    ipcRenderer.invoke('page:exportLocal', id),
+  exportNotebookLocal: (id: number): Promise<{ dir: string; pages: number } | null> =>
+    ipcRenderer.invoke('notebook:exportLocal', id),
   syncNotebookPageToNotion: (id: number): Promise<void> =>
     ipcRenderer.invoke('notion:syncNotebookPage', id),
   syncNotebookToNotion: (id: number): Promise<void> =>
@@ -126,7 +135,7 @@ const api = {
     ipcRenderer.invoke('drawing:save', id, drawing, preview),
   searchMentions: (
     query: string
-  ): Promise<Array<{ id: number; label: string; type: 'task' | 'project' | 'context' }>> =>
+  ): Promise<Array<{ id: number; label: string; type: 'task' | 'project' | 'context' | 'page' }>> =>
     ipcRenderer.invoke('notes:searchMentions', query),
   saveNoteImage: (
     owner: NotesOwner,

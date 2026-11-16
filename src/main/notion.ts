@@ -16,7 +16,9 @@ import { getAssetFilePath } from './notesAssets'
 import { bodyBlockIdsToDelete } from './notionNotebookPlan'
 
 // Caminho do arquivo de configuração
-const configPath = path.join(app.getPath('userData'), 'notion-config.json')
+function configPath(): string {
+  return path.join(app.getPath('userData'), 'notion-config.json')
+}
 
 // O file_upload do Notion expira ~1h após a criação; renovamos com folga.
 const UPLOAD_TTL_MS = 55 * 60 * 1000
@@ -68,8 +70,8 @@ let currentConfig: NotionConfig | null = null
 
 export function loadNotionConfig(): NotionConfig | null {
   try {
-    if (fs.existsSync(configPath)) {
-      const data = fs.readFileSync(configPath, 'utf-8')
+    if (fs.existsSync(configPath())) {
+      const data = fs.readFileSync(configPath(), 'utf-8')
       currentConfig = JSON.parse(data)
       return currentConfig
     }
@@ -81,7 +83,7 @@ export function loadNotionConfig(): NotionConfig | null {
 
 export function saveNotionConfig(config: NotionConfig): void {
   try {
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+    fs.writeFileSync(configPath(), JSON.stringify(config, null, 2))
     currentConfig = config
     // Reinicializar cliente com nova configuração
     if (config.apiKey) {
@@ -102,8 +104,8 @@ export function getNotionConfig(): NotionConfig | null {
 
 export function clearNotionConfig(): void {
   try {
-    if (fs.existsSync(configPath)) {
-      fs.unlinkSync(configPath)
+    if (fs.existsSync(configPath())) {
+      fs.unlinkSync(configPath())
     }
     currentConfig = null
     notionClient = null

@@ -56,7 +56,9 @@ import type {
   CreateSectionInput,
   UpdateSectionInput,
   CreatePageInput,
-  MovePageInput
+  MovePageInput,
+  PageLocation,
+  PageSearchResult
 } from '../shared/types'
 
 interface FloatTimerData {
@@ -134,6 +136,10 @@ interface API {
   movePage: (id: number, input: MovePageInput) => Promise<void>
   savePageNotes: (id: number, notes: string | null) => Promise<void>
   savePageDrawing: (id: number, drawing: string | null, preview: Uint8Array | null) => Promise<void>
+  searchPages: (query: string) => Promise<PageSearchResult[]>
+  locatePage: (id: number) => Promise<PageLocation | null>
+  exportPageLocal: (id: number) => Promise<string | null>
+  exportNotebookLocal: (id: number) => Promise<{ dir: string; pages: number } | null>
   syncNotebookPageToNotion: (id: number) => Promise<void>
   syncNotebookToNotion: (id: number) => Promise<void>
   onNotebooksRefresh: (callback: () => void) => () => void
@@ -150,7 +156,7 @@ interface API {
   saveDrawing: (id: number, drawing: string | null, preview: Uint8Array | null) => Promise<void>
   searchMentions: (
     query: string
-  ) => Promise<Array<{ id: number; label: string; type: 'task' | 'project' | 'context' }>>
+  ) => Promise<Array<{ id: number; label: string; type: 'task' | 'project' | 'context' | 'page' }>>
   saveNoteImage: (
     owner: NotesOwner,
     bytes: Uint8Array,

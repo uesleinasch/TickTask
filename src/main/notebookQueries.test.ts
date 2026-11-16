@@ -12,6 +12,8 @@ import {
   getPage,
   listNotebookPageIds,
   listPageSubtree,
+  locatePage,
+  searchPages,
   setNotionPageId,
   listNotebooks,
   listPages,
@@ -273,5 +275,65 @@ describe('vínculo com o Notion', () => {
     expect(listPageSubtree(db, a.id)).toEqual([a.id, a1.id, a11.id])
     expect(listPageSubtree(db, 999)).toEqual([])
     expect(listNotebookPageIds(db, nb.id)).toEqual([a.id, a1.id, a11.id, b.id, x.id])
+  })
+})
+
+describe('busca', () => {
+  const note = (text: string): string =>
+    JSON.stringify({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }]
+    })
+
+  beforeEach(() => ensureNotebookSchema(db))
+
+  it('acha por título e por texto, título primeiro, com trecho e caminho', () => {
+    const nb = createNotebook(db, { name: 'Trabalho' })
+    const section = listSections(db, nb.id)[0]
+    const byText = createPage(db, { section_id: section.id, title: 'Ata' })
+    updatePageNotes(db, byText.id, note('Discutimos o orçamento de 2027 com a diretoria'))
+    const byTitle = createPage(db, { section_id: section.id, title: 'Orçamento' })
+    createPage(db, { section_id: section.id, title: 'Outra' })
+
+    const results = searchPages(db, 'orçamento')
+    expect(results.map((r) => r.id)).toEqual([byTitle.id, byText.id])
+    expect(results[1]).toMatchObject({
+      notebook_name: 'Trabalho',
+      section_name: 'Geral',
+      snippet: 'Discutimos o orçamento de 2027 com a diretoria'
+    })
+    expect(results[1]).not.toHaveProperty('search_text')
+  })
+
+  it('trata % e _ como texto e ignora busca vazia', () => {
+    const nb = createNotebook(db, { name: 'A' })
+    const section = listSections(db, nb.id)[0]
+    createPage(db, { section_id: section.id, title: '100% pronto' })
+    createPage(db, { section_id: section.id, title: '1000 pronto' })
+    expect(searchPages(db, '100%').map((r) => r.title)).toEqual(['100% pronto'])
+    expect(searchPages(db, '  ')).toEqual([])
+  })
+
+  it('preenche search_text de páginas que já existiam antes da coluna', () => {
+    raw.exec('ALTER TABLE notebook_pages DROP COLUMN search_text')
+    const nb = createNotebook(db, { name: 'A' })
+    const section = listSections(db, nb.id)[0]
+    raw.exec(
+      `INSERT INTO notebook_pages (section_id, title, notes) VALUES (${section.id}, 'velha', '${note('texto antigo')}')`
+    )
+    ensureNotebookSchema(db)
+    expect(searchPages(db, 'antigo').map((r) => r.title)).toEqual(['velha'])
+  })
+
+  it('localiza caderno e seção da página', () => {
+    const nb = createNotebook(db, { name: 'A' })
+    const section = listSections(db, nb.id)[0]
+    const page = createPage(db, { section_id: section.id })
+    expect(locatePage(db, page.id)).toEqual({
+      page_id: page.id,
+      section_id: section.id,
+      notebook_id: nb.id
+    })
+    expect(locatePage(db, 999)).toBeNull()
   })
 })
