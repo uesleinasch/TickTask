@@ -29,7 +29,11 @@ ter um **diretório de trabalho** (`tasks.working_dir`) e um **comando inicial**
 
 - Irmão de `<main>` em `App.tsx`; empurra o conteúdo para cima. Altura arrastável entre 120px e
   70% da janela, guardada em `terminal.height`.
-- Uma aba por sessão, com o nome da task; várias da mesma task ganham `(n)`. Ponto laranja =
+- Uma aba por sessão, com o nome da task; várias da mesma task ganham `(n)`. **Duplo clique** no
+  nome (ou botão direito → **Renomear**) troca o nome da aba: Enter salva, Esc cancela, vazio volta
+  ao padrão; **Restaurar nome** no mesmo menu também. O nome vive na sessão, no main
+  (`terminal:customize`, até 60 caracteres), sobrevive à navegação e ao **Reiniciar**, e morre com a
+  sessão. Ponto laranja =
   processo em foreground diferente do shell (consulta a cada 2s com o painel aberto). Riscada =
   processo encerrado; aí aparece **Reiniciar**.
 - `+` abre outra sessão para a task da aba ativa. `×` encerra a sessão — pede confirmação se há

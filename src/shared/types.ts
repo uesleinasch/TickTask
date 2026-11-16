@@ -584,8 +584,13 @@ export interface TerminalSession {
   taskName: string
   cwd: string
   shell: string
+  title: string | null
   busy: boolean
   exitCode: number | null
+}
+
+export interface TerminalTabCustomization {
+  title?: string | null
 }
 
 export interface TerminalBuffer {

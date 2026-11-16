@@ -3,6 +3,7 @@ import {
   RingBuffer,
   TerminalManager,
   defaultShell,
+  normalizeTabTitle,
   resolveShell,
   shellBasename,
   type PtyLike,
@@ -189,6 +190,18 @@ describe('TerminalManager', () => {
     expect(manager.list().map((s) => s.id)).toEqual([other.id])
   })
 
+  it('customize renomeia a aba e o nome aparece na listagem', () => {
+    const { manager } = setup()
+    const session = manager.create(input)
+
+    expect(session.title).toBeNull()
+    expect(manager.customize(session.id, { title: '  API  ' })?.title).toBe('API')
+    expect(manager.list()[0].title).toBe('API')
+    expect(manager.customize(session.id, {})?.title).toBe('API')
+    expect(manager.customize(session.id, { title: '' })?.title).toBeNull()
+    expect(manager.customize('inexistente', { title: 'x' })).toBeNull()
+  })
+
   it('killAll derruba tudo', () => {
     const { manager, ptys } = setup()
     manager.create(input)
@@ -234,5 +247,14 @@ describe('shell', () => {
   it('compara o nome do processo sem caminho nem .exe', () => {
     expect(shellBasename('/usr/bin/zsh')).toBe('zsh')
     expect(shellBasename('C:\\Windows\\powershell.exe')).toBe('powershell')
+  })
+})
+
+describe('normalizeTabTitle', () => {
+  it('apara, limita a 60 caracteres e trata vazio como sem nome', () => {
+    expect(normalizeTabTitle('  front  ')).toBe('front')
+    expect(normalizeTabTitle('   ')).toBeNull()
+    expect(normalizeTabTitle(null)).toBeNull()
+    expect(normalizeTabTitle('x'.repeat(80))).toHaveLength(60)
   })
 })

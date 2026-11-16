@@ -1,6 +1,6 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron'
 import { accessSync, constants, statSync } from 'fs'
-import type { TerminalCreateResult } from '@shared/types'
+import type { TerminalCreateResult, TerminalTabCustomization } from '@shared/types'
 import { getTask, setTaskWorkspace } from './database'
 import { TerminalManager, resolveShell, type SpawnPty } from './terminalSessions'
 
@@ -118,6 +118,9 @@ export function registerTerminalIpc(getWindow: () => BrowserWindow | null): void
   )
   ipcMain.handle('terminal:dispose', (_, id: string) => manager?.dispose(id))
   ipcMain.handle('terminal:list', () => manager?.list() ?? [])
+  ipcMain.handle('terminal:customize', (_, id: string, patch: TerminalTabCustomization) =>
+    manager ? manager.customize(id, patch) : null
+  )
   ipcMain.handle('terminal:getBuffer', (_, id: string) => manager?.getBuffer(id) ?? null)
   ipcMain.handle('terminal:pickDirectory', async (_, taskId: number) => {
     const task = getTask(taskId)

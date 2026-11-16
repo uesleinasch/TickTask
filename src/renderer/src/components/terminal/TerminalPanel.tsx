@@ -1,7 +1,23 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, Maximize2, Minimize2, Plus, RotateCcw, SquareTerminal, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  ChevronDown,
+  Maximize2,
+  Minimize2,
+  Pencil,
+  Plus,
+  RotateCcw,
+  SquareTerminal,
+  Undo2,
+  X
+} from 'lucide-react'
 import type { TerminalSession } from '@shared/types'
 import { DeleteConfirmDialog } from '@renderer/components/DeleteConfirmDialog'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger
+} from '@renderer/components/ui/context-menu'
 import { usePersistedState } from '@renderer/hooks/usePersistedState'
 import { TERMINAL_HEIGHT_KEY } from '@renderer/lib/terminalPrefs'
 import { cn } from '@renderer/lib/utils'
@@ -16,7 +32,7 @@ function clampHeight(height: number): number {
   return Math.round(Math.min(Math.max(height, MIN_HEIGHT), window.innerHeight * 0.7))
 }
 
-function tabLabels(sessions: TerminalSession[]): Map<string, string> {
+function defaultTabLabels(sessions: TerminalSession[]): Map<string, string> {
   const labels = new Map<string, string>()
   const seen = new Map<number, number>()
   for (const session of sessions) {
@@ -28,6 +44,47 @@ function tabLabels(sessions: TerminalSession[]): Map<string, string> {
   return labels
 }
 
+function TabTitleInput({
+  initial,
+  onDone
+}: {
+  initial: string
+  onDone: (value: string | null) => void
+}): React.JSX.Element {
+  const ref = useRef<HTMLInputElement>(null)
+  const done = useRef(false)
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      ref.current?.focus()
+      ref.current?.select()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [])
+
+  const finish = (value: string | null): void => {
+    if (done.current) return
+    done.current = true
+    onDone(value)
+  }
+
+  return (
+    <input
+      ref={ref}
+      defaultValue={initial}
+      maxLength={60}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        event.stopPropagation()
+        if (event.key === 'Enter') finish(event.currentTarget.value)
+        if (event.key === 'Escape') finish(null)
+      }}
+      onBlur={(event) => finish(event.currentTarget.value)}
+      className="h-5 w-32 rounded bg-slate-950 px-1 text-xs text-slate-100 outline-none ring-1 ring-orange-400/70"
+    />
+  )
+}
+
 export function TerminalPanel(): React.JSX.Element | null {
   const sessions = useTerminalStore((s) => s.sessions)
   const activeId = useTerminalStore((s) => s.activeId)
@@ -36,6 +93,7 @@ export function TerminalPanel(): React.JSX.Element | null {
   const [height, setHeight] = usePersistedState(TERMINAL_HEIGHT_KEY, 280)
   const [dragHeight, setDragHeight] = useState<number | null>(null)
   const [pendingClose, setPendingClose] = useState<TerminalSession | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   useEffect(() => {
     const store = useTerminalStore.getState()
@@ -68,7 +126,16 @@ export function TerminalPanel(): React.JSX.Element | null {
     return () => window.clearInterval(interval)
   }, [open])
 
-  const labels = useMemo(() => tabLabels(sessions), [sessions])
+  const defaultLabels = useMemo(() => defaultTabLabels(sessions), [sessions])
+  const labelOf = (session: TerminalSession): string =>
+    session.title ?? defaultLabels.get(session.id) ?? session.taskName
+
+  const finishRename = (session: TerminalSession, value: string | null): void => {
+    setEditingId(null)
+    if (value === null || value.trim() === labelOf(session)) return
+    const title = value.trim() === defaultLabels.get(session.id) ? null : value
+    void useTerminalStore.getState().customize(session.id, { title })
+  }
   const active = sessions.find((s) => s.id === activeId) ?? null
 
   if (!open || !active) return null
@@ -117,39 +184,73 @@ export function TerminalPanel(): React.JSX.Element | null {
         <SquareTerminal size={14} className="text-orange-400 shrink-0 mr-1" />
         <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto">
           {sessions.map((session) => (
-            <div
-              key={session.id}
-              onClick={() => useTerminalStore.getState().activate(session.id)}
-              className={cn(
-                'group flex items-center gap-1.5 h-7 pl-2.5 pr-1 rounded-md text-xs cursor-pointer shrink-0 max-w-56',
-                session.id === active.id
-                  ? 'bg-slate-800 text-slate-100'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              )}
-            >
-              {session.busy && (
-                <span
-                  title="Processo em execução"
-                  className="h-1.5 w-1.5 rounded-full bg-orange-400 shrink-0"
-                />
-              )}
-              <span
-                className={cn('truncate', session.exitCode !== null && 'line-through opacity-60')}
+            <ContextMenu key={session.id} modal={false}>
+              <ContextMenuTrigger asChild>
+                <div
+                  onClick={() => useTerminalStore.getState().activate(session.id)}
+                  className={cn(
+                    'group flex items-center gap-1.5 h-7 pl-2.5 pr-1 rounded-md text-xs cursor-pointer shrink-0 max-w-56',
+                    session.id === active.id
+                      ? 'bg-slate-800 text-slate-100'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  )}
+                >
+                  {session.busy && (
+                    <span
+                      title="Processo em execução"
+                      className="h-1.5 w-1.5 rounded-full bg-orange-400 shrink-0"
+                    />
+                  )}
+                  {editingId === session.id ? (
+                    <TabTitleInput
+                      initial={labelOf(session)}
+                      onDone={(value) => finishRename(session, value)}
+                    />
+                  ) : (
+                    <span
+                      title="Clique duas vezes para renomear"
+                      onDoubleClick={(event) => {
+                        event.stopPropagation()
+                        setEditingId(session.id)
+                      }}
+                      className={cn(
+                        'truncate',
+                        session.exitCode !== null && 'line-through opacity-60'
+                      )}
+                    >
+                      {labelOf(session)}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    title="Encerrar terminal"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      void requestClose(session)
+                    }}
+                    className="flex items-center justify-center h-5 w-5 rounded text-slate-500 hover:text-slate-100 hover:bg-slate-700"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              </ContextMenuTrigger>
+              <ContextMenuContent
+                className="w-48"
+                onCloseAutoFocus={(event) => event.preventDefault()}
               >
-                {labels.get(session.id)}
-              </span>
-              <button
-                type="button"
-                title="Encerrar terminal"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  void requestClose(session)
-                }}
-                className="flex items-center justify-center h-5 w-5 rounded text-slate-500 hover:text-slate-100 hover:bg-slate-700"
-              >
-                <X size={12} />
-              </button>
-            </div>
+                <ContextMenuItem onSelect={() => setEditingId(session.id)}>
+                  <Pencil /> Renomear
+                </ContextMenuItem>
+                <ContextMenuItem
+                  disabled={session.title === null}
+                  onSelect={() =>
+                    void useTerminalStore.getState().customize(session.id, { title: null })
+                  }
+                >
+                  <Undo2 /> Restaurar nome
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           ))}
           <button
             type="button"
