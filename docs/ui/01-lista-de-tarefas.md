@@ -158,6 +158,17 @@ A ordem de decisão do que renderizar é:
 5. Modo cards → `TaskList`
 6. Caso contrário → `TaskTable`
 
+### Menu de contexto (`TaskContextMenu`)
+
+Clicar com o botão direito num card (cards, grupos, Kanban) ou numa linha da tabela abre um menu:
+**Abrir** · **Iniciar timer** / **Parar timer** (iniciar fica desabilitado em tarefa bloqueada) ·
+**Planejar para hoje** / **Tirar do plano de hoje** · **Marcar como ▸** (os 6 status, com o atual
+marcado; Executando desabilitado em tarefa bloqueada) · **Arquivar** · **Excluir** (vermelho, abre o
+`DeleteConfirmDialog`). Cada ação mostra um toast e recarrega a lista pelo
+`TaskMenuChangedContext` (`components/taskMenuContext.ts`), que a `TaskListPage` fornece. As
+linhas de subtarefa da tabela não têm menu. O menu usa `modal={false}` para o diálogo de exclusão
+abrir sem deixar o `body` travado.
+
 ### Modo tabela (`TaskTable`) — padrão
 
 Tabela dentro de `bg-white border rounded-sm overflow-hidden`. Cabeçalho `bg-slate-50` com rótulos

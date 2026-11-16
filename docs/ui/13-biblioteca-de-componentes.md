@@ -18,6 +18,7 @@ Consomem os tokens CSS (`--primary`, `--border`, `--radius`…) definidos em `as
 | `searchable-select` | **componente próprio**, não do shadcn — ver abaixo |
 | `dialog` | diálogos de criação/edição |
 | `alert-dialog` | confirmações destrutivas |
+| `context-menu` | menu do botão direito nas tarefas da lista (`TaskContextMenu`) |
 | `card` | **importado por nenhuma tela** — todas escrevem `bg-white border border-slate-200 rounded-sm` na mão |
 | `badge` | **importado por nenhuma tela** — os badges do app são `StatusBadge` / `CategoryBadge`, escritos à parte |
 | `progress` | só em `SubtaskList` e em H1 dos horizontes. As outras seis barras de progresso do app são `<div>` com `width` inline |
@@ -56,6 +57,7 @@ O select mais usado do app — filtros, seleção de projeto, tarefa, tag. Não 
 | `TaskGroups` | lista com agrupamento | cabeçalho recolhível + delega para `TaskList` ou `TaskTable` |
 | `TaskKanban` | aba Executando com Kanban | colunas de 300px com cabeçalho tingido; sem drag-and-drop |
 | `TaskDialog` | criação de tarefa | 9 campos; navega para a tarefa criada |
+| `TaskContextMenu` | botão direito em `TaskCard` e nas linhas do `TaskTable` | abrir, timer, plano de hoje, status, arquivar, excluir |
 
 ### Badges e seletores
 
