@@ -1,4 +1,4 @@
-export const UNTITLED_PAGE = 'Página sem título'
+export { UNTITLED_PAGE } from '@shared/notebookTree'
 
 export const sectionDndId = (id: number): string => `s:${id}`
 

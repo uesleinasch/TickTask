@@ -7,7 +7,7 @@ import {
   useRef,
   useState
 } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, RefreshCw } from 'lucide-react'
 import type { NotebookPage } from '@shared/types'
 import { NotesPanel, type NotesTab } from '@renderer/components/editor/NotesPanel'
 import type { TaskNotesEditorHandle } from '@renderer/components/editor/TaskNotesEditor'
@@ -107,19 +107,25 @@ export const PageEditor = forwardRef<PageEditorHandle, PageEditorProps>(function
     }, TITLE_DEBOUNCE_MS)
   }
 
-  useImperativeHandle(
-    ref,
-    () => ({
-      flush: async () => {
-        await Promise.all([
-          saveTitle(),
-          notesRef.current?.flushSave(),
-          drawingRef.current?.flushSave()
-        ])
-      }
-    }),
-    [saveTitle]
-  )
+  const flush = useCallback(async (): Promise<void> => {
+    await Promise.all([saveTitle(), notesRef.current?.flushSave(), drawingRef.current?.flushSave()])
+  }, [saveTitle])
+
+  useImperativeHandle(ref, () => ({ flush }), [flush])
+
+  const [syncing, setSyncing] = useState(false)
+  const handleSync = async (): Promise<void> => {
+    setSyncing(true)
+    try {
+      await flush()
+      await window.api.syncNotebookPageToNotion(pageId)
+    } catch (error) {
+      // O aviso de erro já chega pelo evento notion:syncError.
+      console.error('Falha ao sincronizar a página com o Notion:', error)
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const initialContent = useMemo(() => parseNotes(page?.notes), [page])
   const owner = useMemo(() => ({ kind: 'page' as const, id: pageId }), [pageId])
@@ -175,7 +181,16 @@ export const PageEditor = forwardRef<PageEditorHandle, PageEditorProps>(function
           viewMode={viewMode}
           onMaximize={onMaximize}
           onZen={onZen}
-          actions={null}
+          actions={
+            <button
+              onClick={() => void handleSync()}
+              disabled={syncing}
+              className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-emerald-600 border border-emerald-200 hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
+              {syncing ? 'Sincronizando...' : 'Sincronizar com o Notion'}
+            </button>
+          }
           zenWidth={zenWidth}
           tab={tab}
           onTabChange={setTab}

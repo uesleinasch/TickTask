@@ -124,6 +124,7 @@ export function NotebooksPage(): React.JSX.Element {
   const [nameDialog, setNameDialog] = useState<NameDialog | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
   const [viewMode, setViewMode] = useState<NotesViewMode>('normal')
+  const [syncingNotebookId, setSyncingNotebookId] = useState<number | null>(null)
   const [zenWidth, setZenWidth] = usePersistedState('ticktask.notesZenWidth', DEFAULT_ZEN_WIDTH)
   const editorRef = useRef<PageEditorHandle>(null)
   const editorAreaRef = useRef<HTMLDivElement>(null)
@@ -179,6 +180,18 @@ export function NotebooksPage(): React.JSX.Element {
     if (id === pageId) return
     await leavePage()
     setPageId(id)
+  }
+
+  const syncNotebook = async (notebook: Notebook): Promise<void> => {
+    setSyncingNotebookId(notebook.id)
+    try {
+      await leavePage()
+      await window.api.syncNotebookToNotion(notebook.id)
+    } catch (error) {
+      console.error('Falha ao sincronizar o caderno com o Notion:', error)
+    } finally {
+      setSyncingNotebookId(null)
+    }
   }
 
   const goBack = async (): Promise<void> => {
@@ -331,6 +344,8 @@ export function NotebooksPage(): React.JSX.Element {
             onCreate={() => setNameDialog({ kind: 'notebook', target: null })}
             onEdit={(notebook) => setNameDialog({ kind: 'notebook', target: notebook })}
             onDelete={(notebook) => setDeleteTarget({ kind: 'notebook', item: notebook })}
+            onSync={(notebook) => void syncNotebook(notebook)}
+            syncingId={syncingNotebookId}
             onReorder={(a, b) => void handleNotebookReorder(a, b)}
           />
         )}

@@ -99,6 +99,10 @@ const api = {
     drawing: string | null,
     preview: Uint8Array | null
   ): Promise<void> => ipcRenderer.invoke('page:saveDrawing', id, drawing, preview),
+  syncNotebookPageToNotion: (id: number): Promise<void> =>
+    ipcRenderer.invoke('notion:syncNotebookPage', id),
+  syncNotebookToNotion: (id: number): Promise<void> =>
+    ipcRenderer.invoke('notion:syncNotebook', id),
   onNotebooksRefresh: (callback: () => void): (() => void) => {
     const handler = (): void => callback()
     ipcRenderer.on('notebooks:refresh', handler)

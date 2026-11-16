@@ -2,7 +2,7 @@ import { Client } from '@notionhq/client'
 import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
-import type { Task, Tag } from '@shared/types'
+import type { NotesOwner, Task, Tag } from '@shared/types'
 import { drawingPreviewPath } from './drawingAssets'
 import {
   collectImageAssetIds,
@@ -13,6 +13,7 @@ import {
 import { getNoteAsset, setNoteAssetUpload } from './database'
 import { uploadImageToNotion } from './notionFileUpload'
 import { getAssetFilePath } from './notesAssets'
+import { bodyBlockIdsToDelete } from './notionNotebookPlan'
 
 // Caminho do arquivo de configuração
 const configPath = path.join(app.getPath('userData'), 'notion-config.json')
@@ -27,6 +28,7 @@ export interface NotionConfig {
   databaseId?: string
   autoSync: boolean
   lastSync?: string
+  notebooksRootPageId?: string
 }
 
 // Tipos de cor do Notion
@@ -112,6 +114,10 @@ export function clearNotionConfig(): void {
 
 // ===================== CLIENTE =====================
 
+export function getNotionClient(): Client {
+  return getClient()
+}
+
 function getClient(): Client {
   if (!notionClient) {
     const config = getNotionConfig()
@@ -166,7 +172,7 @@ async function findExistingDatabase(client: Client): Promise<string | null> {
 
 // Encontrar uma página que podemos usar como parent para criar o database
 // A integração PRECISA ter sido conectada manualmente a pelo menos uma página
-async function findAccessibleParentPage(client: Client): Promise<string> {
+export async function findAccessibleParentPage(client: Client): Promise<string> {
   const searchResponse = await client.search({
     filter: {
       property: 'object',
@@ -201,7 +207,7 @@ async function findAccessibleParentPage(client: Client): Promise<string> {
 }
 
 // Verificar se uma página específica está acessível
-async function isPageAccessible(client: Client, pageId: string): Promise<boolean> {
+export async function isPageAccessible(client: Client, pageId: string): Promise<boolean> {
   try {
     await client.pages.retrieve({ page_id: pageId })
     return true
@@ -616,19 +622,23 @@ export async function syncTaskToNotion(task: Task): Promise<string> {
   }
 }
 
-/**
- * Reescreve o corpo da página do Notion da task com as notas ricas (Tiptap; aceita
- * também o formato legado Editor.js via dispatcher). Imagens sobem via File Upload API.
- * O Notion não tem "replace all children": listamos, deletamos e recriamos.
- */
-async function buildDrawingBlock(client: Client, task: Task): Promise<NotionBlock | null> {
-  if (!task.drawing) return null
+async function buildDrawingBlock(
+  client: Client,
+  owner: NotesOwner,
+  drawing: string | null
+): Promise<NotionBlock | null> {
+  if (!drawing) return null
 
-  const filePath = drawingPreviewPath({ kind: 'task', id: task.id })
+  const filePath = drawingPreviewPath(owner)
   if (!fs.existsSync(filePath)) return null
 
   try {
-    const id = await uploadImageToNotion(client, filePath, 'image/png', `desenho-${task.id}.png`)
+    const id = await uploadImageToNotion(
+      client,
+      filePath,
+      'image/png',
+      `desenho-${owner.kind}-${owner.id}.png`
+    )
     return { object: 'block', type: 'image', image: { type: 'file_upload', file_upload: { id } } }
   } catch (error) {
     console.error('Falha ao subir o desenho para o Notion:', error)
@@ -636,40 +646,10 @@ async function buildDrawingBlock(client: Client, task: Task): Promise<NotionBloc
   }
 }
 
-export async function syncTaskNotesToNotion(task: Task): Promise<void> {
-  const client = getClient() // lança se Notion não configurado
-
-  // Garante que a página existe e está com as properties atualizadas.
-  await syncTaskToNotion(task)
-  const pageId = await findTaskInNotion(task.id)
-  if (!pageId) throw new Error('Não foi possível localizar a página da tarefa no Notion')
-
-  // 1. Listar e deletar children atuais (paginando).
-  let cursor: string | undefined = undefined
-  const existingIds: string[] = []
-  do {
-    const res = await client.blocks.children.list({
-      block_id: pageId,
-      start_cursor: cursor,
-      page_size: 100
-    })
-    for (const block of res.results) existingIds.push(block.id)
-    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
-  } while (cursor)
-
-  for (const blockId of existingIds) {
-    try {
-      await client.blocks.delete({ block_id: blockId })
-    } catch (error) {
-      console.error('Erro ao deletar bloco do Notion:', error)
-    }
-  }
-
-  // 2a. Pré-passo: resolver imagens para file_upload ids (cache por asset, TTL ~1h).
+async function resolveNoteImages(client: Client, notes: string | null): Promise<ImageResolver> {
   const now = Date.now()
-  const assetIds = collectImageAssetIds(task.notes)
   const imageMap = new Map<string, string>()
-  for (const assetId of assetIds) {
+  for (const assetId of collectImageAssetIds(notes)) {
     const asset = getNoteAsset(assetId)
     if (!asset) continue
     const cacheValid =
@@ -690,23 +670,75 @@ export async function syncTaskNotesToNotion(task: Task): Promise<void> {
       console.error('Falha ao subir imagem para o Notion:', error)
     }
   }
-  const resolveImage: ImageResolver = (id) => imageMap.get(id) ?? null
+  return (id) => imageMap.get(id) ?? null
+}
 
-  // 2b. Converter e adicionar os novos blocos (lotes de 100 — limite da API).
-  const blocks = notesToNotionBlocks(task.notes, resolveImage)
+/**
+ * Reescreve o corpo de uma página do Notion com as notas ricas (Tiptap ou o legado Editor.js) e,
+ * ao final, o PNG do desenho. O Notion não tem "replace all children": listamos, apagamos e
+ * recriamos — menos as subpáginas, que também são blocos.
+ */
+export async function replacePageBody(
+  client: Client,
+  notionPageId: string,
+  owner: NotesOwner,
+  notes: string | null,
+  drawing: string | null
+): Promise<void> {
+  let cursor: string | undefined = undefined
+  const existing: { id: string; type: string }[] = []
+  do {
+    const res = await client.blocks.children.list({
+      block_id: notionPageId,
+      start_cursor: cursor,
+      page_size: 100
+    })
+    for (const block of res.results) {
+      existing.push({ id: block.id, type: 'type' in block ? block.type : '' })
+    }
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined
+  } while (cursor)
 
-  // O desenho entra ao final, como imagem. É reenviado a cada sync: o PNG é regravado a cada
-  // save e não há asset id para servir de chave de cache, como acontece com as imagens da nota.
-  const drawingBlock = await buildDrawingBlock(client, task)
+  for (const blockId of bodyBlockIdsToDelete(existing)) {
+    try {
+      await client.blocks.delete({ block_id: blockId })
+    } catch (error) {
+      console.error('Erro ao deletar bloco do Notion:', error)
+    }
+  }
+
+  const blocks = notesToNotionBlocks(notes, await resolveNoteImages(client, notes))
+
+  // O desenho é reenviado a cada sync: o PNG é regravado a cada save e não há asset id para
+  // servir de chave de cache, como acontece com as imagens da nota.
+  const drawingBlock = await buildDrawingBlock(client, owner, drawing)
   if (drawingBlock) blocks.push(drawingBlock)
 
   for (let i = 0; i < blocks.length; i += 100) {
-    const batch = blocks.slice(i, i + 100)
     await client.blocks.children.append({
-      block_id: pageId,
-      children: batch as Parameters<typeof client.blocks.children.append>[0]['children']
+      block_id: notionPageId,
+      children: blocks.slice(i, i + 100) as Parameters<
+        typeof client.blocks.children.append
+      >[0]['children']
     })
   }
+}
+
+export async function syncTaskNotesToNotion(task: Task): Promise<void> {
+  const client = getClient() // lança se Notion não configurado
+
+  // Garante que a página existe e está com as properties atualizadas.
+  await syncTaskToNotion(task)
+  const pageId = await findTaskInNotion(task.id)
+  if (!pageId) throw new Error('Não foi possível localizar a página da tarefa no Notion')
+
+  await replacePageBody(
+    client,
+    pageId,
+    { kind: 'task', id: task.id },
+    task.notes ?? null,
+    task.drawing ?? null
+  )
 }
 
 export async function findTaskInNotion(localId: number): Promise<string | null> {

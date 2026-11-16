@@ -1,5 +1,7 @@
 export const MAX_PAGE_DEPTH = 2
 
+export const UNTITLED_PAGE = 'Página sem título'
+
 export interface PageNode {
   id: number
   parent_page_id: number | null

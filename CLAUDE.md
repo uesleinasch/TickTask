@@ -149,7 +149,12 @@ Notas e Desenho da task. Decisões em `docs/adr/0001-cadernos.md`; tela em `docs
   `taskId`. Os editores recebem `owner`; `components/editor/notesOwner.ts` escolhe o canal.
   `note_assets` tem `task_id` **ou** `page_id` (CHECK); o PNG de página fica em
   `drawings/pages/<id>.png`. Código novo que grava nota/imagem/desenho deve receber o dono.
-- Sync com o Notion, busca/menção de páginas, MCP e export local ainda não existem para páginas.
+- Notion: hierarquia de páginas sob a raiz "Cadernos TickTask" (`notionNotebooks.ts`; decisões puras
+  em `notionNotebookPlan.ts`). Tudo passa por uma fila única com debounce (`debouncedSerialQueue.ts`)
+  em `notebookIpc.ts` — em paralelo, duas páginas criariam a mesma seção duas vezes. O SDK v4 não
+  move página: pai diferente = arquivar e recriar. `replacePageBody` (em `notion.ts`) reescreve o
+  corpo de task e de página e preserva blocos `child_page`.
+- Busca/menção de páginas, MCP e export local ainda não existem para páginas.
 
 ## Terminal embutido
 
