@@ -1,4 +1,4 @@
-import { BookOpen, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { BookOpen, Download, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import type { Notebook } from '@shared/types'
 import { cn } from '@renderer/lib/utils'
 import { GroupDragHandle, SortableGroups } from '@renderer/components/SortableGroups'
@@ -12,6 +12,7 @@ interface NotebookListProps {
   onDelete: (notebook: Notebook) => void
   onSync: (notebook: Notebook) => void
   syncingId: number | null
+  onExport: (notebook: Notebook) => void
   onReorder: (activeKey: string, overKey: string) => void
 }
 
@@ -24,6 +25,7 @@ export function NotebookList({
   onDelete,
   onSync,
   syncingId,
+  onExport,
   onReorder
 }: NotebookListProps): React.JSX.Element {
   return (
@@ -73,6 +75,16 @@ export function NotebookList({
                       size={13}
                       className={syncingId === notebook.id ? 'animate-spin' : ''}
                     />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onExport(notebook)
+                    }}
+                    title="Exportar o caderno em Markdown"
+                    className="p-1 text-slate-400 hover:text-slate-700 rounded-md"
+                  >
+                    <Download size={13} />
                   </button>
                   <button
                     onClick={(e) => {

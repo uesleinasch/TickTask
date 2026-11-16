@@ -1,5 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
+import { useNavigate } from 'react-router-dom'
 import type { JSONContent } from '@tiptap/core'
 import type { NotesOwner } from '@shared/types'
 import { DragHandle } from '@tiptap/extension-drag-handle-react'
@@ -8,6 +9,7 @@ import { buildExtensions } from './extensions'
 import { BubbleToolbar } from './BubbleToolbar'
 import { TableContextMenu } from './TableContextMenu'
 import { saveOwnerNotes } from './notesOwner'
+import { mentionRoute } from './mention/mentionRoute'
 
 export interface TaskNotesEditorHandle {
   flushSave: () => Promise<void>
@@ -30,13 +32,28 @@ export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditor
     onChangeRef.current = onChange
     const onSavedRef = useRef(onSaved)
     onSavedRef.current = onSaved
+    const navigate = useNavigate()
+    const navigateRef = useRef(navigate)
+    navigateRef.current = navigate
 
     const editor = useEditor(
       {
         extensions: buildExtensions({ kind, id }),
         content: initialContent,
         editorProps: {
-          attributes: { class: 'notes-editor-content p-5 min-h-[200px] focus:outline-none' }
+          attributes: { class: 'notes-editor-content p-5 min-h-[200px] focus:outline-none' },
+          handleClickOn: (view, _pos, node) => {
+            if (node.type.name !== 'mention') return false
+            const route = mentionRoute(node.attrs.entityType, node.attrs.id)
+            if (!route) return false
+            // Sair da tela desmonta o editor e descarta o save pendente do debounce.
+            if (debounceRef.current) clearTimeout(debounceRef.current)
+            const notes = JSON.stringify(view.state.doc.toJSON())
+            saveOwnerNotes({ kind, id }, notes)
+              .catch((e) => console.error('Falha ao salvar notas:', e))
+              .finally(() => navigateRef.current(route))
+            return true
+          }
         },
         onUpdate: ({ editor }) => {
           onChangeRef.current?.()
