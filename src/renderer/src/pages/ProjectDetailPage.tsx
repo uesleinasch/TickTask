@@ -17,6 +17,8 @@ import { useProjectDetail } from '@renderer/hooks/useProjects'
 import { ColorPicker } from '@renderer/components/ColorPicker'
 import { DEFAULT_COLORS } from '@renderer/lib/colors'
 import { formatTime } from '@renderer/lib/utils'
+import { liveSeconds } from '@renderer/lib/liveSeconds'
+import { useTimerStore } from '@renderer/stores/timerStore'
 import type { ProjectStatus } from '@shared/types'
 import { PROJECT_STATUS_LABELS } from '@shared/types'
 import {
@@ -33,6 +35,7 @@ import { cn } from '@renderer/lib/utils'
 const projectStatuses: ProjectStatus[] = ['active', 'someday', 'done', 'archived']
 
 export function ProjectDetailPage(): React.JSX.Element {
+  const timers = useTimerStore((s) => s.timers)
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const projectId = parseInt(id || '0', 10)
@@ -265,7 +268,7 @@ export function ProjectDetailPage(): React.JSX.Element {
                           task.is_running ? 'text-emerald-600' : 'text-slate-500'
                         )}
                       >
-                        {formatTime(task.total_seconds)}
+                        {formatTime(liveSeconds(task, timers))}
                       </span>
                     </div>
                   </div>
