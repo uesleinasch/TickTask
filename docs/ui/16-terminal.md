@@ -44,6 +44,9 @@ ter um **diretório de trabalho** (`tasks.working_dir`) e um **comando inicial**
 - As sessões vivem no **main** (`src/main/terminal.ts` + `terminalSessions.ts`) e sobrevivem à
   navegação e ao fechar a janela (que só esconde para o tray). Morrem ao **Sair** do app e quando
   a task é apagada (inclusive pelo MCP).
+- **Shift + Enter** envia `ESC + CR` (o "Alt+Enter" dos terminais) em vez do CR puro que o xterm
+  manda nas duas teclas. Claude Code e outras TUIs entendem como nova linha sem enviar; no zsh é o
+  `self-insert-unmeta` (quebra a linha no buffer). Regra pura em `terminalKeys.ts` (testada).
 - O primeiro Enter de cada sessão inicia o timer da task se ele não estiver rodando e o toggle
   estiver ligado; o toast oferece **Parar**.
 - Diretório que deixou de existir ou shell configurado inválido viram toast; o shell inválido cai
