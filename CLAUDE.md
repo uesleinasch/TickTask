@@ -31,6 +31,13 @@ npm run build:linux  # package AppImage + .deb  (also build:win / build:mac / di
 npm run build:unpack # build + electron-builder --dir (no installer)
 ```
 
+`dev` e `start` (app não empacotado) usam uma pasta de dados própria — `<appData>/ticktask-dev`
+(no Linux, `~/.config/ticktask-dev`) — em vez da do app instalado: banco vazio, e o dev roda ao lado
+da instância instalada, já que a trava de instância única é por pasta. `TICKTASK_USER_DATA=<pasta>`
+troca a pasta em qualquer build (`devUserData.ts`, aplicado no topo de `index.ts`, antes da trava).
+Não copie `notion-config.json` nem `mcp-config.json` para a pasta de dev: o dev escreveria no mesmo
+Notion e disputaria a porta do MCP.
+
 Single test file / single case:
 
 ```bash
@@ -88,7 +95,7 @@ programmatic `scrollIntoView` (see `docs/ui/02-detalhe-da-tarefa.md`).
 
 ## Database
 
-- File: `app.getPath('userData')/ticktask.db`. Opened with `journal_mode = WAL` and `foreign_keys = ON`. `initDatabase()` runs at startup.
+- File: `app.getPath('userData')/ticktask.db` (em dev, `ticktask-dev/` — ver **Commands**). Opened with `journal_mode = WAL` and `foreign_keys = ON`. `initDatabase()` runs at startup.
 - 16 tables: `tasks`, `time_entries`, `tags`, `task_tags`, `projects`, `contexts`, `task_contexts`, `weekly_reviews`, `task_dependencies`, `areas`, `goals`, `time_blocks`, `note_assets`, `notebooks`, `notebook_sections`, `notebook_pages`.
 - **Migrations are imperative, inline in `initDatabase()`** — `CREATE TABLE IF NOT EXISTS` plus guarded `ALTER TABLE`s. Changing a `CHECK` constraint requires the create-new-table-and-copy dance (see the `tasks_new` rebuild around `src/main/database.ts:375`, used to widen the task `status` CHECK). There is no migration framework — follow the existing pattern.
 - All queries use better-sqlite3 prepared statements; multi-step writes use `db.transaction(...)`.
