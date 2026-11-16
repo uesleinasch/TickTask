@@ -25,6 +25,7 @@ import { applyGroupOrder, moveGroupKey } from '@renderer/lib/groupOrder'
 import { buildTaskGroups, JIRA_GROUP_MODES, type GroupBy } from '@renderer/lib/taskGrouping'
 import { TaskKanban } from '@renderer/components/TaskKanban'
 import { eventEmitter } from '@renderer/App'
+import { cn } from '@renderer/lib/utils'
 import {
   STATUS_LABELS,
   type TaskStatus,
@@ -823,7 +824,12 @@ export function TaskListPage(): React.JSX.Element {
       <ScrollArea className="flex-1 h-0">
         <div className="p-6 pt-2 pb-24">
           {!loading && tasks.length > 0 && (
-            <div className="mb-4 bg-white border border-slate-200 rounded-sm p-4">
+            <div
+              className={cn(
+                'mb-4 bg-white border border-slate-200 rounded-sm p-4',
+                selectedCount > 0 && 'sticky top-0 z-20 border-slate-300'
+              )}
+            >
               <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="font-semibold text-slate-800">
