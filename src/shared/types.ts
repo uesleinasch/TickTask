@@ -668,6 +668,24 @@ export interface CreatePageInput {
   title?: string
 }
 
+export interface PageSearchResult {
+  id: number
+  title: string
+  section_id: number
+  section_name: string
+  notebook_id: number
+  notebook_name: string
+  notebook_color: string
+  snippet: string
+  updated_at: string
+}
+
+export interface PageLocation {
+  page_id: number
+  section_id: number
+  notebook_id: number
+}
+
 export interface MovePageInput {
   section_id: number
   parent_page_id: number | null

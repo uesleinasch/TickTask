@@ -1,4 +1,4 @@
-import { BookOpen, Pencil, Plus, Trash2 } from 'lucide-react'
+import { BookOpen, Download, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import type { Notebook } from '@shared/types'
 import { cn } from '@renderer/lib/utils'
 import { GroupDragHandle, SortableGroups } from '@renderer/components/SortableGroups'
@@ -10,6 +10,9 @@ interface NotebookListProps {
   onCreate: () => void
   onEdit: (notebook: Notebook) => void
   onDelete: (notebook: Notebook) => void
+  onSync: (notebook: Notebook) => void
+  syncingId: number | null
+  onExport: (notebook: Notebook) => void
   onReorder: (activeKey: string, overKey: string) => void
 }
 
@@ -20,6 +23,9 @@ export function NotebookList({
   onCreate,
   onEdit,
   onDelete,
+  onSync,
+  syncingId,
+  onExport,
   onReorder
 }: NotebookListProps): React.JSX.Element {
   return (
@@ -50,7 +56,36 @@ export function NotebookList({
                 <GroupDragHandle className="opacity-0 group-hover:opacity-100" />
                 <BookOpen size={16} className="shrink-0" style={{ color: notebook.color }} />
                 <span className="flex-1 min-w-0 truncate text-sm font-medium">{notebook.name}</span>
-                <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <div
+                  className={cn(
+                    'flex items-center transition-opacity',
+                    syncingId === notebook.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  )}
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onSync(notebook)
+                    }}
+                    disabled={syncingId !== null}
+                    title="Sincronizar o caderno inteiro com o Notion"
+                    className="p-1 text-slate-400 hover:text-emerald-600 rounded-md disabled:opacity-50"
+                  >
+                    <RefreshCw
+                      size={13}
+                      className={syncingId === notebook.id ? 'animate-spin' : ''}
+                    />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onExport(notebook)
+                    }}
+                    title="Exportar o caderno em Markdown"
+                    className="p-1 text-slate-400 hover:text-slate-700 rounded-md"
+                  >
+                    <Download size={13} />
+                  </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation()

@@ -4,13 +4,14 @@ import type { PopupComponentProps } from '../suggestionPopup'
 export interface MentionEntry {
   id: number
   label: string
-  type: 'task' | 'project' | 'context'
+  type: 'task' | 'project' | 'context' | 'page'
 }
 
 const TYPE_LABEL: Record<MentionEntry['type'], string> = {
   task: 'Tarefa',
   project: 'Projeto',
-  context: 'Contexto'
+  context: 'Contexto',
+  page: 'Página'
 }
 
 export function MentionList(props: PopupComponentProps<MentionEntry>): React.JSX.Element {

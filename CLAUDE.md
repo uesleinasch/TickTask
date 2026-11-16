@@ -31,6 +31,13 @@ npm run build:linux  # package AppImage + .deb  (also build:win / build:mac / di
 npm run build:unpack # build + electron-builder --dir (no installer)
 ```
 
+`dev` e `start` (app não empacotado) usam uma pasta de dados própria — `<appData>/ticktask-dev`
+(no Linux, `~/.config/ticktask-dev`) — em vez da do app instalado: banco vazio, e o dev roda ao lado
+da instância instalada, já que a trava de instância única é por pasta. `TICKTASK_USER_DATA=<pasta>`
+troca a pasta em qualquer build (`devUserData.ts`, aplicado no topo de `index.ts`, antes da trava).
+Não copie `notion-config.json` nem `mcp-config.json` para a pasta de dev: o dev escreveria no mesmo
+Notion e disputaria a porta do MCP.
+
 Single test file / single case:
 
 ```bash
@@ -88,7 +95,7 @@ programmatic `scrollIntoView` (see `docs/ui/02-detalhe-da-tarefa.md`).
 
 ## Database
 
-- File: `app.getPath('userData')/ticktask.db`. Opened with `journal_mode = WAL` and `foreign_keys = ON`. `initDatabase()` runs at startup.
+- File: `app.getPath('userData')/ticktask.db` (em dev, `ticktask-dev/` — ver **Commands**). Opened with `journal_mode = WAL` and `foreign_keys = ON`. `initDatabase()` runs at startup.
 - 16 tables: `tasks`, `time_entries`, `tags`, `task_tags`, `projects`, `contexts`, `task_contexts`, `weekly_reviews`, `task_dependencies`, `areas`, `goals`, `time_blocks`, `note_assets`, `notebooks`, `notebook_sections`, `notebook_pages`.
 - **Migrations are imperative, inline in `initDatabase()`** — `CREATE TABLE IF NOT EXISTS` plus guarded `ALTER TABLE`s. Changing a `CHECK` constraint requires the create-new-table-and-copy dance (see the `tasks_new` rebuild around `src/main/database.ts:375`, used to widen the task `status` CHECK). There is no migration framework — follow the existing pattern.
 - All queries use better-sqlite3 prepared statements; multi-step writes use `db.transaction(...)`.
@@ -149,7 +156,20 @@ Notas e Desenho da task. Decisões em `docs/adr/0001-cadernos.md`; tela em `docs
   `taskId`. Os editores recebem `owner`; `components/editor/notesOwner.ts` escolhe o canal.
   `note_assets` tem `task_id` **ou** `page_id` (CHECK); o PNG de página fica em
   `drawings/pages/<id>.png`. Código novo que grava nota/imagem/desenho deve receber o dono.
-- Sync com o Notion, busca/menção de páginas, MCP e export local ainda não existem para páginas.
+- Notion: hierarquia de páginas sob a raiz "Cadernos TickTask" (`notionNotebooks.ts`; decisões puras
+  em `notionNotebookPlan.ts`). Tudo passa por uma fila única com debounce (`debouncedSerialQueue.ts`)
+  em `notebookIpc.ts` — em paralelo, duas páginas criariam a mesma seção duas vezes. O SDK v4 não
+  move página: pai diferente = arquivar e recriar. `replacePageBody` (em `notion.ts`) reescreve o
+  corpo de task e de página e preserva blocos `child_page`.
+- `notebookService.ts` concentra o que IPC e MCP compartilham: refresh, fila do Notion, exclusão
+  (apaga PNGs e arquiva no Notion). Escrita nova em caderno passa por ele, não direto pela query.
+- Busca em SQL sobre `notebook_pages.search_text` (texto puro derivado do JSON em
+  `updatePageNotes`, via `notesPlainText.ts`). A menção `@` sugere páginas; clicar numa menção abre
+  task, projeto ou `/notebooks?page=<id>` (`mention/mentionRoute.ts`).
+- MCP em `mcp/tools/notebooks.ts`; export local em `notebookExport.ts` (+ `notebookExportPlan.ts`,
+  puro), reaproveitando `copyNoteAssets`/`writeDrawingFiles` de `localExport.ts`.
+- `notion.ts` não pode chamar `app.getPath` no escopo do módulo: as tools do MCP o importam e o
+  `transport.test.ts` carrega todas elas sob o Node puro.
 
 ## Terminal embutido
 
@@ -313,6 +333,10 @@ GitFlow com release branches (ver **Release** acima). Regras para o agente:
 - Branches de trabalho: `feature/`, `bugfix/`, `hotfix/`, `chore/` + descrição em minúsculas com
   hífens (ex.: `feature/issue-42-export-csv`). Sem maiúsculas, underscore ou ponto.
   - `feature/*`, `bugfix/*`, `chore/*` saem de `main` e voltam para `main` por PR (squash).
+  - Feature grande, em várias entregas: uma **branch de integração** `feature/<nome>` sai de `main`;
+    cada entrega é uma branch de trabalho saída dela, com PR (squash) para ela. No fim, um único PR
+    da integração para `main`, seguido da release. O `pr-checks.yml` aceita `feature/*` como destino
+    só para branches de trabalho.
   - Correções de uma release (`bugfix/*`, `hotfix/*`, `chore/*`) saem de `release/vX.Y.Z` e voltam
     para ela por PR (squash).
 - Commits granulares em Conventional Commits 1.0.0: `<tipo>(escopo)!: descrição` imperativa,

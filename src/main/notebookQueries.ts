@@ -3,6 +3,8 @@ import type {
   CreatePageInput,
   CreateSectionInput,
   MovePageInput,
+  PageLocation,
+  PageSearchResult,
   Notebook,
   NotebookPage,
   NotebookPageSummary,
@@ -10,8 +12,15 @@ import type {
   UpdateNotebookInput,
   UpdateSectionInput
 } from '@shared/types'
-import { canPlaceUnder, siblingsOf, subtreeIds, type PageNode } from '@shared/notebookTree'
+import {
+  canPlaceUnder,
+  flattenPageTree,
+  siblingsOf,
+  subtreeIds,
+  type PageNode
+} from '@shared/notebookTree'
 import type { SqliteLike, SqliteParam } from './tagQueries'
+import { notesPlainText, searchSnippet } from './notesPlainText'
 
 export const DEFAULT_NOTEBOOK_COLOR = '#6366f1'
 export const DEFAULT_SECTION_COLOR = '#0ea5e9'
@@ -60,7 +69,21 @@ const SCHEMA = [
 
 export function ensureNotebookSchema(db: SqliteLike): void {
   for (const sql of SCHEMA) db.prepare(sql).run()
+  addSearchTextColumn(db)
   migrateNoteAssetsOwner(db)
+}
+
+/** Texto puro das notas, derivado do JSON a cada save, para a busca rodar em SQL. */
+function addSearchTextColumn(db: SqliteLike): void {
+  const columns = db.prepare("PRAGMA table_info('notebook_pages')").all() as { name: string }[]
+  if (columns.some((c) => c.name === 'search_text')) return
+  db.prepare("ALTER TABLE notebook_pages ADD COLUMN search_text TEXT NOT NULL DEFAULT ''").run()
+  const rows = db.prepare('SELECT id, notes FROM notebook_pages WHERE notes IS NOT NULL').all() as {
+    id: number
+    notes: string
+  }[]
+  const stmt = db.prepare('UPDATE notebook_pages SET search_text = ? WHERE id = ?')
+  db.transaction(() => rows.forEach((r) => stmt.run(notesPlainText(r.notes), r.id)))()
 }
 
 /**
@@ -271,7 +294,9 @@ export function listPages(db: SqliteLike, sectionId: number): NotebookPageSummar
 }
 
 export function getPage(db: SqliteLike, id: number): NotebookPage | undefined {
-  return db.prepare('SELECT * FROM notebook_pages WHERE id = ?').get(id) as NotebookPage | undefined
+  return db
+    .prepare(`SELECT ${PAGE_SUMMARY_COLUMNS}, notes, drawing FROM notebook_pages WHERE id = ?`)
+    .get(id) as NotebookPage | undefined
 }
 
 function pageNodes(db: SqliteLike, sectionId: number): PageNode[] {
@@ -317,7 +342,7 @@ export function updatePageTitle(db: SqliteLike, id: number, title: string): void
 }
 
 export function updatePageNotes(db: SqliteLike, id: number, notes: string | null): void {
-  setFields(db, 'notebook_pages', id, { notes })
+  setFields(db, 'notebook_pages', id, { notes, search_text: notesPlainText(notes) })
 }
 
 export function updatePageDrawing(db: SqliteLike, id: number, drawing: string | null): void {
@@ -375,4 +400,97 @@ export function movePage(db: SqliteLike, id: number, input: MovePageInput): void
     ).run(input.parent_page_id, id)
     writePositions(db, 'notebook_pages', siblings)
   })()
+}
+
+// ===================== NOTION =====================
+
+export type NotebookNodeKind = 'notebook' | 'section' | 'page'
+
+const NODE_TABLE: Record<NotebookNodeKind, string> = {
+  notebook: 'notebooks',
+  section: 'notebook_sections',
+  page: 'notebook_pages'
+}
+
+/** Grava o vínculo com o Notion sem mexer em updated_at: não é edição do usuário. */
+export function setNotionPageId(
+  db: SqliteLike,
+  kind: NotebookNodeKind,
+  id: number,
+  notionPageId: string | null
+): void {
+  db.prepare(`UPDATE ${NODE_TABLE[kind]} SET notion_page_id = ? WHERE id = ?`).run(notionPageId, id)
+}
+
+export function getNotionPageId(db: SqliteLike, kind: NotebookNodeKind, id: number): string | null {
+  const row = db.prepare(`SELECT notion_page_id FROM ${NODE_TABLE[kind]} WHERE id = ?`).get(id) as
+    | { notion_page_id: string | null }
+    | undefined
+  return row?.notion_page_id ?? null
+}
+
+/** Ids da página e das subpáginas, pais antes dos filhos. */
+export function listPageSubtree(db: SqliteLike, id: number): number[] {
+  const page = getPage(db, id)
+  if (!page) return []
+  const nodes = pageNodes(db, page.section_id)
+  const keep = new Set(subtreeIds(nodes, id))
+  return flattenPageTree(nodes)
+    .map((f) => f.page.id)
+    .filter((pageId) => keep.has(pageId))
+}
+
+/** Todas as páginas do caderno, seção por seção, pais antes dos filhos. */
+export function listNotebookPageIds(db: SqliteLike, notebookId: number): number[] {
+  return listSections(db, notebookId).flatMap((section) =>
+    flattenPageTree(pageNodes(db, section.id)).map((f) => f.page.id)
+  )
+}
+
+// ===================== BUSCA =====================
+
+const SEARCH_LIMIT = 30
+
+function likePattern(query: string): string {
+  return `%${query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
+}
+
+/** Busca por título e texto. Título que bate vem antes; depois, a edição mais recente. */
+export function searchPages(
+  db: SqliteLike,
+  query: string,
+  limit = SEARCH_LIMIT
+): PageSearchResult[] {
+  const q = query.trim()
+  if (!q) return []
+  const like = likePattern(q)
+  const rows = db
+    .prepare(
+      `SELECT p.id, p.title, p.section_id, s.name AS section_name, n.id AS notebook_id,
+         n.name AS notebook_name, n.color AS notebook_color, p.search_text, p.updated_at
+       FROM notebook_pages p
+       JOIN notebook_sections s ON s.id = p.section_id
+       JOIN notebooks n ON n.id = s.notebook_id
+       WHERE p.title LIKE ? ESCAPE '\\' OR p.search_text LIKE ? ESCAPE '\\'
+       ORDER BY (p.title LIKE ? ESCAPE '\\') DESC, p.updated_at DESC, p.id DESC
+       LIMIT ?`
+    )
+    .all(like, like, like, limit) as (Omit<PageSearchResult, 'snippet'> & {
+    search_text: string
+  })[]
+  return rows.map(({ search_text, ...row }) => ({
+    ...row,
+    snippet: searchSnippet(search_text, q)
+  }))
+}
+
+export function locatePage(db: SqliteLike, id: number): PageLocation | null {
+  const row = db
+    .prepare(
+      `SELECT p.id AS page_id, p.section_id, s.notebook_id
+       FROM notebook_pages p JOIN notebook_sections s ON s.id = p.section_id
+       WHERE p.id = ?`
+    )
+    .get(id) as PageLocation | undefined
+  return row ?? null
 }

@@ -7,7 +7,7 @@ import {
   useRef,
   useState
 } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Download, Loader2, RefreshCw } from 'lucide-react'
 import type { NotebookPage } from '@shared/types'
 import { NotesPanel, type NotesTab } from '@renderer/components/editor/NotesPanel'
 import type { TaskNotesEditorHandle } from '@renderer/components/editor/TaskNotesEditor'
@@ -15,6 +15,8 @@ import type { TaskDrawingEditorHandle } from '@renderer/components/editor/TaskDr
 import { parseNotes } from '@renderer/components/editor/notesFormat'
 import type { NotesViewMode } from '@renderer/components/editor/notesLayout'
 import { usePersistedState } from '@renderer/hooks/usePersistedState'
+import { toast } from '@renderer/components/ui/sonner'
+import { errorMessage } from '@renderer/components/settings/settingsStatus'
 import { UNTITLED_PAGE } from './notebookUi'
 
 export interface PageEditorHandle {
@@ -107,19 +109,35 @@ export const PageEditor = forwardRef<PageEditorHandle, PageEditorProps>(function
     }, TITLE_DEBOUNCE_MS)
   }
 
-  useImperativeHandle(
-    ref,
-    () => ({
-      flush: async () => {
-        await Promise.all([
-          saveTitle(),
-          notesRef.current?.flushSave(),
-          drawingRef.current?.flushSave()
-        ])
-      }
-    }),
-    [saveTitle]
-  )
+  const flush = useCallback(async (): Promise<void> => {
+    await Promise.all([saveTitle(), notesRef.current?.flushSave(), drawingRef.current?.flushSave()])
+  }, [saveTitle])
+
+  useImperativeHandle(ref, () => ({ flush }), [flush])
+
+  const [syncing, setSyncing] = useState(false)
+  const handleExport = async (): Promise<void> => {
+    try {
+      await flush()
+      const filePath = await window.api.exportPageLocal(pageId)
+      if (filePath) toast.success(`Página exportada em ${filePath}`)
+    } catch (error) {
+      toast.error(errorMessage(error))
+    }
+  }
+
+  const handleSync = async (): Promise<void> => {
+    setSyncing(true)
+    try {
+      await flush()
+      await window.api.syncNotebookPageToNotion(pageId)
+    } catch (error) {
+      // O aviso de erro já chega pelo evento notion:syncError.
+      console.error('Falha ao sincronizar a página com o Notion:', error)
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const initialContent = useMemo(() => parseNotes(page?.notes), [page])
   const owner = useMemo(() => ({ kind: 'page' as const, id: pageId }), [pageId])
@@ -175,7 +193,26 @@ export const PageEditor = forwardRef<PageEditorHandle, PageEditorProps>(function
           viewMode={viewMode}
           onMaximize={onMaximize}
           onZen={onZen}
-          actions={null}
+          actions={
+            <>
+              <button
+                onClick={() => void handleExport()}
+                title="Exportar a página em Markdown"
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
+              >
+                <Download size={13} />
+                Exportar
+              </button>
+              <button
+                onClick={() => void handleSync()}
+                disabled={syncing}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-emerald-600 border border-emerald-200 hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
+                {syncing ? 'Sincronizando...' : 'Sincronizar com o Notion'}
+              </button>
+            </>
+          }
           zenWidth={zenWidth}
           tab={tab}
           onTabChange={setTab}

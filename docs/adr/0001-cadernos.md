@@ -62,6 +62,9 @@ por caderno, por seção e por página (com subpáginas aninhadas). Cada linha g
 `notion_page_id`. O corpo reaproveita `notionBlocks.ts`, `notionFileUpload.ts` e o upload do PNG do
 desenho.
 
+O SDK do Notion (v4) não move página entre pais. Mover no TickTask arquiva a página antiga no Notion
+e cria outra sob o pai novo; a ordem entre irmãs no Notion fica sendo a de criação.
+
 ### Vínculo com tasks (entrega 3)
 
 Opcional, pela menção `@` que já existe nas notas: a busca de menções passa a sugerir páginas além

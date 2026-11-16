@@ -24,12 +24,12 @@ sub-página (sem `FloatingTimer`).
   NotebookList     PageList        PageEditor
 ```
 
-| Região | Componente | Comportamento |
-| --- | --- | --- |
-| Coluna de cadernos | `notebooks/NotebookList.tsx` | Clique abre; alça `⠿` reordena (`SortableGroups`); lápis/lixeira no hover |
-| Abas de seção | `notebooks/SectionTabs.tsx` | Borda superior na cor da seção; arrastar reordena; lápis/lixeira só na aba ativa; `+` cria |
-| Lista de páginas | `notebooks/PageList.tsx` | Árvore achatada com recuo de 16px por nível; ações no hover |
-| Editor | `notebooks/PageEditor.tsx` | Título (autosave 500 ms), datas, `NotesPanel` com dono `{ kind: 'page' }` |
+| Região             | Componente                   | Comportamento                                                                              |
+| ------------------ | ---------------------------- | ------------------------------------------------------------------------------------------ |
+| Coluna de cadernos | `notebooks/NotebookList.tsx` | Clique abre; alça `⠿` reordena (`SortableGroups`); lápis/lixeira no hover                  |
+| Abas de seção      | `notebooks/SectionTabs.tsx`  | Borda superior na cor da seção; arrastar reordena; lápis/lixeira só na aba ativa; `+` cria |
+| Lista de páginas   | `notebooks/PageList.tsx`     | Árvore achatada com recuo de 16px por nível; ações no hover                                |
+| Editor             | `notebooks/PageEditor.tsx`   | Título (autosave 500 ms), datas, `NotesPanel` com dono `{ kind: 'page' }`                  |
 
 Criar e renomear caderno/seção usa `NameColorDialog` (nome + `ColorPicker`). Caderno novo já vem
 com a seção **Geral**.
@@ -65,11 +65,11 @@ pelo main, que revalida tudo em `movePage`.
 
 ## Preferências persistidas (`localStorage`)
 
-| Chave | Conteúdo |
-| --- | --- |
+| Chave                                                | Conteúdo                                            |
+| ---------------------------------------------------- | --------------------------------------------------- |
 | `ticktask.notebooks.notebook` / `.section` / `.page` | Última seleção. Se o id sumiu, cai no primeiro item |
-| `ticktask.notebooks.tab` | Aba Notas/Desenho |
-| `ticktask.notesZenWidth` | Largura do Zen, compartilhada com a task |
+| `ticktask.notebooks.tab`                             | Aba Notas/Desenho                                   |
+| `ticktask.notesZenWidth`                             | Largura do Zen, compartilhada com a task            |
 
 ## Dados
 
@@ -80,7 +80,53 @@ pelo main, que revalida tudo em `movePage`.
   `userData/drawings/pages/<pageId>.png`.
 - Excluir é definitivo, com `DeleteConfirmDialog`. Apaga os PNGs dos desenhos das páginas atingidas.
 
-## Ainda não
+## Notion
 
-Sync com o Notion, busca, menção `@` de páginas, MCP e export local entram nas próximas entregas
-(ver o ADR).
+Hierarquia de páginas sob uma raiz **Cadernos TickTask** (📚), criada dentro da página configurada
+no Notion (ou na primeira acessível). Abaixo dela: caderno (📓) → seção (📑) → página (📄), com as
+subpáginas aninhadas. O id da raiz fica em `notion-config.json` (`notebooksRootPageId`); se sumir
+de lá, a raiz é procurada pelo título antes de criar outra.
+
+- **Automático** (com o auto-sync do Notion ligado): criar, renomear, salvar notas/desenho/título e
+  mover agendam o sync do item com 3 s de debounce. Excluir arquiva a página no Notion (arquivar o
+  caderno arquiva tudo abaixo).
+- **Manual**: botão **Sincronizar com o Notion** na aba Notas da página, e o ícone `RefreshCw` no
+  hover do caderno, que sobe o caderno inteiro (seções e páginas). Funciona com o auto-sync
+  desligado, desde que a API key esteja configurada.
+- O corpo da página é reescrito a cada sync (notas + PNG do desenho no fim), preservando os blocos
+  de subpágina.
+- Avisos pelos mesmos eventos `notion:sync*` das tasks.
+
+Limitações:
+
+- A API não move página entre pais: mover no TickTask arquiva a página no Notion e cria outra no
+  lugar novo (com as subpáginas). Links antigos para ela deixam de valer.
+- A ordem das páginas no Notion é a de criação; reordenar no TickTask não reflete lá.
+- Numa página com subpáginas, o corpo fica abaixo dos links das subpáginas.
+- Com o auto-sync desligado, excluir não arquiva nada no Notion.
+
+## Busca e menções
+
+- **Busca** no cabeçalho (`notebooks/PageSearch.tsx`): procura em todos os cadernos, pelo título e
+  pelo texto das notas, com debounce de 250 ms. Até 30 resultados, título que bate primeiro, com
+  caderno › seção e um trecho. Setas + Enter escolhem; Esc fecha.
+- O texto vem da coluna `notebook_pages.search_text`, derivada do JSON a cada save
+  (`notesPlainText.ts`). Páginas criadas antes da coluna são preenchidas na migração.
+- **Menção `@`**: o `@` das notas (de task ou de página) sugere páginas também. Clicar no chip abre
+  `/notebooks?page=<id>`; a tela localiza caderno e seção (`page:locate`), salva a página aberta e
+  troca a seleção.
+
+## Exportar
+
+- **Página**: botão **Exportar** na aba Notas → diálogo de salvar `.md`. Frontmatter (título,
+  caderno, seção, datas), as notas em Markdown e o desenho no fim; imagens e o `.excalidraw` vão
+  para `assets/` ao lado do arquivo.
+- **Caderno**: ícone `Download` no hover → escolher uma pasta. Cria `<caderno>/` com uma pasta por
+  seção, um `.md` por página e as subpáginas numa pasta com o nome da página mãe; imagens de todas
+  as páginas num `assets/` comum. Nomes repetidos ganham " (2)". Regras em `notebookExportPlan.ts`.
+
+## MCP
+
+`list_notebooks`, `search_pages`, `read_page`, `create_page`, `write_page` e `delete_page` (ver
+[`docs/mcp-server.md`](../mcp-server.md)). Escritas pelo MCP também recarregam a tela e agendam o
+sync com o Notion.

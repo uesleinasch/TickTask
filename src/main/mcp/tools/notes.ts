@@ -9,13 +9,13 @@ import { afterTaskWrite } from '../effects'
 import { fail, ok } from '../reply'
 import type { ToolContext } from '../toolContext'
 
-type ParsedNotes =
+export type ParsedNotes =
   | { kind: 'empty' }
   | { kind: 'doc'; doc: PMDoc }
   | { kind: 'editorjs'; blockCount: number }
   | { kind: 'unknown' }
 
-function parseNotes(raw: string | null | undefined): ParsedNotes {
+export function parseNotes(raw: string | null | undefined): ParsedNotes {
   const dialect = detectNotesDialect(raw)
   if (dialect === 'unknown') return raw ? { kind: 'unknown' } : { kind: 'empty' }
   const parsed = JSON.parse(raw as string) as { content?: unknown; blocks?: unknown }
@@ -27,7 +27,7 @@ function parseNotes(raw: string | null | undefined): ParsedNotes {
   return { kind: 'editorjs', blockCount: (parsed.blocks as unknown[]).length }
 }
 
-function hasRealContent(parsed: ParsedNotes): boolean {
+export function hasRealContent(parsed: ParsedNotes): boolean {
   switch (parsed.kind) {
     case 'empty':
       return false

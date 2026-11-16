@@ -78,6 +78,12 @@ Ao subir a ponte com `ELECTRON_RUN_AS_NODE=1`, essa variável é removida do amb
 | `agenda` | Tasks agendadas e blocos de tempo de um dia, semana ou mês. |
 | `plan_day` | Agenda tasks numa data (itens de `schedule` aceitam `start_time`/`end_time`, gravados como horário da task), ordena o dia, cria/remove blocos de tempo; acima do `bulkThreshold` exige `confirm_token`. |
 | `weekly_review` | Lê revisões anteriores e indicadores de saúde, ou registra uma nova revisão. |
+| `list_notebooks` | Cadernos, seções e páginas (subpáginas em ordem de árvore, `depth` 0–2); `notebook_id` limita a um caderno. |
+| `search_pages` | Busca páginas de caderno pelo título e pelo texto das notas (até 30, com trecho). |
+| `read_page` | Página em Markdown, com caderno, seção e subpáginas; o PNG do desenho vem junto quando existe. |
+| `create_page` | Cria página numa seção, opcionalmente como subpágina (até 2 níveis) e já com Markdown. |
+| `write_page` | Grava Markdown numa página; mesmas regras e perdas de `write_notes` (`mode=replace` sobre conteúdo exige confirmação). |
+| `delete_page` | Apaga a página e as subpáginas; sempre exige `confirm_token`. |
 
 ## Guard de confirmação
 
@@ -89,8 +95,8 @@ Operações destrutivas ou em massa seguem um fluxo de duas fases (`confirmGuard
 3. O token é validado contra um hash da operação exata (`kind` + payload) — não serve para uma
    operação diferente, mesmo que pareça similar, e é descartado no primeiro uso.
 
-`delete_tasks`, `manage_structure` (delete/merge_tag) e `write_notes` (`mode=replace` sobre nota
-não vazia) sempre exigem confirmação. `bulk_update_tasks` e `plan_day` só exigem acima do
+`delete_tasks`, `manage_structure` (delete/merge_tag), `delete_page` e `write_notes`/`write_page`
+(`mode=replace` sobre nota não vazia) sempre exigem confirmação. `bulk_update_tasks` e `plan_day` só exigem acima do
 `bulkThreshold` configurado (padrão 5 itens).
 
 ## Limitações conhecidas
