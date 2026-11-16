@@ -13,3 +13,4 @@ function read<T>(key: string, fallback: T): T {
 
 export const readTerminalShell = (): string => read(TERMINAL_SHELL_KEY, '')
 export const readTerminalAutoTimer = (): boolean => read(TERMINAL_AUTO_TIMER_KEY, true)
+export const TERMINAL_SPLIT_RATIO_KEY = 'terminal.splitRatio'
