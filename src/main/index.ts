@@ -198,6 +198,7 @@ import { generateToken } from './mcp/config'
 import { registerWriteEffects } from './mcp/effects'
 import { disposeTerminalsForTasks, killAllTerminals, registerTerminalIpc } from './terminal'
 import { registerNotebookIpc } from './notebookIpc'
+import { resolveUserDataOverride } from './devUserData'
 import type {
   CreateTaskInput,
   UpdateTaskInput,
@@ -220,6 +221,15 @@ protocol.registerSchemesAsPrivileged([
     privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true }
   }
 ])
+
+// Precisa vir antes da trava de instância única, que é por pasta de dados, e de qualquer leitura
+// de app.getPath('userData').
+const userDataOverride = resolveUserDataOverride({
+  isPackaged: app.isPackaged,
+  env: process.env,
+  appData: app.getPath('appData')
+})
+if (userDataOverride) app.setPath('userData', userDataOverride)
 
 // Uma segunda instância abriria o mesmo SQLite e disputaria a porta do MCP. Sair aqui, antes
 // de qualquer inicialização, é o que mantém a instância viva como dona única desses recursos.
