@@ -24,6 +24,7 @@ jobs:
           case "$BASE_REF" in
             main)       allowed="^(${work}|${release}|${bots})$" ;;
             release/v*) allowed="^(${fixes})$" ;;
+            feature/*)  allowed="^(${work})$" ;;
             *)
               echo "::error::PRs para '$BASE_REF' não são permitidos."
               exit 1

@@ -313,6 +313,10 @@ GitFlow com release branches (ver **Release** acima). Regras para o agente:
 - Branches de trabalho: `feature/`, `bugfix/`, `hotfix/`, `chore/` + descrição em minúsculas com
   hífens (ex.: `feature/issue-42-export-csv`). Sem maiúsculas, underscore ou ponto.
   - `feature/*`, `bugfix/*`, `chore/*` saem de `main` e voltam para `main` por PR (squash).
+  - Feature grande, em várias entregas: uma **branch de integração** `feature/<nome>` sai de `main`;
+    cada entrega é uma branch de trabalho saída dela, com PR (squash) para ela. No fim, um único PR
+    da integração para `main`, seguido da release. O `pr-checks.yml` aceita `feature/*` como destino
+    só para branches de trabalho.
   - Correções de uma release (`bugfix/*`, `hotfix/*`, `chore/*`) saem de `release/vX.Y.Z` e voltam
     para ela por PR (squash).
 - Commits granulares em Conventional Commits 1.0.0: `<tipo>(escopo)!: descrição` imperativa,
