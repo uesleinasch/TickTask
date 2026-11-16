@@ -1,3 +1,5 @@
+import type { TerminalTabIcon } from './terminalTab'
+
 // ===================== STATUS & CATEGORY =====================
 
 export type TaskStatus =
@@ -585,12 +587,16 @@ export interface TerminalSession {
   cwd: string
   shell: string
   title: string | null
+  color: string | null
+  icon: TerminalTabIcon | null
   busy: boolean
   exitCode: number | null
 }
 
 export interface TerminalTabCustomization {
   title?: string | null
+  color?: string | null
+  icon?: string | null
 }
 
 export interface TerminalBuffer {

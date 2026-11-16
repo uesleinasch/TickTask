@@ -202,6 +202,18 @@ describe('TerminalManager', () => {
     expect(manager.customize('inexistente', { title: 'x' })).toBeNull()
   })
 
+  it('customize troca cor e ícone sem mexer no nome e descarta valor inválido', () => {
+    const { manager } = setup()
+    const session = manager.create(input)
+    manager.customize(session.id, { title: 'API' })
+
+    const styled = manager.customize(session.id, { color: '#F97316', icon: 'rocket' })
+    expect(styled).toMatchObject({ title: 'API', color: '#f97316', icon: 'rocket' })
+
+    const invalid = manager.customize(session.id, { color: 'red', icon: 'skull' })
+    expect(invalid).toMatchObject({ title: 'API', color: null, icon: null })
+  })
+
   it('killAll derruba tudo', () => {
     const { manager, ptys } = setup()
     manager.create(input)

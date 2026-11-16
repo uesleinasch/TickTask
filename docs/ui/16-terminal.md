@@ -33,7 +33,11 @@ ter um **diretório de trabalho** (`tasks.working_dir`) e um **comando inicial**
   nome (ou botão direito → **Renomear**) troca o nome da aba: Enter salva, Esc cancela, vazio volta
   ao padrão; **Restaurar nome** no mesmo menu também. O nome vive na sessão, no main
   (`terminal:customize`, até 60 caracteres), sobrevive à navegação e ao **Reiniciar**, e morre com a
-  sessão. Ponto laranja =
+  sessão.
+- No mesmo menu do botão direito, **Cor ▸** (a paleta `DEFAULT_COLORS`, ou "Sem cor") pinta uma
+  linha de 2px embaixo da aba e o ícone; **Ícone ▸** põe um dos 12 ícones do catálogo
+  `shared/terminalTab.ts` antes do nome. O main só aceita hex de 6 dígitos e ícone do catálogo
+  (`normalizeTabColor`/`normalizeTabIcon`, testados); como o nome, os dois vivem na sessão. Ponto laranja =
   processo em foreground diferente do shell (consulta a cada 2s com o painel aberto). Riscada =
   processo encerrado; aí aparece **Reiniciar**.
 - `+` abre outra sessão para a task da aba ativa. `×` encerra a sessão — pede confirmação se há

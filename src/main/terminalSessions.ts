@@ -1,4 +1,5 @@
 import type { TerminalBuffer, TerminalSession, TerminalTabCustomization } from '@shared/types'
+import { normalizeTabColor, normalizeTabIcon } from '@shared/terminalTab'
 
 export interface PtyLike {
   readonly process: string
@@ -120,7 +121,9 @@ export class TerminalManager {
         taskName: input.taskName,
         cwd: input.cwd,
         shell: input.shell,
-        title: null
+        title: null,
+        color: null,
+        icon: null
       },
       pty,
       shellName: shellBasename(input.shell),
@@ -168,6 +171,8 @@ export class TerminalManager {
     const session = this.sessions.get(id)
     if (!session) return null
     if (patch.title !== undefined) session.info.title = normalizeTabTitle(patch.title)
+    if (patch.color !== undefined) session.info.color = normalizeTabColor(patch.color)
+    if (patch.icon !== undefined) session.info.icon = normalizeTabIcon(patch.icon)
     return this.describe(session)
   }
 

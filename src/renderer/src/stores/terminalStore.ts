@@ -89,14 +89,20 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     await get().close(id)
     const created = await get().createSession(session.taskId)
     const newId = get().activeId
-    if (created && newId && session.title) await get().customize(newId, { title: session.title })
+    if (created && newId && (session.title || session.color || session.icon)) {
+      await get().customize(newId, {
+        title: session.title,
+        color: session.color,
+        icon: session.icon
+      })
+    }
   },
 
   customize: async (id, patch) => {
     const updated = await window.api.terminalCustomize(id, patch)
     if (!updated) return
     set((state) => ({
-      sessions: state.sessions.map((s) => (s.id === id ? { ...s, title: updated.title } : s))
+      sessions: state.sessions.map((s) => (s.id === id ? updated : s))
     }))
   },
 
