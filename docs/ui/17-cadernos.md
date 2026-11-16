@@ -80,7 +80,31 @@ pelo main, que revalida tudo em `movePage`.
   `userData/drawings/pages/<pageId>.png`.
 - Excluir é definitivo, com `DeleteConfirmDialog`. Apaga os PNGs dos desenhos das páginas atingidas.
 
+## Notion
+
+Hierarquia de páginas sob uma raiz **Cadernos TickTask** (📚), criada dentro da página configurada
+no Notion (ou na primeira acessível). Abaixo dela: caderno (📓) → seção (📑) → página (📄), com as
+subpáginas aninhadas. O id da raiz fica em `notion-config.json` (`notebooksRootPageId`); se sumir
+de lá, a raiz é procurada pelo título antes de criar outra.
+
+- **Automático** (com o auto-sync do Notion ligado): criar, renomear, salvar notas/desenho/título e
+  mover agendam o sync do item com 3 s de debounce. Excluir arquiva a página no Notion (arquivar o
+  caderno arquiva tudo abaixo).
+- **Manual**: botão **Sincronizar com o Notion** na aba Notas da página, e o ícone `RefreshCw` no
+  hover do caderno, que sobe o caderno inteiro (seções e páginas). Funciona com o auto-sync
+  desligado, desde que a API key esteja configurada.
+- O corpo da página é reescrito a cada sync (notas + PNG do desenho no fim), preservando os blocos
+  de subpágina.
+- Avisos pelos mesmos eventos `notion:sync*` das tasks.
+
+Limitações:
+
+- A API não move página entre pais: mover no TickTask arquiva a página no Notion e cria outra no
+  lugar novo (com as subpáginas). Links antigos para ela deixam de valer.
+- A ordem das páginas no Notion é a de criação; reordenar no TickTask não reflete lá.
+- Numa página com subpáginas, o corpo fica abaixo dos links das subpáginas.
+- Com o auto-sync desligado, excluir não arquiva nada no Notion.
+
 ## Ainda não
 
-Sync com o Notion, busca, menção `@` de páginas, MCP e export local entram nas próximas entregas
-(ver o ADR).
+Busca, menção `@` de páginas, MCP e export local entram na próxima entrega (ver o ADR).
