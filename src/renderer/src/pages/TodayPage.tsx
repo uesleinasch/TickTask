@@ -35,6 +35,7 @@ import {
   AlertTriangle
 } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
+import { useLiveSeconds } from '@renderer/hooks/useLiveSeconds'
 
 // ===================== Sortable Task Row =====================
 
@@ -44,6 +45,7 @@ interface SortableTaskRowProps {
 }
 
 function SortableTaskRow({ task, onTaskClick }: SortableTaskRowProps): React.JSX.Element {
+  const seconds = useLiveSeconds(task)
   const timeRange = formatTimeRange(task.scheduled_time, task.scheduled_end_time)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -131,7 +133,7 @@ function SortableTaskRow({ task, onTaskClick }: SortableTaskRowProps): React.JSX
           'font-mono text-sm font-medium',
           task.is_running ? 'text-emerald-600' : 'text-slate-500'
         )}>
-          {formatTime(task.total_seconds)}
+          {formatTime(seconds)}
         </span>
         {task.time_limit_seconds && task.time_limit_seconds > 0 && (
           <p className="text-xs text-slate-400">/ {formatTime(task.time_limit_seconds)}</p>

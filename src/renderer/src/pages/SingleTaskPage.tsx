@@ -1077,7 +1077,7 @@ export function SingleTaskPage(): React.JSX.Element {
                 <div className="bg-white rounded-sm border border-slate-200 px-4 py-3 text-center">
                   <p className="text-xs text-slate-400 mb-1">Tempo total</p>
                   <p className="text-lg font-mono font-bold text-slate-700">
-                    {formatTime(task.total_seconds)}
+                    {formatTime(displaySeconds)}
                   </p>
                 </div>
                 <div className="bg-white rounded-sm border border-slate-200 px-4 py-3 text-center">

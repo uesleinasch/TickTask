@@ -6,6 +6,7 @@ import { ScheduledTimeBadge } from './ScheduledTimeBadge'
 import { TaskIdBadge } from './TaskIdBadge'
 import { JiraTaskControls } from './jira/JiraTaskControls'
 import { formatTime } from '@renderer/lib/utils'
+import { useLiveSeconds } from '@renderer/hooks/useLiveSeconds'
 import type { Task } from '../../../shared/types'
 import {
   Activity,
@@ -27,12 +28,15 @@ interface TaskCardProps {
   onScheduleForToday?: (taskId: number) => void
 }
 
-function getTimeLeakVisual(task: Task): { cardBg: string; accentColor: string | null } {
+function getTimeLeakVisual(
+  task: Task,
+  seconds: number
+): { cardBg: string; accentColor: string | null } {
   if (task.category !== 'time_leak') {
     return { cardBg: 'bg-white', accentColor: null }
   }
 
-  const minutes = task.total_seconds / 60
+  const minutes = seconds / 60
 
   if (minutes >= 60) return { cardBg: 'bg-red-50', accentColor: '#ef4444' }
   if (minutes >= 30) return { cardBg: 'bg-orange-50', accentColor: '#f97316' }
@@ -49,13 +53,14 @@ export function TaskCard({
   onClick,
   onScheduleForToday
 }: TaskCardProps): React.JSX.Element {
-  const timeLeakVisual = getTimeLeakVisual(task)
+  const seconds = useLiveSeconds(task)
+  const timeLeakVisual = getTimeLeakVisual(task, seconds)
   const isTimeLeak = task.category === 'time_leak'
-  const isOverOneHour = isTimeLeak && task.total_seconds >= 3600
+  const isOverOneHour = isTimeLeak && seconds >= 3600
   const isScheduledToday = task.scheduled_date === todayStr()
   const hasSubtasks = (task.subtask_count ?? 0) > 0
   const hasTimeLimit = !!task.time_limit_seconds && task.time_limit_seconds > 0
-  const showTimer = task.is_running || task.total_seconds > 0
+  const showTimer = task.is_running || seconds > 0
   const hasTagsOrContexts =
     (task.tags && task.tags.length > 0) || (task.contexts && task.contexts.length > 0)
   const hasMetaRow = !!task.due_date || !!task.scheduled_time || hasTimeLimit || hasSubtasks
@@ -235,7 +240,7 @@ export function TaskCard({
               )}
             >
               {task.is_running && <Activity size={15} className="animate-pulse" />}
-              {formatTime(task.total_seconds)}
+              {formatTime(seconds)}
             </div>
           ) : (
             <span className="text-xs text-slate-300">—</span>

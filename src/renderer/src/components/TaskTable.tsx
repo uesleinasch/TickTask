@@ -6,6 +6,8 @@ import { DueDateBadge } from './DueDateBadge'
 import { ScheduledTimeBadge } from './ScheduledTimeBadge'
 import { TaskIdBadge } from './TaskIdBadge'
 import { formatTime } from '@renderer/lib/utils'
+import { liveSeconds } from '@renderer/lib/liveSeconds'
+import { useTimerStore } from '@renderer/stores/timerStore'
 import type { Task } from '../../../shared/types'
 import {
   Activity,
@@ -32,12 +34,12 @@ interface TaskTableProps {
 }
 
 // Função para determinar o estilo da linha baseado na categoria Time Leak
-function getTimeLeakRowStyles(task: Task): string {
+function getTimeLeakRowStyles(task: Task, seconds: number): string {
   if (task.category !== 'time_leak') {
     return 'hover:bg-slate-50'
   }
 
-  const minutes = task.total_seconds / 60
+  const minutes = seconds / 60
 
   if (minutes >= 60) {
     return 'bg-red-50 hover:bg-red-100'
@@ -59,6 +61,7 @@ export function TaskTable({
   onScheduleForToday
 }: TaskTableProps): React.JSX.Element {
   const selectAllRef = useRef<HTMLInputElement>(null)
+  const timers = useTimerStore((s) => s.timers)
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
   const [subtasksMap, setSubtasksMap] = useState<Record<number, Task[]>>({})
 
@@ -140,9 +143,10 @@ export function TaskTable({
         </thead>
         <tbody className="divide-y divide-slate-100">
           {tasks.map((task) => {
+            const seconds = liveSeconds(task, timers)
             const isTimeLeak = task.category === 'time_leak'
-            const isOverOneHour = isTimeLeak && task.total_seconds >= 3600
-            const rowStyles = getTimeLeakRowStyles(task)
+            const isOverOneHour = isTimeLeak && seconds >= 3600
+            const rowStyles = getTimeLeakRowStyles(task, seconds)
             const isSelected = selectedTaskIds.has(task.id)
             const isScheduledToday = task.scheduled_date === todayStr()
             const hasSubtasks = (task.subtask_count ?? 0) > 0
@@ -324,7 +328,7 @@ export function TaskTable({
                         isOverOneHour && 'text-red-600 font-bold'
                       )}
                     >
-                      {formatTime(task.total_seconds)}
+                      {formatTime(seconds)}
                     </span>
                     {task.is_running && (
                       <Activity
@@ -388,7 +392,7 @@ export function TaskTable({
                     <td />
                     <td className="px-4 py-2 text-right">
                       <span className="font-mono text-xs text-slate-400">
-                        {formatTime(sub.total_seconds)}
+                        {formatTime(liveSeconds(sub, timers))}
                       </span>
                     </td>
                     <td />
