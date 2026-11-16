@@ -67,7 +67,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # windows-latest virou windows-2025-vs2026, que o node-gyp 9 do electron-builder não reconhece;
+        # sem ele o node-pty não compila.
+        os: [ubuntu-latest, windows-2022]
     permissions:
       contents: read
       id-token: write
