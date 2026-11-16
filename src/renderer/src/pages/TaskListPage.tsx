@@ -24,6 +24,7 @@ import { TaskGroups, type TaskGroup } from '@renderer/components/TaskGroups'
 import { applyGroupOrder, moveGroupKey } from '@renderer/lib/groupOrder'
 import { buildTaskGroups, JIRA_GROUP_MODES, type GroupBy } from '@renderer/lib/taskGrouping'
 import { TaskKanban } from '@renderer/components/TaskKanban'
+import { TaskMenuChangedContext } from '@renderer/components/taskMenuContext'
 import { eventEmitter } from '@renderer/App'
 import { cn } from '@renderer/lib/utils'
 import {
@@ -344,6 +345,10 @@ export function TaskListPage(): React.JSX.Element {
     },
     [createTask, navigate]
   )
+
+  const handleMenuChanged = useCallback((): void => {
+    void refreshTasks()
+  }, [refreshTasks])
 
   const handleTaskClick = (taskId: number): void => {
     navigate(`/task/${taskId}`)
@@ -821,6 +826,7 @@ export function TaskListPage(): React.JSX.Element {
       )}
 
       {/* Content */}
+      <TaskMenuChangedContext.Provider value={handleMenuChanged}>
       <ScrollArea className="flex-1 h-0">
         <div className="p-6 pt-2 pb-24">
           {!loading && tasks.length > 0 && (
@@ -987,6 +993,7 @@ export function TaskListPage(): React.JSX.Element {
           )}
         </div>
       </ScrollArea>
+      </TaskMenuChangedContext.Provider>
 
       {/* Create Task Dialog */}
       <TaskDialog open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleCreateTask} />

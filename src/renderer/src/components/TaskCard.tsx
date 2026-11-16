@@ -4,6 +4,7 @@ import { CategoryBadge } from './CategoryBadge'
 import { DueDateBadge } from './DueDateBadge'
 import { ScheduledTimeBadge } from './ScheduledTimeBadge'
 import { TaskIdBadge } from './TaskIdBadge'
+import { TaskContextMenu } from './TaskContextMenu'
 import { JiraTaskControls } from './jira/JiraTaskControls'
 import { formatTime } from '@renderer/lib/utils'
 import { useLiveSeconds } from '@renderer/hooks/useLiveSeconds'
@@ -85,6 +86,7 @@ export function TaskCard({
   const accentAlways = task.is_running || timeLeakVisual.accentColor !== null
 
   return (
+    <TaskContextMenu task={task} onOpen={onClick} onScheduleForToday={onScheduleForToday}>
     <div onClick={onClick} className="group cursor-pointer h-full">
       <div
         className={cn(
@@ -267,5 +269,6 @@ export function TaskCard({
         </div>
       </div>
     </div>
+    </TaskContextMenu>
   )
 }

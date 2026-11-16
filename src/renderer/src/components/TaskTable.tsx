@@ -5,6 +5,7 @@ import { CategoryBadge } from './CategoryBadge'
 import { DueDateBadge } from './DueDateBadge'
 import { ScheduledTimeBadge } from './ScheduledTimeBadge'
 import { TaskIdBadge } from './TaskIdBadge'
+import { TaskContextMenu } from './TaskContextMenu'
 import { formatTime } from '@renderer/lib/utils'
 import { liveSeconds } from '@renderer/lib/liveSeconds'
 import { useTimerStore } from '@renderer/stores/timerStore'
@@ -153,6 +154,11 @@ export function TaskTable({
 
             return (
               <React.Fragment key={task.id}>
+              <TaskContextMenu
+                task={task}
+                onOpen={() => onTaskClick(task.id)}
+                onScheduleForToday={onScheduleForToday}
+              >
               <tr
                 onClick={(event) => {
                   const target = event.target as HTMLElement
@@ -356,6 +362,7 @@ export function TaskTable({
                   </div>
                 </td>
               </tr>
+              </TaskContextMenu>
 
               {/* Subtask rows */}
               {expandedIds.has(task.id) &&
