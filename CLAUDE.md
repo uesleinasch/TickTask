@@ -289,7 +289,7 @@ the pre-existing errors are fixed), `pr-checks.yml` (branch × target and PR tit
 
 ## Git Context
 
-GitFlow da convenção `conventions-code` (GitFlow — Release Branch Strategy). Regras para o agente:
+GitFlow com release branches (ver **Release** acima). Regras para o agente:
 
 - `main`: default, integração. Nunca commitar direto; só recebe PR.
 - `production`: espelho de produção, sempre igual a uma tag `vX.Y.Z`. Nunca fazer push, merge ou PR
@@ -305,10 +305,10 @@ GitFlow da convenção `conventions-code` (GitFlow — Release Branch Strategy).
   revert. O título do PR vira o commit em `main`, então segue o mesmo formato.
 - Ao finalizar a task, push da branch de trabalho e PR para o destino permitido.
 - Nunca criar, mover, apagar ou dar push em tags `v*`. Corte da release, RC, promoção, hotfix e
-  back-merge são comandos `git`/`gh` do mantenedor: mostre os comandos para o usuário executar
-  (seção "Uso diário" de `GitFlow/05-automacao.md` no plugin), não os rode.
+  back-merge são comandos `git`/`gh` do mantenedor: mostre os comandos para o usuário executar,
+  não os rode.
 - Nunca `git push --force` (use `--force-with-lease` em branch de trabalho), nunca `--all`,
-  `--mirror`, `--tags`. Não desabilitar rulesets, assinatura ou checks para destravar algo.
+  `--mirror`, `--tags`. Não desabilitar rulesets ou checks para destravar algo.
 
 <!-- rtk-instructions v2 -->
 
