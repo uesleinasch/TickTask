@@ -177,7 +177,8 @@ Só aparece se houver sessões. `TimeEntryList` lista as sessões **encerradas**
 
 Dois botões de largura igual, presos ao fim do painel (`mt-auto`): **Arquivar** (contorno cinza) e
 **Deletar** (contorno e texto vermelhos, abre `DeleteConfirmDialog`). Ambos navegam para `/` ao
-concluir.
+concluir. Se a tarefa já está arquivada, o primeiro vira **Desarquivar** (`Undo2`): devolve a tarefa
+às listagens e fica na tela.
 
 ---
 

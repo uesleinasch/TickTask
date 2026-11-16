@@ -45,6 +45,7 @@ import { ENERGY_LABELS, ENERGY_ICONS } from '../../../shared/types'
 import {
   ArrowLeft,
   Archive,
+  Undo2,
   Trash2,
   AlertCircle,
   Plus,
@@ -123,6 +124,7 @@ export function SingleTaskPage(): React.JSX.Element {
     updateTask,
     updateStatus,
     archiveTask,
+    unarchiveTask,
     deleteTask
   } = useTaskDetail(taskId)
 
@@ -318,6 +320,11 @@ export function SingleTaskPage(): React.JSX.Element {
     toast.success('Tarefa arquivada')
     navigate('/')
   }, [archiveTask, navigate])
+
+  const handleUnarchive = useCallback(async (): Promise<void> => {
+    await unarchiveTask()
+    toast.success('Tarefa desarquivada')
+  }, [unarchiveTask])
 
   const handleDelete = useCallback(async (): Promise<void> => {
     await deleteTask()
@@ -901,10 +908,18 @@ export function SingleTaskPage(): React.JSX.Element {
           {/* ── ACTIONS ── */}
           <div className="px-5 pb-6 flex gap-2 mt-auto shrink-0 pt-4">
             <button
-              onClick={handleArchive}
+              onClick={task.is_archived ? handleUnarchive : handleArchive}
               className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors"
             >
-              <Archive size={13} /> Arquivar
+              {task.is_archived ? (
+                <>
+                  <Undo2 size={13} /> Desarquivar
+                </>
+              ) : (
+                <>
+                  <Archive size={13} /> Arquivar
+                </>
+              )}
             </button>
             <button
               onClick={() => setDeleteDialogOpen(true)}

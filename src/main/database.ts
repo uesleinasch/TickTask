@@ -1282,6 +1282,21 @@ export function unarchiveTask(id: number): void {
   stmt.run(id)
 }
 
+export function setTasksArchived(ids: number[], archived: boolean): void {
+  if (ids.length === 0) return
+
+  const transaction = db.transaction((taskIds: number[], value: number) => {
+    const stmt = db.prepare(
+      'UPDATE tasks SET is_archived = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    )
+    for (const id of taskIds) {
+      stmt.run(value, id)
+    }
+  })
+
+  transaction(ids, archived ? 1 : 0)
+}
+
 export interface JiraHierarchyColumns {
   jira_issue_type: string | null
   jira_issue_kind: JiraIssueKind | null

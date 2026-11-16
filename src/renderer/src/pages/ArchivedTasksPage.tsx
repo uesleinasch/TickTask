@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@renderer/components/ui/button'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
@@ -14,11 +14,49 @@ export function ArchivedTasksPage(): React.JSX.Element {
   const { tasks, loading, refreshTasks } = useTasks({ archived: true })
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [taskToDelete, setTaskToDelete] = useState<number | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [bulkLoading, setBulkLoading] = useState(false)
+
+  const visibleSelectedIds = useMemo(
+    () => tasks.filter((task) => selectedIds.has(task.id)).map((task) => task.id),
+    [tasks, selectedIds]
+  )
+  const allSelected = tasks.length > 0 && visibleSelectedIds.length === tasks.length
+
+  const toggleSelected = (taskId: number, selected: boolean): void => {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (selected) next.add(taskId)
+      else next.delete(taskId)
+      return next
+    })
+  }
+
+  const toggleSelectAll = (selected: boolean): void => {
+    setSelectedIds(selected ? new Set(tasks.map((task) => task.id)) : new Set())
+  }
 
   const handleUnarchive = async (taskId: number): Promise<void> => {
     await window.api.unarchiveTask(taskId)
+    toggleSelected(taskId, false)
     await refreshTasks()
     toast.success('Tarefa desarquivada')
+  }
+
+  const handleBulkUnarchive = async (): Promise<void> => {
+    if (visibleSelectedIds.length === 0) return
+    setBulkLoading(true)
+    try {
+      await window.api.bulkSetArchived(visibleSelectedIds, false)
+      toast.success(`${visibleSelectedIds.length} tarefa(s) desarquivada(s)`)
+      setSelectedIds(new Set())
+      await refreshTasks()
+    } catch (error) {
+      console.error('Erro ao desarquivar tarefas:', error)
+      toast.error('Não foi possível desarquivar as tarefas')
+    } finally {
+      setBulkLoading(false)
+    }
   }
 
   const handleDeleteClick = (taskId: number): void => {
@@ -48,6 +86,28 @@ export function ArchivedTasksPage(): React.JSX.Element {
           <ArrowLeft size={18} className="mr-2" /> Voltar
         </Button>
         <h1 className="text-lg font-bold text-slate-900">Arquivo Morto</h1>
+        {tasks.length > 0 && (
+          <div className="ml-auto flex items-center gap-3 text-sm">
+            <label className="flex items-center gap-2 text-slate-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={(e) => toggleSelectAll(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
+              />
+              Selecionar todas
+            </label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleBulkUnarchive()}
+              disabled={visibleSelectedIds.length === 0 || bulkLoading}
+              className="border-slate-200 text-slate-700 hover:bg-slate-100"
+            >
+              <Undo2 size={16} className="mr-2" /> Desarquivar ({visibleSelectedIds.length})
+            </Button>
+          </div>
+        )}
       </header>
 
       {/* Content */}
@@ -65,16 +125,25 @@ export function ArchivedTasksPage(): React.JSX.Element {
                 key={task.id}
                 className="bg-white border border-slate-200 rounded-sm p-4 flex items-center justify-between opacity-75 hover:opacity-100 transition-opacity"
               >
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <StatusBadge status={task.status} />
-                    <span className="text-xs text-slate-400">
-                      {new Date(task.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <h3 className="font-medium text-slate-900">{task.name}</h3>
-                  <div className="text-sm text-slate-500 font-mono mt-1">
-                    Tempo Final: {formatTime(task.total_seconds)}
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(task.id)}
+                    onChange={(e) => toggleSelected(task.id, e.target.checked)}
+                    aria-label={`Selecionar ${task.name}`}
+                    className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
+                  />
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <StatusBadge status={task.status} />
+                      <span className="text-xs text-slate-400">
+                        {new Date(task.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <h3 className="font-medium text-slate-900">{task.name}</h3>
+                    <div className="text-sm text-slate-500 font-mono mt-1">
+                      Tempo Final: {formatTime(task.total_seconds)}
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-2">

@@ -159,6 +159,8 @@ const api = {
   // Archive
   archiveTask: (id: number): Promise<void> => ipcRenderer.invoke('task:archive', id),
   unarchiveTask: (id: number): Promise<void> => ipcRenderer.invoke('task:unarchive', id),
+  bulkSetArchived: (ids: number[], archived: boolean): Promise<void> =>
+    ipcRenderer.invoke('task:bulkSetArchived', ids, archived),
 
   // Timer
   startTask: (id: number): Promise<void> => ipcRenderer.invoke('task:start', id),
