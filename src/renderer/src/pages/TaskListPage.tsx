@@ -130,6 +130,14 @@ export function TaskListPage(): React.JSX.Element {
     'ticktask:executandoKanban',
     false
   )
+  const [kanbanGroupBy, setKanbanGroupBy] = usePersistedState<GroupBy>(
+    'ticktask:executandoKanbanGroupBy',
+    groupBy
+  )
+  const kanbanActive = statusFilter === 'executando' && kanbanEnabled
+  const showGroups = kanbanActive || groupingEnabled
+  const activeGroupBy = kanbanActive ? kanbanGroupBy : groupBy
+  const setActiveGroupBy = kanbanActive ? setKanbanGroupBy : setGroupBy
   const [showFilters, setShowFilters] = useState(false)
   const [blockedFilter, setBlockedFilter] = useState(false)
   const [sortMode, setSortMode] = useState<SortMode>('updated')
@@ -248,29 +256,29 @@ export function TaskListPage(): React.JSX.Element {
   const filteredTaskIds = useMemo(() => tasks.map((task) => task.id), [tasks])
 
   const defaultTaskGroups = useMemo<TaskGroup[]>(
-    () => (groupingEnabled || kanbanEnabled ? buildTaskGroups(tasks, groupBy) : []),
-    [groupingEnabled, kanbanEnabled, groupBy, tasks]
+    () => (showGroups ? buildTaskGroups(tasks, activeGroupBy) : []),
+    [showGroups, activeGroupBy, tasks]
   )
   const hasJiraTasks = useMemo(() => tasks.some((task) => task.jira_key), [tasks])
 
   const taskGroups = useMemo(
-    () => applyGroupOrder(defaultTaskGroups, groupOrder[groupBy] ?? []),
-    [defaultTaskGroups, groupOrder, groupBy]
+    () => applyGroupOrder(defaultTaskGroups, groupOrder[activeGroupBy] ?? []),
+    [defaultTaskGroups, groupOrder, activeGroupBy]
   )
 
   const handleReorderGroups = useCallback(
     (activeKey: string, overKey: string): void => {
       setGroupOrder({
         ...groupOrder,
-        [groupBy]: moveGroupKey(
-          groupOrder[groupBy] ?? [],
+        [activeGroupBy]: moveGroupKey(
+          groupOrder[activeGroupBy] ?? [],
           taskGroups.map((group) => group.key),
           activeKey,
           overKey
         )
       })
     },
-    [groupOrder, groupBy, taskGroups, setGroupOrder]
+    [groupOrder, activeGroupBy, taskGroups, setGroupOrder]
   )
   const selectedTaskIdSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds])
   const selectedCount = selectedTaskIds.length
@@ -569,14 +577,17 @@ export function TaskListPage(): React.JSX.Element {
             <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1">
               <button
                 onClick={() => {
-                  const next = !groupingEnabled
-                  setGroupingEnabled(next)
-                  if (next) setKanbanEnabled(false)
+                  if (kanbanActive) {
+                    setKanbanEnabled(false)
+                    setGroupingEnabled(true)
+                  } else {
+                    setGroupingEnabled(!groupingEnabled)
+                  }
                 }}
                 className={`
                   flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-all
                   ${
-                    groupingEnabled
+                    groupingEnabled && !kanbanActive
                       ? 'bg-slate-900 text-white'
                       : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                   }
@@ -587,11 +598,7 @@ export function TaskListPage(): React.JSX.Element {
               </button>
               {statusFilter === 'executando' && (
                 <button
-                  onClick={() => {
-                    const next = !kanbanEnabled
-                    setKanbanEnabled(next)
-                    if (next) setGroupingEnabled(false)
-                  }}
+                  onClick={() => setKanbanEnabled(!kanbanEnabled)}
                   className={`
                     flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-all
                     ${
@@ -605,19 +612,19 @@ export function TaskListPage(): React.JSX.Element {
                   <Columns3 size={16} /> Kanban
                 </button>
               )}
-              {(groupingEnabled || (statusFilter === 'executando' && kanbanEnabled)) && (
+              {showGroups && (
                 <div className="flex items-center gap-1 pl-1 ml-1 border-l border-slate-200">
                   {GROUP_BY_OPTIONS.filter(
                     (option) =>
                       !JIRA_GROUP_MODES.includes(option.value) ||
                       hasJiraTasks ||
-                      groupBy === option.value
+                      activeGroupBy === option.value
                   ).map((option) => (
                     <button
                       key={option.value}
-                      onClick={() => setGroupBy(option.value)}
+                      onClick={() => setActiveGroupBy(option.value)}
                       className={`px-2 py-1 rounded-md text-xs font-medium transition-all ${
-                        groupBy === option.value
+                        activeGroupBy === option.value
                           ? 'bg-slate-200 text-slate-900'
                           : 'text-slate-500 hover:bg-slate-100'
                       }`}
@@ -903,7 +910,7 @@ export function TaskListPage(): React.JSX.Element {
                   : `Nenhuma tarefa com status "${statusFilter}"`}
               </p>
             </div>
-          ) : statusFilter === 'executando' && kanbanEnabled ? (
+          ) : kanbanActive ? (
             <TaskKanban
               columns={taskGroups}
               onTaskClick={handleTaskClick}
@@ -942,7 +949,7 @@ export function TaskListPage(): React.JSX.Element {
             />
           )}
 
-          {hasMore && !groupingEnabled && !(statusFilter === 'executando' && kanbanEnabled) && (
+          {hasMore && !showGroups && (
             <div ref={sentinelRef} className="py-6 text-center text-xs text-slate-400">
               Carregando mais {remaining} {remaining === 1 ? 'tarefa' : 'tarefas'}...
             </div>

@@ -73,10 +73,13 @@ em `ticktask:taskListViewMode`; o padrão é **tabela**.
 
 No mesmo contêiner:
 
-- **Agrupar** (`Layers`) — liga o agrupamento; desliga o Kanban.
-- **Kanban** (`Columns3`) — **só aparece na aba Executando**; liga o Kanban e desliga o agrupamento.
+- **Agrupar** (`Layers`) — liga ou desliga o agrupamento de todas as abas. Na aba Executando com
+  Kanban ligado, desliga o Kanban e liga o agrupamento.
+- **Kanban** (`Columns3`) — **só aparece na aba Executando**; liga e desliga o Kanban. Não mexe no
+  agrupamento: na aba Executando o Kanban vence, e as outras abas seguem agrupadas como estavam.
 - Quando um dos dois está ligado, surge um sub-alternador à direita de uma barra divisória:
-  **Projeto** | **Contexto** | **Espaço Jira** | **Pai Jira** (`ticktask:taskListGroupBy`). Os dois
+  **Projeto** | **Contexto** | **Espaço Jira** | **Pai Jira**. O agrupamento das listas guarda a
+  escolha em `ticktask:taskListGroupBy`; o Kanban, em `ticktask:executandoKanbanGroupBy`. Os dois
   modos do Jira só aparecem quando há task do Jira na lista (ou quando um deles já está escolhido).
   O agrupamento é puro, em `lib/taskGrouping.ts` (testado):
   - **Espaço Jira** — por `jira_space` (ou prefixo da chave); o resto vai para "Fora do Jira".

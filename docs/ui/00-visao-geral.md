@@ -279,6 +279,7 @@ Chaves em `localStorage` (via `usePersistedState`):
 | `ticktask:taskListGrouping` | `false` | Agrupamento ligado |
 | `ticktask:taskListGroupBy` | `'project'` | Agrupar por projeto ou contexto |
 | `ticktask:executandoKanban` | `false` | Kanban na aba Executando |
+| `ticktask:executandoKanbanGroupBy` | o `taskListGroupBy` atual | Colunas do Kanban (projeto, contexto, Jira) |
 | `ticktask.notesWidth` | `550` | Largura do painel de notas |
 | `ticktask.notesZenWidth` | `640` | Largura da coluna no modo zen |
 
