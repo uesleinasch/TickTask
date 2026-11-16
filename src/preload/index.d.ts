@@ -172,6 +172,7 @@ interface API {
   bulkMoveToProject: (ids: number[], projectId: number | null) => Promise<void>
   archiveTask: (id: number) => Promise<void>
   unarchiveTask: (id: number) => Promise<void>
+  bulkSetArchived: (ids: number[], archived: boolean) => Promise<void>
   startTask: (id: number) => Promise<void>
   stopTask: (id: number) => Promise<void>
   updateTimer: (id: number, seconds: number) => Promise<void>

@@ -1,6 +1,6 @@
 # Arquivadas — `/archived`
 
-`src/renderer/src/pages/ArchivedTasksPage.tsx` — a menor tela do app (~110 linhas).
+`src/renderer/src/pages/ArchivedTasksPage.tsx` — a menor tela do app (~180 linhas).
 
 ## Função
 
@@ -12,8 +12,9 @@ O título na tela é **"Arquivo Morto"**, enquanto o botão que leva até aqui d
 
 ## Cabeçalho
 
-`← Voltar` para `/` · "Arquivo Morto" em `text-lg font-bold`. Sem ícone, sem divisor, sem ação
-primária — é o único cabeçalho de sub-página nesse formato reduzido.
+`← Voltar` para `/` · "Arquivo Morto" em `text-lg font-bold`. Sem ícone nem divisor. Com tarefas na
+lista, aparecem à direita uma caixa **Selecionar todas** e o botão **Desarquivar (N)** (`Undo2`),
+que desarquiva as selecionadas de uma vez (`task:bulkSetArchived`).
 
 ## Lista
 
@@ -23,6 +24,7 @@ sinal visual de "isto está fora do fluxo".
 Cada cartão, em duas colunas:
 
 **Esquerda:**
+- caixa de seleção para a ação em massa do cabeçalho;
 - `StatusBadge` com o status que a tarefa tinha ao ser arquivada + data de criação em
   `text-xs text-slate-400` (formato local do sistema, não `pt-BR` explícito);
 - nome em `font-medium text-slate-900`;
@@ -46,7 +48,8 @@ Cada cartão, em duas colunas:
   forma de rever os detalhes de uma tarefa arquivada é desarquivá-la primeiro.
 - **Sem busca, filtro ou ordenação.** A consulta é simplesmente `{ archived: true }`.
 - **Sem paginação nem carregamento incremental** — o `useIncrementalList` não é usado aqui.
-- **Sem ações em massa.** Esvaziar o arquivo morto exige uma confirmação por tarefa.
+- A única ação em massa é desarquivar. Esvaziar o arquivo morto ainda exige uma confirmação por
+  tarefa.
 - O cartão não mostra projeto, tags, contextos, prazo nem categoria — informações que estão no banco
   e apareceriam de graça se a tela reutilizasse `TaskCard` ou `TaskTable`.
 

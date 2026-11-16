@@ -27,7 +27,7 @@ Ver, filtrar e triar todas as tarefas não arquivadas. Na prática cumpre três 
 ├────────────────────────────────────────────────────────────────────────┤
 │ ④ BARRA DE AÇÕES EM MASSA                                              │
 │ N selecionada(s) · Selecionar todas visíveis · Limpar seleção          │
-│                    [Marcar como▾][Marcar] [Projeto▾][Mover] [Excluir]  │
+│       [Marcar como▾][Marcar] [Projeto▾][Mover] [Arquivar] [Excluir]    │
 ├────────────────────────────────────────────────────────────────────────┤
 │ ⑤ CONTEÚDO — Tabela | Cards | Grupos | Kanban                          │
 │                                                                        │
@@ -129,6 +129,7 @@ Cartão branco em duas metades (`flex-col xl:flex-row`):
 **Direita:**
 - `SearchableSelect` "Marcar como…" (os 6 status) + botão **Marcar** (`CheckCheck`)
 - `SearchableSelect` "Mover para projeto…" (inclui "Sem projeto") + botão **Mover** (`FolderInput`)
+- Botão **Arquivar** (`Archive`) — manda as selecionadas para o Arquivo Morto (`task:bulkSetArchived`)
 - Botão **Excluir** (`Trash2`) em `bg-red-50 border-red-200 text-red-700`
 
 Cada ação abre um `AlertDialog` cujo texto é montado dinamicamente:
@@ -138,6 +139,7 @@ Cada ação abre um `AlertDialog` cujo texto é montado dinamicamente:
 | Excluir | `Deletar N tarefa(s)?` | Avisa que a exclusão também ocorre no Notion se a sincronização automática estiver ativa |
 | Marcar | `Marcar N tarefa(s)?` | Cita o status de destino |
 | Mover | `Mover N tarefa(s)?` | Texto diferente para "sem projeto" e para um projeto escolhido |
+| Arquivar | `Arquivar N tarefa(s)?` | Avisa que as tarefas vão para o Arquivo Morto e podem ser desarquivadas |
 
 Durante a execução, o botão de confirmação vira `Loader2` girando + "Aplicando…". Ao terminar, a
 seleção é limpa e a lista recarregada. A seleção também é podada automaticamente quando os filtros

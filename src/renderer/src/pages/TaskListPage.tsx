@@ -49,6 +49,7 @@ import {
   X,
   Lightbulb,
   Trash2,
+  Archive,
   FolderInput,
   CheckCheck,
   Loader2,
@@ -64,6 +65,7 @@ type SortMode = 'updated' | 'due_date'
 type ViewMode = 'cards' | 'table'
 type BulkAction =
   | { type: 'delete' }
+  | { type: 'archive' }
   | { type: 'status'; status: TaskStatus }
   | { type: 'project'; projectId: number | null }
 
@@ -398,6 +400,11 @@ export function TaskListPage(): React.JSX.Element {
         toast.success(`${selectedCount} tarefa(s) deletada(s) com sucesso`)
       }
 
+      if (bulkAction.type === 'archive') {
+        await window.api.bulkSetArchived(selectedTaskIds, true)
+        toast.success(`${selectedCount} tarefa(s) arquivada(s)`)
+      }
+
       if (bulkAction.type === 'status') {
         await window.api.bulkUpdateStatus(selectedTaskIds, bulkAction.status)
         toast.success(
@@ -442,6 +449,15 @@ export function TaskListPage(): React.JSX.Element {
         description:
           'Essa ação remove as tarefas selecionadas localmente e também no Notion quando a sincronização automática estiver ativa.',
         actionLabel: 'Deletar'
+      }
+    }
+
+    if (bulkAction.type === 'archive') {
+      return {
+        title: `Arquivar ${selectedCount} tarefa(s)?`,
+        description:
+          'As tarefas selecionadas saem das listagens e vão para o Arquivo Morto, de onde podem ser desarquivadas.',
+        actionLabel: 'Arquivar'
       }
     }
 
@@ -880,6 +896,15 @@ export function TaskListPage(): React.JSX.Element {
                   >
                     <FolderInput size={15} />
                     Mover
+                  </button>
+
+                  <button
+                    onClick={() => openConfirm({ type: 'archive' })}
+                    disabled={selectedCount === 0 || bulkLoading}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <Archive size={15} />
+                    Arquivar
                   </button>
 
                   <button

@@ -37,6 +37,7 @@ import {
   getChildTaskIds,
   archiveTask,
   unarchiveTask,
+  setTasksArchived,
   updateTaskStatus,
   updateTasksStatus,
   moveTasksToProject,
@@ -813,6 +814,15 @@ function setupIpcHandlers(): void {
   ipcMain.handle('task:unarchive', (_, id: number) => {
     unarchiveTask(id)
     autoSyncTask(id)
+  })
+  ipcMain.handle('task:bulkSetArchived', (_, ids: number[], archived: boolean) => {
+    const taskIds = normalizeTaskIds(ids)
+    if (taskIds.length === 0) return
+
+    setTasksArchived(taskIds, archived === true)
+    for (const id of taskIds) {
+      autoSyncTask(id)
+    }
   })
 
   // Timer
