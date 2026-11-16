@@ -14,6 +14,8 @@ import { DependencySelector } from '@renderer/components/DependencySelector'
 import { RecurrenceSelect } from '@renderer/components/RecurrenceSelect'
 import { GoogleCalendarTaskToggle } from '@renderer/components/GoogleCalendarTaskToggle'
 import { ExternalLinkField } from '@renderer/components/ExternalLinkField'
+import { TerminalTaskButton } from '@renderer/components/terminal/TerminalTaskButton'
+import { WorkingDirField } from '@renderer/components/terminal/WorkingDirField'
 import { TimeInput } from '@renderer/components/TimeInput'
 import {
   AlertDialog,
@@ -847,6 +849,13 @@ export function SingleTaskPage(): React.JSX.Element {
                 onSave={(value) => updateTask({ external_url: value })}
               />
 
+              <WorkingDirField
+                taskId={task.id}
+                workingDir={task.working_dir}
+                startCommand={task.start_command}
+                onChange={refreshTask}
+              />
+
               <GoogleCalendarTaskToggle
                 taskId={task.id}
                 enabled={Boolean(task.gcal_sync)}
@@ -939,6 +948,11 @@ export function SingleTaskPage(): React.JSX.Element {
               <NotebookPen size={14} />
               Notas
             </button>
+            <TerminalTaskButton
+              taskId={task.id}
+              workingDir={task.working_dir}
+              onWorkingDirChange={refreshTask}
+            />
           </div>
           <div className="flex-1 flex flex-col items-center justify-center px-8 min-h-0 overflow-y-auto">
             <div className="flex flex-col items-center w-full max-w-sm">

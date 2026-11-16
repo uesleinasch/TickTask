@@ -1,6 +1,7 @@
 import { Settings } from 'lucide-react'
 import { toast } from '@renderer/components/ui/sonner'
 import { SectionHeader, ToggleRow } from './SettingsPrimitives'
+import { TerminalSettings } from './TerminalSettings'
 
 export function GeneralSection({
   autostart,
@@ -54,6 +55,8 @@ export function GeneralSection({
           </kbd>
         </div>
       </div>
+
+      <TerminalSettings />
     </div>
   )
 }
