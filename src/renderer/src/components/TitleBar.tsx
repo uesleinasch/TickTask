@@ -10,7 +10,8 @@ import {
   CalendarDays,
   Mountain,
   Calendar,
-  Tag
+  Tag,
+  NotebookTabs
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { TerminalToggleButton } from '@renderer/components/terminal/TerminalToggleButton'
@@ -67,6 +68,16 @@ export function TitleBar({ onNewTask }: TitleBarProps): React.JSX.Element {
             >
               <CalendarDays className="mr-2 h-4 w-4" />
               Hoje
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/notebooks')}
+              className="h-9 border-slate-200 text-slate-700 hover:bg-slate-100"
+              title="Cadernos de anotações"
+            >
+              <NotebookTabs className="mr-2 h-4 w-4" />
+              Cadernos
             </Button>
             <Button
               variant="outline"

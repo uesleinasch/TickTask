@@ -45,7 +45,18 @@ import type {
   UpdateTagInput,
   McpStatus,
   BackupSnapshot,
-  BackupStatus
+  BackupStatus,
+  NotesOwner,
+  Notebook,
+  NotebookSection,
+  NotebookPage,
+  NotebookPageSummary,
+  CreateNotebookInput,
+  UpdateNotebookInput,
+  CreateSectionInput,
+  UpdateSectionInput,
+  CreatePageInput,
+  MovePageInput
 } from '../shared/types'
 
 interface FloatTimerData {
@@ -104,6 +115,27 @@ interface API {
   maximizeWindow: () => Promise<void>
   closeWindow: () => Promise<void>
 
+  // Cadernos
+  listNotebooks: () => Promise<Notebook[]>
+  createNotebook: (input: CreateNotebookInput) => Promise<Notebook>
+  updateNotebook: (id: number, input: UpdateNotebookInput) => Promise<void>
+  deleteNotebook: (id: number) => Promise<void>
+  reorderNotebooks: (ids: number[]) => Promise<void>
+  listSections: (notebookId: number) => Promise<NotebookSection[]>
+  createSection: (input: CreateSectionInput) => Promise<NotebookSection>
+  updateSection: (id: number, input: UpdateSectionInput) => Promise<void>
+  deleteSection: (id: number) => Promise<void>
+  reorderSections: (notebookId: number, ids: number[]) => Promise<void>
+  listPages: (sectionId: number) => Promise<NotebookPageSummary[]>
+  getPage: (id: number) => Promise<NotebookPage | null>
+  createPage: (input: CreatePageInput) => Promise<NotebookPage>
+  updatePageTitle: (id: number, title: string) => Promise<void>
+  deletePage: (id: number) => Promise<void>
+  movePage: (id: number, input: MovePageInput) => Promise<void>
+  savePageNotes: (id: number, notes: string | null) => Promise<void>
+  savePageDrawing: (id: number, drawing: string | null, preview: Uint8Array | null) => Promise<void>
+  onNotebooksRefresh: (callback: () => void) => () => void
+
   // Task CRUD
   createTask: (data: CreateTaskInput) => Promise<Task>
   listTasks: (filters?: TaskListFilters) => Promise<Task[]>
@@ -118,7 +150,7 @@ interface API {
     query: string
   ) => Promise<Array<{ id: number; label: string; type: 'task' | 'project' | 'context' }>>
   saveNoteImage: (
-    taskId: number,
+    owner: NotesOwner,
     bytes: Uint8Array,
     filename: string,
     mime: string

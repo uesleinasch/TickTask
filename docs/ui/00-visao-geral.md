@@ -117,19 +117,20 @@ Ordem dos botões (todos `size="sm" h-9`):
 | 1 | *(só ícone)* | `Settings` | `/settings` | ghost |
 | 2 | Calendário | `Calendar` | `/calendar` | outline |
 | 3 | Hoje | `CalendarDays` | `/today` | outline |
-| 4 | Revisão | `ClipboardCheck` | `/review` | outline |
-| 5 | Contextos | `MapPin` | `/contexts` | outline |
-| 6 | Tags | `Tag` | `/tags` | outline |
-| 7 | Horizontes | `Mountain` | `/horizons` | outline |
-| 8 | Projetos | `FolderKanban` | `/projects` | outline |
-| 9 | Dashboard | `BarChart3` | `/dashboard` | outline |
-| 10 | Arquivadas | `Archive` | `/archived` | outline |
-| 11 | Nova Tarefa | `Plus` | *abre diálogo* | primária (`bg-slate-900`) |
+| 4 | Cadernos | `NotebookTabs` | `/notebooks` | outline |
+| 5 | Revisão | `ClipboardCheck` | `/review` | outline |
+| 6 | Contextos | `MapPin` | `/contexts` | outline |
+| 7 | Tags | `Tag` | `/tags` | outline |
+| 8 | Horizontes | `Mountain` | `/horizons` | outline |
+| 9 | Projetos | `FolderKanban` | `/projects` | outline |
+| 10 | Dashboard | `BarChart3` | `/dashboard` | outline |
+| 11 | Arquivadas | `Archive` | `/archived` | outline |
+| 12 | Nova Tarefa | `Plus` | *abre diálogo* | primária (`bg-slate-900`) |
 
 "Nova Tarefa" não navega: emite `open-new-task-dialog` num `eventEmitter` global definido em
 `App.tsx`, e a `TaskListPage` escuta esse evento para abrir o `TaskDialog`.
 
-> **Onze botões numa linha só.** Em 1024px — a largura padrão da janela — essa barra é o principal
+> **Doze botões numa linha só.** Em 1024px — a largura padrão da janela — essa barra é o principal
 > ponto de pressão do layout atual e o candidato mais óbvio a virar uma sidebar ou um menu agrupado.
 
 ## Rotas
@@ -140,6 +141,7 @@ Ordem dos botões (todos `size="sm" h-9`):
 | `/task/:id` | Detalhe da tarefa | [02](02-detalhe-da-tarefa.md) | sim |
 | `/today` | Plano do dia | [03](03-plano-do-dia.md) | sim |
 | `/calendar` | Calendário | [04](04-calendario.md) | sim |
+| `/notebooks` | Cadernos | [17](17-cadernos.md) | sim |
 | `/projects` | Projetos | [05](05-projetos.md) | sim |
 | `/project/:id` | Detalhe do projeto | [05](05-projetos.md) | sim |
 | `/horizons` | Horizontes GTD | [06](06-horizontes.md) | sim |
@@ -180,8 +182,8 @@ Reconhecer estes padrões evita redesenhar a mesma coisa quinze vezes.
 
 ### 1. Cabeçalho de sub-página
 
-Presente em `/today`, `/calendar`, `/projects`, `/project/:id`, `/horizons`, `/review`,
-`/dashboard`, `/contexts`, `/tags`, `/archived`, `/settings`.
+Presente em `/today`, `/calendar`, `/notebooks`, `/projects`, `/project/:id`, `/horizons`,
+`/review`, `/dashboard`, `/contexts`, `/tags`, `/archived`, `/settings`.
 
 ```
 <header class="shrink-0 px-6 py-4 bg-white border-b border-slate-200

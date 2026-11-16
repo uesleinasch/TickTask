@@ -3,6 +3,7 @@ import { randomUUID, createHash } from 'crypto'
 import { promises as fs, existsSync, mkdirSync } from 'fs'
 import path from 'path'
 import { pathToFileURL } from 'url'
+import type { NotesOwner } from '@shared/types'
 import { createNoteAsset, getNoteAsset } from './database'
 
 export const ASSET_SCHEME = 'ticktask-asset'
@@ -27,7 +28,7 @@ function extFor(filename: string, mime: string): string {
 }
 
 export async function saveNoteImage(
-  taskId: number,
+  owner: NotesOwner,
   bytes: Uint8Array,
   filename: string,
   mime: string
@@ -39,7 +40,7 @@ export async function saveNoteImage(
   await fs.writeFile(filePath, buffer)
   const contentHash = createHash('sha256').update(buffer).digest('hex')
   createNoteAsset({
-    taskId,
+    owner,
     assetId,
     filename: `${assetId}${ext}`,
     mime,

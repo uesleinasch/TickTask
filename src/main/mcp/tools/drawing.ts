@@ -51,7 +51,7 @@ export function registerDrawingTools(server: McpServer): void {
         return ok({ task_id, has_drawing: false, message: 'Esta task não tem desenho.' })
       }
 
-      const png = await readDrawingPreview(task_id)
+      const png = await readDrawingPreview({ kind: 'task', id: task_id })
       if (!png) {
         return ok({
           task_id,

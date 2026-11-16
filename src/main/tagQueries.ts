@@ -1,6 +1,6 @@
 // Interface mínima em vez do tipo do better-sqlite3: o binário do driver é compilado para o ABI
 // do Electron e não carrega sob o Node do vitest, então os testes injetam node:sqlite.
-export type SqliteParam = string | number | bigint | Uint8Array
+export type SqliteParam = string | number | bigint | Uint8Array | null
 
 export interface SqliteStatement {
   run: (...params: SqliteParam[]) => unknown

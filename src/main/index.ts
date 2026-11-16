@@ -162,7 +162,8 @@ import type {
   JiraCredentialsInput,
   JiraFieldInput,
   JiraImportResult,
-  JiraOptionsInput
+  JiraOptionsInput,
+  NotesOwner
 } from '@shared/types'
 import type { StatusMapping } from './jiraPlan'
 import {
@@ -196,6 +197,7 @@ import { isMcpRunning, startMcpServer, stopMcpServer } from './mcp/transport'
 import { generateToken } from './mcp/config'
 import { registerWriteEffects } from './mcp/effects'
 import { disposeTerminalsForTasks, killAllTerminals, registerTerminalIpc } from './terminal'
+import { registerNotebookIpc } from './notebookIpc'
 import type {
   CreateTaskInput,
   UpdateTaskInput,
@@ -655,6 +657,7 @@ function buildMcpStatus(): McpStatus {
 
 function setupIpcHandlers(): void {
   registerTerminalIpc(() => mainWindow)
+  registerNotebookIpc(() => mainWindow)
   // Window controls
   ipcMain.handle('window:minimize', () => mainWindow?.minimize())
   ipcMain.handle('window:maximize', () => {
@@ -690,20 +693,21 @@ function setupIpcHandlers(): void {
   ipcMain.handle(
     'drawing:save',
     async (_, taskId: number, drawing: string | null, preview: Uint8Array | null) => {
+      const owner = { kind: 'task', id: taskId } as const
       if (drawing === null) {
         updateTaskDrawing(taskId, null)
-        await deleteDrawingPreview(taskId)
+        await deleteDrawingPreview(owner)
         return
       }
-      if (preview) await saveDrawingPreview(taskId, preview)
+      if (preview) await saveDrawingPreview(owner, preview)
       updateTaskDrawing(taskId, drawing)
     }
   )
   ipcMain.handle('notes:searchMentions', (_, query: string) => searchMentions(query))
   ipcMain.handle(
     'notes:saveImage',
-    (_, taskId: number, bytes: Uint8Array, filename: string, mime: string) =>
-      saveNoteImage(taskId, bytes, filename, mime)
+    (_, owner: NotesOwner, bytes: Uint8Array, filename: string, mime: string) =>
+      saveNoteImage(owner, bytes, filename, mime)
   )
   // Escolhe (via diálogo) o arquivo de exportação local, persiste o caminho e exporta.
   ipcMain.handle('notes:exportLocalChoose', async (_, taskId: number) => {

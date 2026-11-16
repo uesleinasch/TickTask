@@ -58,7 +58,7 @@ async function copyAssets(
 async function exportDrawing(task: Task, destDir: string): Promise<string | null> {
   if (!task.drawing) return null
 
-  const srcPng = drawingPreviewPath(task.id)
+  const srcPng = drawingPreviewPath({ kind: 'task', id: task.id })
   if (!existsSync(srcPng)) return null
 
   const assetsDir = path.join(destDir, 'assets')

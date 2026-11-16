@@ -1,5 +1,6 @@
 import { Suspense, lazy, type ReactNode, type Ref } from 'react'
 import type { JSONContent } from '@tiptap/core'
+import type { NotesOwner } from '@shared/types'
 import { Focus, Loader2, Maximize2 } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { TaskNotesEditor, type TaskNotesEditorHandle } from './TaskNotesEditor'
@@ -15,7 +16,7 @@ const TaskDrawingEditor = lazy(() =>
 export type NotesTab = 'notes' | 'drawing'
 
 interface NotesPanelProps {
-  taskId: number
+  owner: NotesOwner
   initialContent: JSONContent
   editorRef: Ref<TaskNotesEditorHandle>
   onChange: () => void
@@ -56,7 +57,7 @@ function TabButton({
 }
 
 export function NotesPanel({
-  taskId,
+  owner,
   initialContent,
   editorRef,
   onChange,
@@ -122,7 +123,7 @@ export function NotesPanel({
         <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
           <TaskNotesEditor
             ref={editorRef}
-            taskId={taskId}
+            owner={owner}
             initialContent={initialContent}
             onChange={onChange}
             onSaved={onSaved}
@@ -139,7 +140,7 @@ export function NotesPanel({
           >
             <TaskDrawingEditor
               ref={drawingRef}
-              taskId={taskId}
+              owner={owner}
               initialDrawing={initialDrawing}
               onChange={onDrawingChange}
               onSaved={onDrawingSaved}

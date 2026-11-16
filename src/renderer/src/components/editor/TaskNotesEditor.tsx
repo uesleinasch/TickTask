@@ -1,18 +1,20 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import type { JSONContent } from '@tiptap/core'
+import type { NotesOwner } from '@shared/types'
 import { DragHandle } from '@tiptap/extension-drag-handle-react'
 import { GripVertical } from 'lucide-react'
 import { buildExtensions } from './extensions'
 import { BubbleToolbar } from './BubbleToolbar'
 import { TableContextMenu } from './TableContextMenu'
+import { saveOwnerNotes } from './notesOwner'
 
 export interface TaskNotesEditorHandle {
   flushSave: () => Promise<void>
 }
 
 interface TaskNotesEditorProps {
-  taskId: number
+  owner: NotesOwner
   initialContent: JSONContent
   onSaved?: (notes: string) => void
   onChange?: () => void
@@ -21,7 +23,8 @@ interface TaskNotesEditorProps {
 const DEBOUNCE_MS = 400
 
 export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditorProps>(
-  function TaskNotesEditor({ taskId, initialContent, onSaved, onChange }, ref) {
+  function TaskNotesEditor({ owner, initialContent, onSaved, onChange }, ref) {
+    const { kind, id } = owner
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const onChangeRef = useRef(onChange)
     onChangeRef.current = onChange
@@ -30,7 +33,7 @@ export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditor
 
     const editor = useEditor(
       {
-        extensions: buildExtensions(taskId),
+        extensions: buildExtensions({ kind, id }),
         content: initialContent,
         editorProps: {
           attributes: { class: 'notes-editor-content p-5 min-h-[200px] focus:outline-none' }
@@ -40,22 +43,21 @@ export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditor
           if (debounceRef.current) clearTimeout(debounceRef.current)
           debounceRef.current = setTimeout(() => {
             const notes = JSON.stringify(editor.getJSON())
-            window.api
-              .updateTaskNotes(taskId, notes)
+            saveOwnerNotes({ kind, id }, notes)
               .then(() => onSavedRef.current?.(notes))
               .catch((e) => console.error('Falha ao salvar notas:', e))
           }, DEBOUNCE_MS)
         }
       },
-      [taskId]
+      [kind, id]
     )
 
     const persist = useCallback(async (): Promise<void> => {
       if (!editor) return
       const notes = JSON.stringify(editor.getJSON())
-      await window.api.updateTaskNotes(taskId, notes)
+      await saveOwnerNotes({ kind, id }, notes)
       onSavedRef.current?.(notes)
-    }, [editor, taskId])
+    }, [editor, kind, id])
 
     useImperativeHandle(
       ref,
@@ -68,13 +70,13 @@ export const TaskNotesEditor = forwardRef<TaskNotesEditorHandle, TaskNotesEditor
       [persist]
     )
 
-    // Cancela um save pendente ao trocar de task/desmontar, evitando que o
+    // Cancela um save pendente ao trocar de dono/desmontar, evitando que o
     // timeout dispare getJSON() sobre uma instância de editor já destruída.
     useEffect(() => {
       return () => {
         if (debounceRef.current) clearTimeout(debounceRef.current)
       }
-    }, [taskId])
+    }, [kind, id])
 
     return (
       <div className="text-slate-800">

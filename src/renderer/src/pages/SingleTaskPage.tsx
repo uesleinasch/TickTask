@@ -1191,7 +1191,7 @@ export function SingleTaskPage(): React.JSX.Element {
             />
           )}
           <NotesPanel
-            taskId={task.id}
+            owner={{ kind: 'task', id: task.id }}
             initialContent={initialNotes}
             editorRef={notesEditorRef}
             onChange={handleNotesChange}

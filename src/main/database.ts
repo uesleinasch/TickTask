@@ -29,7 +29,8 @@ import type {
   EnergyStats,
   EnergyLevel,
   TaskListFilters,
-  UpdateTagInput
+  UpdateTagInput,
+  NotesOwner
 } from '@shared/types'
 import { DEFAULT_CONTEXTS } from '@shared/types'
 import { buildTaskCountQuery, buildTaskListQuery } from './taskQuery'
@@ -42,6 +43,7 @@ import {
   type SqliteLike,
   type TagUsageRow
 } from './tagQueries'
+import { ensureNotebookSchema } from './notebookQueries'
 
 let db: Database.Database
 
@@ -375,6 +377,8 @@ export function initDatabase(): void {
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
     )
   `)
+
+  ensureNotebookSchema(tagDb())
 }
 
 // ===================== MIGRAÇÃO: someday status =====================
@@ -507,6 +511,10 @@ export function listTags(): TagRow[] {
 // Os tipos genéricos por statement do better-sqlite3 não casam estruturalmente com ela.
 function tagDb(): SqliteLike {
   return db as unknown as SqliteLike
+}
+
+export function notebookDb(): SqliteLike {
+  return tagDb()
 }
 
 export function updateTag(id: number, data: UpdateTagInput): void {
@@ -1169,7 +1177,8 @@ export function searchMentions(query: string): MentionResult[] {
 
 export interface NoteAsset {
   id: number
-  task_id: number
+  task_id: number | null
+  page_id: number | null
   asset_id: string
   filename: string
   mime: string
@@ -1179,7 +1188,7 @@ export interface NoteAsset {
 }
 
 export function createNoteAsset(a: {
-  taskId: number
+  owner: NotesOwner
   assetId: string
   filename: string
   mime: string
@@ -1187,9 +1196,17 @@ export function createNoteAsset(a: {
   createdAt: number
 }): void {
   db.prepare(
-    `INSERT INTO note_assets (task_id, asset_id, filename, mime, content_hash, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  ).run(a.taskId, a.assetId, a.filename, a.mime, a.contentHash, a.createdAt)
+    `INSERT INTO note_assets (task_id, page_id, asset_id, filename, mime, content_hash, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    a.owner.kind === 'task' ? a.owner.id : null,
+    a.owner.kind === 'page' ? a.owner.id : null,
+    a.assetId,
+    a.filename,
+    a.mime,
+    a.contentHash,
+    a.createdAt
+  )
 }
 
 export function getNoteAsset(assetId: string): NoteAsset | undefined {
