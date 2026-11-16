@@ -6,7 +6,7 @@ import type { TerminalSession } from '@shared/types'
 import { toast } from '@renderer/components/ui/sonner'
 import { readTerminalAutoTimer } from '@renderer/lib/terminalPrefs'
 import { useTimerStore } from '@renderer/stores/timerStore'
-import { isTerminalToggleKey } from './terminalKeys'
+import { terminalShortcut } from './terminalKeys'
 
 const THEME = {
   background: '#0f172a',
@@ -75,7 +75,7 @@ export function TerminalView({ session }: { session: TerminalSession }): React.J
     })
     const fit = new FitAddon()
     terminal.loadAddon(fit)
-    terminal.attachCustomKeyEventHandler((event) => !isTerminalToggleKey(event))
+    terminal.attachCustomKeyEventHandler((event) => terminalShortcut(event) === null)
     terminal.open(container)
 
     let disposed = false

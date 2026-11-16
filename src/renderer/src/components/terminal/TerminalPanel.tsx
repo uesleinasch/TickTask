@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, Plus, RotateCcw, SquareTerminal, X } from 'lucide-react'
+import { ChevronDown, Maximize2, Minimize2, Plus, RotateCcw, SquareTerminal, X } from 'lucide-react'
 import type { TerminalSession } from '@shared/types'
 import { DeleteConfirmDialog } from '@renderer/components/DeleteConfirmDialog'
 import { usePersistedState } from '@renderer/hooks/usePersistedState'
@@ -7,7 +7,7 @@ import { TERMINAL_HEIGHT_KEY } from '@renderer/lib/terminalPrefs'
 import { cn } from '@renderer/lib/utils'
 import { useTerminalStore } from '@renderer/stores/terminalStore'
 import { TerminalView } from './TerminalView'
-import { isTerminalToggleKey } from './terminalKeys'
+import { TERMINAL_MAXIMIZE_SHORTCUT_LABEL, terminalShortcut } from './terminalKeys'
 
 const MIN_HEIGHT = 120
 const BUSY_POLL_MS = 2000
@@ -32,6 +32,7 @@ export function TerminalPanel(): React.JSX.Element | null {
   const sessions = useTerminalStore((s) => s.sessions)
   const activeId = useTerminalStore((s) => s.activeId)
   const open = useTerminalStore((s) => s.open)
+  const maximized = useTerminalStore((s) => s.maximized)
   const [height, setHeight] = usePersistedState(TERMINAL_HEIGHT_KEY, 280)
   const [dragHeight, setDragHeight] = useState<number | null>(null)
   const [pendingClose, setPendingClose] = useState<TerminalSession | null>(null)
@@ -42,9 +43,13 @@ export function TerminalPanel(): React.JSX.Element | null {
     const offExit = window.api.onTerminalExit((id, code) => store.markExited(id, code))
     const offRemoved = window.api.onTerminalRemoved((id) => store.forget(id))
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (!isTerminalToggleKey(event)) return
+      const shortcut = terminalShortcut(event)
+      if (!shortcut) return
       event.preventDefault()
-      if (useTerminalStore.getState().sessions.length > 0) useTerminalStore.getState().toggle()
+      const state = useTerminalStore.getState()
+      if (state.sessions.length === 0) return
+      if (shortcut === 'toggle') state.toggle()
+      else state.toggleMaximized()
     }
     window.addEventListener('keydown', onKeyDown, true)
     return () => {
@@ -95,14 +100,19 @@ export function TerminalPanel(): React.JSX.Element | null {
 
   return (
     <section
-      className="relative shrink-0 flex flex-col bg-slate-900 border-t border-slate-700"
-      style={{ height: clampHeight(dragHeight ?? height) }}
+      className={cn(
+        'flex flex-col bg-slate-900',
+        maximized ? 'fixed inset-0 z-40' : 'relative shrink-0 border-t border-slate-700'
+      )}
+      style={maximized ? undefined : { height: clampHeight(dragHeight ?? height) }}
     >
-      <div
-        onMouseDown={startResize}
-        title="Arraste para redimensionar o terminal"
-        className="absolute left-0 top-0 z-20 w-full h-1.5 -mt-[3px] cursor-row-resize hover:bg-orange-500/60 transition-colors"
-      />
+      {!maximized && (
+        <div
+          onMouseDown={startResize}
+          title="Arraste para redimensionar o terminal"
+          className="absolute left-0 top-0 z-20 w-full h-1.5 -mt-[3px] cursor-row-resize hover:bg-orange-500/60 transition-colors"
+        />
+      )}
       <div className="flex items-center h-9 shrink-0 border-b border-slate-800 pl-2 pr-1 gap-1">
         <SquareTerminal size={14} className="text-orange-400 shrink-0 mr-1" />
         <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto">
@@ -160,6 +170,14 @@ export function TerminalPanel(): React.JSX.Element | null {
             Reiniciar
           </button>
         )}
+        <button
+          type="button"
+          title={`${maximized ? 'Restaurar' : 'Tela cheia'} (${TERMINAL_MAXIMIZE_SHORTCUT_LABEL})`}
+          onClick={() => useTerminalStore.getState().toggleMaximized()}
+          className="flex items-center justify-center h-7 w-7 rounded-md text-slate-400 hover:text-slate-100 hover:bg-slate-800"
+        >
+          {maximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+        </button>
         <button
           type="button"
           title="Minimizar (os processos continuam rodando)"

@@ -20,7 +20,7 @@ ter um **diretório de trabalho** (`tasks.working_dir`) e um **comando inicial**
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐ ← alça (arrastar)
-│ ▣  ● Deploy API ×   Front (1) ×   Front (2) ×   +      ↻ Reiniciar  ⌄ │
+│ ▣  ● Deploy API ×   Front (1) ×   Front (2) ×   +    ↻ Reiniciar  ⤢  ⌄ │
 ├──────────────────────────────────────────────────────────────────────┤
 │ ~/repo $ npm run dev                                                 │
 │ ...                                                                  │
@@ -34,6 +34,8 @@ ter um **diretório de trabalho** (`tasks.working_dir`) e um **comando inicial**
   processo encerrado; aí aparece **Reiniciar**.
 - `+` abre outra sessão para a task da aba ativa. `×` encerra a sessão — pede confirmação se há
   processo rodando. Encerrar **não** desvincula o diretório da task.
+- `⤢` (ou `Ctrl + Shift + '`) põe o terminal em **tela cheia**: cobre a janela inteira, inclusive
+  a TitleBar (`fixed inset-0`). O mesmo botão (`⤡`) restaura. Esconder o painel sai da tela cheia.
 - `⌄` (ou o atalho) esconde o painel sem matar nada. Só a aba visível monta um xterm; ao voltar,
   ela reexibe os últimos ~200 KB de saída guardados no main.
 

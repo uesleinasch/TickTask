@@ -7,9 +7,11 @@ interface TerminalState {
   sessions: TerminalSession[]
   activeId: string | null
   open: boolean
+  maximized: boolean
   refresh: () => Promise<void>
   setOpen: (open: boolean) => void
   toggle: () => void
+  toggleMaximized: () => void
   activate: (id: string) => void
   createSession: (taskId: number) => Promise<boolean>
   toggleForTask: (taskId: number) => Promise<boolean>
@@ -23,6 +25,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   sessions: [],
   activeId: null,
   open: false,
+  maximized: false,
 
   refresh: async () => {
     const sessions = await window.api.terminalList()
@@ -34,9 +37,11 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     }))
   },
 
-  setOpen: (open) => set({ open }),
+  setOpen: (open) => set(open ? { open } : { open, maximized: false }),
 
-  toggle: () => set((state) => ({ open: !state.open })),
+  toggle: () => set((state) => (state.open ? { open: false, maximized: false } : { open: true })),
+
+  toggleMaximized: () => set((state) => ({ open: true, maximized: !state.maximized })),
 
   activate: (id) => set({ activeId: id, open: true }),
 
@@ -61,7 +66,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     const { sessions, activeId, open } = get()
     const active = sessions.find((s) => s.id === activeId)
     if (open && active?.taskId === taskId) {
-      set({ open: false })
+      set({ open: false, maximized: false })
       return true
     }
     const existing = sessions.find((s) => s.taskId === taskId)
@@ -98,6 +103,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
         state.activeId === id
           ? (sessions[Math.min(index, sessions.length - 1)]?.id ?? null)
           : state.activeId
-      return { sessions, activeId, open: sessions.length > 0 && state.open }
+      const open = sessions.length > 0 && state.open
+      return { sessions, activeId, open, maximized: open && state.maximized }
     })
 }))
