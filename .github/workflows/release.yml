@@ -84,6 +84,12 @@ jobs:
           node-version: 22
           cache: npm
 
+      # O node-gyp 9 do electron-builder compila o node-pty com um gyp que importa distutils,
+      # removido no Python 3.12.
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.11'
+
       - run: npm ci
 
       - name: Aplicar versão da tag
