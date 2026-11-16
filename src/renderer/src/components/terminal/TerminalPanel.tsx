@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ChevronDown,
+  Palette,
+  Shapes,
   Maximize2,
   Minimize2,
   Pencil,
@@ -16,12 +18,21 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger
 } from '@renderer/components/ui/context-menu'
 import { usePersistedState } from '@renderer/hooks/usePersistedState'
 import { TERMINAL_HEIGHT_KEY } from '@renderer/lib/terminalPrefs'
 import { cn } from '@renderer/lib/utils'
 import { useTerminalStore } from '@renderer/stores/terminalStore'
+import { DEFAULT_COLORS } from '@renderer/lib/colors'
+import { TERMINAL_TAB_ICONS } from '@shared/terminalTab'
+import { TAB_ICON_COMPONENTS } from './tabIcons'
 import { TerminalView } from './TerminalView'
 import { TERMINAL_MAXIMIZE_SHORTCUT_LABEL, terminalShortcut } from './terminalKeys'
 
@@ -183,75 +194,140 @@ export function TerminalPanel(): React.JSX.Element | null {
       <div className="flex items-center h-9 shrink-0 border-b border-slate-800 pl-2 pr-1 gap-1">
         <SquareTerminal size={14} className="text-orange-400 shrink-0 mr-1" />
         <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto">
-          {sessions.map((session) => (
-            <ContextMenu key={session.id} modal={false}>
-              <ContextMenuTrigger asChild>
-                <div
-                  onClick={() => useTerminalStore.getState().activate(session.id)}
-                  className={cn(
-                    'group flex items-center gap-1.5 h-7 pl-2.5 pr-1 rounded-md text-xs cursor-pointer shrink-0 max-w-56',
-                    session.id === active.id
-                      ? 'bg-slate-800 text-slate-100'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                  )}
-                >
-                  {session.busy && (
-                    <span
-                      title="Processo em execução"
-                      className="h-1.5 w-1.5 rounded-full bg-orange-400 shrink-0"
-                    />
-                  )}
-                  {editingId === session.id ? (
-                    <TabTitleInput
-                      initial={labelOf(session)}
-                      onDone={(value) => finishRename(session, value)}
-                    />
-                  ) : (
-                    <span
-                      title="Clique duas vezes para renomear"
-                      onDoubleClick={(event) => {
-                        event.stopPropagation()
-                        setEditingId(session.id)
-                      }}
-                      className={cn(
-                        'truncate',
-                        session.exitCode !== null && 'line-through opacity-60'
-                      )}
-                    >
-                      {labelOf(session)}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    title="Encerrar terminal"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      void requestClose(session)
-                    }}
-                    className="flex items-center justify-center h-5 w-5 rounded text-slate-500 hover:text-slate-100 hover:bg-slate-700"
+          {sessions.map((session) => {
+            const TabIcon = session.icon ? TAB_ICON_COMPONENTS[session.icon] : null
+            return (
+              <ContextMenu key={session.id} modal={false}>
+                <ContextMenuTrigger asChild>
+                  <div
+                    onClick={() => useTerminalStore.getState().activate(session.id)}
+                    className={cn(
+                      'group flex items-center gap-1.5 h-7 pl-2.5 pr-1 rounded-md text-xs cursor-pointer shrink-0 max-w-56',
+                      session.id === active.id
+                        ? 'bg-slate-800 text-slate-100'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                    )}
+                    style={
+                      session.color ? { boxShadow: `inset 0 -2px 0 ${session.color}` } : undefined
+                    }
                   >
-                    <X size={12} />
-                  </button>
-                </div>
-              </ContextMenuTrigger>
-              <ContextMenuContent
-                className="w-48"
-                onCloseAutoFocus={(event) => event.preventDefault()}
-              >
-                <ContextMenuItem onSelect={() => setEditingId(session.id)}>
-                  <Pencil /> Renomear
-                </ContextMenuItem>
-                <ContextMenuItem
-                  disabled={session.title === null}
-                  onSelect={() =>
-                    void useTerminalStore.getState().customize(session.id, { title: null })
-                  }
+                    {TabIcon && (
+                      <TabIcon
+                        size={13}
+                        className="shrink-0"
+                        style={{ color: session.color ?? undefined }}
+                      />
+                    )}
+                    {session.busy && (
+                      <span
+                        title="Processo em execução"
+                        className="h-1.5 w-1.5 rounded-full bg-orange-400 shrink-0"
+                      />
+                    )}
+                    {editingId === session.id ? (
+                      <TabTitleInput
+                        initial={labelOf(session)}
+                        onDone={(value) => finishRename(session, value)}
+                      />
+                    ) : (
+                      <span
+                        title="Clique duas vezes para renomear"
+                        onDoubleClick={(event) => {
+                          event.stopPropagation()
+                          setEditingId(session.id)
+                        }}
+                        className={cn(
+                          'truncate',
+                          session.exitCode !== null && 'line-through opacity-60'
+                        )}
+                      >
+                        {labelOf(session)}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      title="Encerrar terminal"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void requestClose(session)
+                      }}
+                      className="flex items-center justify-center h-5 w-5 rounded text-slate-500 hover:text-slate-100 hover:bg-slate-700"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                </ContextMenuTrigger>
+                <ContextMenuContent
+                  className="w-48"
+                  onCloseAutoFocus={(event) => event.preventDefault()}
                 >
-                  <Undo2 /> Restaurar nome
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
-          ))}
+                  <ContextMenuItem onSelect={() => setEditingId(session.id)}>
+                    <Pencil /> Renomear
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    disabled={session.title === null}
+                    onSelect={() =>
+                      void useTerminalStore.getState().customize(session.id, { title: null })
+                    }
+                  >
+                    <Undo2 /> Restaurar nome
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuSub>
+                    <ContextMenuSubTrigger>
+                      <Palette /> Cor
+                    </ContextMenuSubTrigger>
+                    <ContextMenuSubContent className="w-40">
+                      <ContextMenuRadioGroup
+                        value={session.color ?? 'none'}
+                        onValueChange={(value) =>
+                          void useTerminalStore
+                            .getState()
+                            .customize(session.id, { color: value === 'none' ? null : value })
+                        }
+                      >
+                        <ContextMenuRadioItem value="none">Sem cor</ContextMenuRadioItem>
+                        {DEFAULT_COLORS.map((color) => (
+                          <ContextMenuRadioItem key={color} value={color}>
+                            <span
+                              className="h-3 w-3 rounded-full shrink-0"
+                              style={{ backgroundColor: color }}
+                            />
+                            {color}
+                          </ContextMenuRadioItem>
+                        ))}
+                      </ContextMenuRadioGroup>
+                    </ContextMenuSubContent>
+                  </ContextMenuSub>
+                  <ContextMenuSub>
+                    <ContextMenuSubTrigger>
+                      <Shapes /> Ícone
+                    </ContextMenuSubTrigger>
+                    <ContextMenuSubContent className="w-44">
+                      <ContextMenuRadioGroup
+                        value={session.icon ?? 'none'}
+                        onValueChange={(value) =>
+                          void useTerminalStore
+                            .getState()
+                            .customize(session.id, { icon: value === 'none' ? null : value })
+                        }
+                      >
+                        <ContextMenuRadioItem value="none">Sem ícone</ContextMenuRadioItem>
+                        {TERMINAL_TAB_ICONS.map(({ id, label }) => {
+                          const Icon = TAB_ICON_COMPONENTS[id]
+                          return (
+                            <ContextMenuRadioItem key={id} value={id}>
+                              <Icon /> {label}
+                            </ContextMenuRadioItem>
+                          )
+                        })}
+                      </ContextMenuRadioGroup>
+                    </ContextMenuSubContent>
+                  </ContextMenuSub>
+                </ContextMenuContent>
+              </ContextMenu>
+            )
+          })}
           <button
             type="button"
             title="Novo terminal para esta task"
