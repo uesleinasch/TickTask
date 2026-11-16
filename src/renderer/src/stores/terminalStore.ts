@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { TerminalSession } from '@shared/types'
+import type { TerminalSession, TerminalTabCustomization } from '@shared/types'
 import { toast } from '@renderer/components/ui/sonner'
 import { readTerminalShell } from '@renderer/lib/terminalPrefs'
 
@@ -17,6 +17,7 @@ interface TerminalState {
   toggleForTask: (taskId: number) => Promise<boolean>
   close: (id: string) => Promise<void>
   restart: (id: string) => Promise<void>
+  customize: (id: string, patch: TerminalTabCustomization) => Promise<void>
   markExited: (id: string, exitCode: number) => void
   forget: (id: string) => void
 }
@@ -86,7 +87,17 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     const session = get().sessions.find((s) => s.id === id)
     if (!session) return
     await get().close(id)
-    await get().createSession(session.taskId)
+    const created = await get().createSession(session.taskId)
+    const newId = get().activeId
+    if (created && newId && session.title) await get().customize(newId, { title: session.title })
+  },
+
+  customize: async (id, patch) => {
+    const updated = await window.api.terminalCustomize(id, patch)
+    if (!updated) return
+    set((state) => ({
+      sessions: state.sessions.map((s) => (s.id === id ? { ...s, title: updated.title } : s))
+    }))
   },
 
   markExited: (id, exitCode) =>
