@@ -42,9 +42,17 @@ ter um **diretório de trabalho** (`tasks.working_dir`) e um **comando inicial**
   processo encerrado; aí aparece **Reiniciar**.
 - `+` abre outra sessão para a task da aba ativa. `×` encerra a sessão — pede confirmação se há
   processo rodando. Encerrar **não** desvincula o diretório da task.
+- **Dividir** (`Columns2`, ao lado de tela cheia) cria uma sessão nova da task ativa e a mostra num
+  segundo painel à direita; com o split aberto, o mesmo botão (`PanelRightClose`) ou o `×` do
+  cabeçalho do painel direito **fecha a divisão** sem matar a sessão (ela continua como aba). Botão
+  direito numa aba → **Abrir à direita** põe qualquer outra sessão no painel direito. As duas abas
+  visíveis ficam destacadas; clicar numa aba troca o painel esquerdo. Com split, cada painel tem um
+  cabeçalho fino com ícone, nome e **Reiniciar** (o da barra some). A divisória arrasta entre 20% e
+  80%, guardada em `terminal.splitRatio`. Fechar a sessão da esquerda promove a da direita. Regras
+  puras em `stores/terminalPanes.ts` (testadas).
 - `⤢` (ou `Ctrl + Shift + '`) põe o terminal em **tela cheia**: cobre a janela inteira, inclusive
   a TitleBar (`fixed inset-0`). O mesmo botão (`⤡`) restaura. Esconder o painel sai da tela cheia.
-- `⌄` (ou o atalho) esconde o painel sem matar nada. Só a aba visível monta um xterm; ao voltar,
+- `⌄` (ou o atalho) esconde o painel sem matar nada. Só as abas visíveis (uma, ou duas com split) montam um xterm; ao voltar,
   ela reexibe os últimos ~200 KB de saída guardados no main.
 
 ## Comportamento que não aparece no JSX
