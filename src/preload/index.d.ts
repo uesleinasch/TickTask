@@ -134,6 +134,8 @@ interface API {
   movePage: (id: number, input: MovePageInput) => Promise<void>
   savePageNotes: (id: number, notes: string | null) => Promise<void>
   savePageDrawing: (id: number, drawing: string | null, preview: Uint8Array | null) => Promise<void>
+  syncNotebookPageToNotion: (id: number) => Promise<void>
+  syncNotebookToNotion: (id: number) => Promise<void>
   onNotebooksRefresh: (callback: () => void) => () => void
 
   // Task CRUD

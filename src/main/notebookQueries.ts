@@ -10,7 +10,13 @@ import type {
   UpdateNotebookInput,
   UpdateSectionInput
 } from '@shared/types'
-import { canPlaceUnder, siblingsOf, subtreeIds, type PageNode } from '@shared/notebookTree'
+import {
+  canPlaceUnder,
+  flattenPageTree,
+  siblingsOf,
+  subtreeIds,
+  type PageNode
+} from '@shared/notebookTree'
 import type { SqliteLike, SqliteParam } from './tagQueries'
 
 export const DEFAULT_NOTEBOOK_COLOR = '#6366f1'
@@ -375,4 +381,49 @@ export function movePage(db: SqliteLike, id: number, input: MovePageInput): void
     ).run(input.parent_page_id, id)
     writePositions(db, 'notebook_pages', siblings)
   })()
+}
+
+// ===================== NOTION =====================
+
+export type NotebookNodeKind = 'notebook' | 'section' | 'page'
+
+const NODE_TABLE: Record<NotebookNodeKind, string> = {
+  notebook: 'notebooks',
+  section: 'notebook_sections',
+  page: 'notebook_pages'
+}
+
+/** Grava o vínculo com o Notion sem mexer em updated_at: não é edição do usuário. */
+export function setNotionPageId(
+  db: SqliteLike,
+  kind: NotebookNodeKind,
+  id: number,
+  notionPageId: string | null
+): void {
+  db.prepare(`UPDATE ${NODE_TABLE[kind]} SET notion_page_id = ? WHERE id = ?`).run(notionPageId, id)
+}
+
+export function getNotionPageId(db: SqliteLike, kind: NotebookNodeKind, id: number): string | null {
+  const row = db.prepare(`SELECT notion_page_id FROM ${NODE_TABLE[kind]} WHERE id = ?`).get(id) as
+    | { notion_page_id: string | null }
+    | undefined
+  return row?.notion_page_id ?? null
+}
+
+/** Ids da página e das subpáginas, pais antes dos filhos. */
+export function listPageSubtree(db: SqliteLike, id: number): number[] {
+  const page = getPage(db, id)
+  if (!page) return []
+  const nodes = pageNodes(db, page.section_id)
+  const keep = new Set(subtreeIds(nodes, id))
+  return flattenPageTree(nodes)
+    .map((f) => f.page.id)
+    .filter((pageId) => keep.has(pageId))
+}
+
+/** Todas as páginas do caderno, seção por seção, pais antes dos filhos. */
+export function listNotebookPageIds(db: SqliteLike, notebookId: number): number[] {
+  return listSections(db, notebookId).flatMap((section) =>
+    flattenPageTree(pageNodes(db, section.id)).map((f) => f.page.id)
+  )
 }

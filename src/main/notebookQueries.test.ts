@@ -8,7 +8,11 @@ import {
   deletePage,
   deleteSection,
   ensureNotebookSchema,
+  getNotionPageId,
   getPage,
+  listNotebookPageIds,
+  listPageSubtree,
+  setNotionPageId,
   listNotebooks,
   listPages,
   listSections,
@@ -239,5 +243,35 @@ describe('páginas', () => {
     const a = createPage(db, { section_id: sectionId })
     updatePageTitle(db, a.id, '  Ata  ')
     expect(getPage(db, a.id)?.title).toBe('Ata')
+  })
+})
+
+describe('vínculo com o Notion', () => {
+  beforeEach(() => ensureNotebookSchema(db))
+
+  it('grava e lê o notion_page_id sem tocar em updated_at', () => {
+    const nb = createNotebook(db, { name: 'A' })
+    raw.exec(`UPDATE notebooks SET updated_at = '2000-01-01 00:00:00' WHERE id = ${nb.id}`)
+    setNotionPageId(db, 'notebook', nb.id, 'abc')
+    expect(getNotionPageId(db, 'notebook', nb.id)).toBe('abc')
+    expect(listNotebooks(db)[0].updated_at).toBe('2000-01-01 00:00:00')
+    setNotionPageId(db, 'notebook', nb.id, null)
+    expect(getNotionPageId(db, 'notebook', nb.id)).toBeNull()
+    expect(getNotionPageId(db, 'page', 999)).toBeNull()
+  })
+
+  it('lista subárvore e páginas do caderno com pais antes dos filhos', () => {
+    const nb = createNotebook(db, { name: 'A' })
+    const geral = listSections(db, nb.id)[0]
+    const outra = createSection(db, { notebook_id: nb.id, name: 'B' })
+    const a = createPage(db, { section_id: geral.id, title: 'a' })
+    const b = createPage(db, { section_id: geral.id, title: 'b' })
+    const a1 = createPage(db, { section_id: geral.id, parent_page_id: a.id })
+    const a11 = createPage(db, { section_id: geral.id, parent_page_id: a1.id })
+    const x = createPage(db, { section_id: outra.id, title: 'x' })
+
+    expect(listPageSubtree(db, a.id)).toEqual([a.id, a1.id, a11.id])
+    expect(listPageSubtree(db, 999)).toEqual([])
+    expect(listNotebookPageIds(db, nb.id)).toEqual([a.id, a1.id, a11.id, b.id, x.id])
   })
 })
