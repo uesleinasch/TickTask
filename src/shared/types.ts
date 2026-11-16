@@ -596,3 +596,80 @@ export interface TerminalBuffer {
 export type TerminalCreateResult =
   | { ok: true; session: TerminalSession; shellFallback: boolean }
   | { ok: false; error: string; reason: 'no-task' | 'no-dir' | 'bad-dir' | 'pty-unavailable' }
+
+// ===================== CADERNOS =====================
+
+export interface NotesOwner {
+  kind: 'task' | 'page'
+  id: number
+}
+
+export interface Notebook {
+  id: number
+  name: string
+  color: string
+  position: number
+  notion_page_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface NotebookSection {
+  id: number
+  notebook_id: number
+  name: string
+  color: string
+  position: number
+  notion_page_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface NotebookPageSummary {
+  id: number
+  section_id: number
+  parent_page_id: number | null
+  title: string
+  position: number
+  notion_page_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface NotebookPage extends NotebookPageSummary {
+  notes: string | null
+  drawing: string | null
+}
+
+export interface CreateNotebookInput {
+  name: string
+  color?: string
+}
+
+export interface UpdateNotebookInput {
+  name?: string
+  color?: string
+}
+
+export interface CreateSectionInput {
+  notebook_id: number
+  name: string
+  color?: string
+}
+
+export interface UpdateSectionInput {
+  name?: string
+  color?: string
+}
+
+export interface CreatePageInput {
+  section_id: number
+  parent_page_id?: number | null
+  title?: string
+}
+
+export interface MovePageInput {
+  section_id: number
+  parent_page_id: number | null
+  index: number
+}
