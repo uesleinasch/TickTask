@@ -33,6 +33,7 @@ import type {
   NotesOwner
 } from '@shared/types'
 import { DEFAULT_CONTEXTS } from '@shared/types'
+import { UNTITLED_PAGE } from '@shared/notebookTree'
 import { buildTaskCountQuery, buildTaskListQuery } from './taskQuery'
 import type { LocalJiraChild } from './jiraPlan'
 import {
@@ -1151,10 +1152,10 @@ export function setTaskLocalExportPath(id: number, filePath: string | null): voi
 export interface MentionResult {
   id: number
   label: string
-  type: 'task' | 'project' | 'context'
+  type: 'task' | 'project' | 'context' | 'page'
 }
 
-// Busca entidades mencionáveis (tasks, projetos, contextos) para o "@" das notas.
+// Busca entidades mencionáveis (tasks, projetos, contextos, páginas de caderno) para o "@" das notas.
 export function searchMentions(query: string): MentionResult[] {
   const like = `%${query}%`
   const tasks = db
@@ -1168,10 +1169,16 @@ export function searchMentions(query: string): MentionResult[] {
   const contexts = db
     .prepare('SELECT id, name AS label FROM contexts WHERE name LIKE ? LIMIT 5')
     .all(like) as Array<{ id: number; label: string }>
+  const pages = db
+    .prepare(
+      "SELECT id, CASE WHEN title = '' THEN ? ELSE title END AS label FROM notebook_pages WHERE title LIKE ? ORDER BY updated_at DESC LIMIT 5"
+    )
+    .all(UNTITLED_PAGE, like) as Array<{ id: number; label: string }>
   return [
     ...tasks.map((t) => ({ ...t, type: 'task' as const })),
     ...projects.map((p) => ({ ...p, type: 'project' as const })),
-    ...contexts.map((c) => ({ ...c, type: 'context' as const }))
+    ...contexts.map((c) => ({ ...c, type: 'context' as const })),
+    ...pages.map((p) => ({ ...p, type: 'page' as const }))
   ]
 }
 

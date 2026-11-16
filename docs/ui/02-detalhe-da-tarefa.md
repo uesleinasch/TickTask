@@ -301,7 +301,7 @@ Recursos disponíveis:
 | --- | --- | --- |
 | **Barra flutuante** | selecionar texto | negrito, itálico, tachado, código, marca-texto, **tamanho da fonte** (12/14/16/18/24/32 + Padrão), link (via `window.prompt`) |
 | **Menu de barra** | digitar `/` | Título 1/2/3, Lista, Lista numerada, Checklist, Citação, Código, Divisor, Tabela, Imagem — navegável por ↑↓ e Enter |
-| **Menções** | digitar `@` | busca tarefas, projetos e contextos; cada item mostra o tipo à direita; vira um chip azul-índigo no texto |
+| **Menções** | digitar `@` | busca tarefas, projetos, contextos e páginas de caderno; cada item mostra o tipo à direita; vira um chip azul-índigo no texto. Clicar no chip salva a nota e abre a task, o projeto ou a página (contexto não navega) |
 | **Alça de arraste** | passar o mouse à esquerda de um bloco | `GripVertical` para reordenar blocos |
 | **Menu de tabela** | botão direito | dentro de tabela: adicionar/excluir coluna e linha, mesclar, dividir, excluir tabela (vermelho); fora: "Inserir tabela" |
 | **Imagens** | colar ou arrastar arquivo | gravadas em `userData/notes-assets`, referenciadas pelo esquema `ticktask-asset://` |

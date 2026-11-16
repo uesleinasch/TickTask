@@ -5,6 +5,7 @@ export type GuardedKind =
   | 'delete_structure'
   | 'merge_tags'
   | 'replace_notes'
+  | 'delete_pages'
   | 'bulk_update_tasks'
   | 'plan_day'
 
@@ -17,7 +18,8 @@ const ALWAYS_CONFIRM: GuardedKind[] = [
   'delete_tasks',
   'delete_structure',
   'merge_tags',
-  'replace_notes'
+  'replace_notes',
+  'delete_pages'
 ]
 
 export function needsConfirmation(

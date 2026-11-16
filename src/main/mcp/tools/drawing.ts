@@ -9,7 +9,7 @@ interface DrawingElement {
   text?: string
 }
 
-function describeElements(raw: string | null | undefined): {
+export function describeElements(raw: string | null | undefined): {
   count: number
   kinds: Record<string, number>
   texts: string[]

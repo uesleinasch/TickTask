@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   DndContext,
   PointerSensor,
@@ -25,6 +25,7 @@ import { Button } from '@renderer/components/ui/button'
 import { toast } from '@renderer/components/ui/sonner'
 import { DeleteConfirmDialog } from '@renderer/components/DeleteConfirmDialog'
 import { NotebookList } from '@renderer/components/notebooks/NotebookList'
+import { PageSearch } from '@renderer/components/notebooks/PageSearch'
 import { SectionTabs } from '@renderer/components/notebooks/SectionTabs'
 import { PageList } from '@renderer/components/notebooks/PageList'
 import { UNTITLED_PAGE } from '@renderer/components/notebooks/notebookUi'
@@ -111,6 +112,7 @@ function useFallbackSelection<T extends { id: number }>(
 
 export function NotebooksPage(): React.JSX.Element {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [notebookId, setNotebookId] = usePersistedState<number | null>(
     'ticktask.notebooks.notebook',
     null
@@ -180,6 +182,39 @@ export function NotebooksPage(): React.JSX.Element {
     if (id === pageId) return
     await leavePage()
     setPageId(id)
+  }
+
+  const openPage = useCallback(
+    async (id: number): Promise<void> => {
+      const location = await window.api.locatePage(id)
+      if (!location) {
+        toast.error('Essa página não existe mais.')
+        return
+      }
+      await leavePage()
+      setNotebookId(location.notebook_id)
+      setSectionId(location.section_id)
+      setPageId(location.page_id)
+    },
+    [leavePage, setNotebookId, setSectionId, setPageId]
+  )
+
+  // Menções @ a uma página chegam como /notebooks?page=<id>.
+  const requestedPage = Number(searchParams.get('page'))
+  useEffect(() => {
+    if (!Number.isInteger(requestedPage) || requestedPage <= 0) return
+    setSearchParams({}, { replace: true })
+    void openPage(requestedPage)
+  }, [requestedPage, openPage, setSearchParams])
+
+  const exportNotebook = async (notebook: Notebook): Promise<void> => {
+    await leavePage()
+    try {
+      const result = await window.api.exportNotebookLocal(notebook.id)
+      if (result) toast.success(`${result.pages} página(s) exportada(s) em ${result.dir}`)
+    } catch (error) {
+      toast.error(errorMessage(error))
+    }
   }
 
   const syncNotebook = async (notebook: Notebook): Promise<void> => {
@@ -332,6 +367,9 @@ export function NotebooksPage(): React.JSX.Element {
           <div className="h-6 w-px bg-slate-200" />
           <NotebookTabs size={20} className="text-slate-700" />
           <h1 className="text-lg font-bold text-slate-900">Cadernos</h1>
+          <div className="ml-auto">
+            <PageSearch onOpen={(id) => void openPage(id)} />
+          </div>
         </header>
       )}
 
@@ -346,6 +384,7 @@ export function NotebooksPage(): React.JSX.Element {
             onDelete={(notebook) => setDeleteTarget({ kind: 'notebook', item: notebook })}
             onSync={(notebook) => void syncNotebook(notebook)}
             syncingId={syncingNotebookId}
+            onExport={(notebook) => void exportNotebook(notebook)}
             onReorder={(a, b) => void handleNotebookReorder(a, b)}
           />
         )}
