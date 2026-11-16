@@ -34,11 +34,6 @@ ter um **diretório de trabalho** (`tasks.working_dir`) e um **comando inicial**
   ao padrão; **Restaurar nome** no mesmo menu também. O nome vive na sessão, no main
   (`terminal:customize`, até 60 caracteres), sobrevive à navegação e ao **Reiniciar**, e morre com a
   sessão.
-- No mesmo menu do botão direito, **Cor ▸** (a `DEFAULT_COLORS` de `lib/colors.ts`) pinta uma linha
-  de 2px na base da aba e tinge o ícone; **Ícone ▸** põe um ícone antes do nome, de um catálogo
-  fixo em `shared/terminalTab.ts` (o main descarta cor ou ícone fora do catálogo). Os componentes
-  lucide de cada ícone ficam em `components/terminal/tabIcons.ts`. Cor e ícone seguem as mesmas
-  regras de vida do nome.
 - No mesmo menu do botão direito, **Cor ▸** (a paleta `DEFAULT_COLORS`, ou "Sem cor") pinta uma
   linha de 2px embaixo da aba e o ícone; **Ícone ▸** põe um dos 12 ícones do catálogo
   `shared/terminalTab.ts` antes do nome. O main só aceita hex de 6 dígitos e ícone do catálogo
