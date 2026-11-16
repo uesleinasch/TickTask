@@ -19,6 +19,7 @@ import { TitleBar } from './components/TitleBar'
 import { FloatingTimer } from './components/FloatingTimer'
 import { SyncNotification } from './components/SyncNotification'
 import { Toaster } from './components/ui/sonner'
+import { TerminalPanel } from './components/terminal/TerminalPanel'
 import { notifySyncStart, notifySyncSuccess, notifySyncError } from './lib/syncEvents'
 import { useTimerStore } from './stores/timerStore'
 import { toast } from './components/ui/sonner'
@@ -176,6 +177,7 @@ function AppContent(): React.JSX.Element {
           <Route path="/quick-capture" element={<QuickCapturePage />} />
         </Routes>
       </main>
+      <TerminalPanel />
       {!isSubPage && <FloatingTimer />}
       <SyncNotification />
       <Toaster position="bottom-right" />

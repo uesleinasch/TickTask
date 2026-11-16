@@ -26,6 +26,7 @@ qual uma refatoração de interface pode ser desenhada sem perder funcionalidade
 | [13-biblioteca-de-componentes.md](13-biblioteca-de-componentes.md) | Todo componente reutilizável, com props e comportamento |
 | [14-design-tokens.md](14-design-tokens.md) | Cores, tipografia, raios, espaçamentos e animações realmente usados no código |
 | [15-inconsistencias.md](15-inconsistencias.md) | Divergências, duplicações e pontos de atrito — insumo direto para a refatoração |
+| [16-terminal.md](16-terminal.md) | Terminal embutido por task: painel no rodapé, abas, atalho e ciclo de vida das sessões |
 
 ## Convenções destes documentos
 

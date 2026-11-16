@@ -195,6 +195,7 @@ import { readMcpConfig, writeMcpConfig } from './mcp/store'
 import { isMcpRunning, startMcpServer, stopMcpServer } from './mcp/transport'
 import { generateToken } from './mcp/config'
 import { registerWriteEffects } from './mcp/effects'
+import { disposeTerminalsForTasks, killAllTerminals, registerTerminalIpc } from './terminal'
 import type {
   CreateTaskInput,
   UpdateTaskInput,
@@ -653,6 +654,7 @@ function buildMcpStatus(): McpStatus {
 // ===================== IPC HANDLERS =====================
 
 function setupIpcHandlers(): void {
+  registerTerminalIpc(() => mainWindow)
   // Window controls
   ipcMain.handle('window:minimize', () => mainWindow?.minimize())
   ipcMain.handle('window:maximize', () => {
@@ -739,6 +741,7 @@ function setupIpcHandlers(): void {
         console.error('Erro ao deletar do Notion:', error)
       })
     }
+    disposeTerminalsForTasks([id, ...getChildTaskIds(id)])
     deleteTask(id)
     pushToGoogle(calendarIds)
   })
@@ -765,6 +768,7 @@ function setupIpcHandlers(): void {
       )
     }
 
+    disposeTerminalsForTasks([...taskIds, ...taskIds.flatMap((id) => getChildTaskIds(id))])
     deleteTasks(taskIds)
     pushToGoogle(calendarIds)
   })
@@ -1291,7 +1295,8 @@ app.whenReady().then(() => {
     getMainWindow: () => mainWindow,
     autoSync: (id) => autoSyncTask(id),
     syncTagChange: (ids) => syncTasksAfterTagChange(ids),
-    syncCalendar: (ids) => pushToGoogle(ids)
+    syncCalendar: (ids) => pushToGoogle(ids),
+    disposeTerminals: (ids) => disposeTerminalsForTasks(ids)
   })
 
   // Nenhuma falha do MCP pode impedir createWindow(): esta promise não tem .catch.
@@ -1356,6 +1361,7 @@ app.on('will-quit', () => {
 app.on('before-quit', () => {
   isQuitting = true
   destroyTray()
+  killAllTerminals()
   if (notificationInterval) clearInterval(notificationInterval)
   void stopMcpServer()
   closeDatabase()

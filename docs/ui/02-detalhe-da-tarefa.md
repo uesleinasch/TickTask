@@ -133,6 +133,10 @@ editada.
   issue: a importação as substitui quando a descrição muda no Jira, e salvar as notas envia a
   descrição de volta (~2s depois). O editor aberto não recarrega sozinho se uma importação trouxer
   descrição nova.
+- **Diretório de trabalho** — `WorkingDirField`: mostra o fim do caminho (`…/pasta/repo`, completo
+  no `title`) e um botão **Escolher/Alterar** que abre o seletor de pasta do sistema
+  (`terminal:pickDirectory`, grava na hora). Com diretório definido aparece **Comando ao abrir o
+  terminal**, gravado ao sair do campo. Os dois campos são locais: não vão ao Notion nem ao Jira.
 - **Google Calendar** — `GoogleCalendarTaskToggle`, só renderizado com o Google conectado: switch
   que grava `gcal_sync` e sincroniza na hora (desligar apaga os eventos da task), mais um botão
   `RefreshCw` de ressincronizar quando ligado.
@@ -197,6 +201,12 @@ Canto superior direito. Alterna o painel direito. Ativo: `bg-slate-900 text-whit
 Em task do Jira, à esquerda dele fica o botão **Campos do Jira** (`SlidersHorizontal`, azul forte
 `bg-blue-700`), que abre o `JiraFieldsSheet`. Ele substitui, nesta tela, o ícone pequeno do
 `JiraTaskControls` da sidebar, que ficava apertado e às vezes oculto.
+
+À direita de **Notas** fica o botão **Terminal** (`TerminalTaskButton`, laranja). Sem diretório de
+trabalho, abre o seletor de pasta e, escolhida a pasta, o terminal. Com diretório, alterna o painel
+de terminal (rodapé da janela, `TerminalPanel` em `App.tsx`) na sessão desta task, criando uma se
+não houver. Preenchido quando o painel está mostrando esta task. Ver
+[16-terminal.md](16-terminal.md).
 
 ### Aviso de bloqueio
 

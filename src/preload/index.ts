@@ -2,6 +2,9 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
   GcalStatus,
+  TerminalBuffer,
+  TerminalCreateResult,
+  TerminalSession,
   JiraBoardSummary,
   JiraCredentialsInput,
   JiraFieldInput,
@@ -432,7 +435,43 @@ const api = {
   mcpGetStatus: (): Promise<McpStatus> => ipcRenderer.invoke('mcp:getStatus'),
   mcpSetEnabled: (enabled: boolean): Promise<McpStatus> =>
     ipcRenderer.invoke('mcp:setEnabled', enabled),
-  mcpRegenerateToken: (): Promise<McpStatus> => ipcRenderer.invoke('mcp:regenerateToken')
+  mcpRegenerateToken: (): Promise<McpStatus> => ipcRenderer.invoke('mcp:regenerateToken'),
+
+  terminalCreate: (
+    taskId: number,
+    options: { shell?: string | null; cols?: number; rows?: number }
+  ): Promise<TerminalCreateResult> => ipcRenderer.invoke('terminal:create', taskId, options),
+  terminalWrite: (id: string, data: string): Promise<void> =>
+    ipcRenderer.invoke('terminal:write', id, data),
+  terminalResize: (id: string, cols: number, rows: number): Promise<void> =>
+    ipcRenderer.invoke('terminal:resize', id, cols, rows),
+  terminalDispose: (id: string): Promise<void> => ipcRenderer.invoke('terminal:dispose', id),
+  terminalList: (): Promise<TerminalSession[]> => ipcRenderer.invoke('terminal:list'),
+  terminalGetBuffer: (id: string): Promise<TerminalBuffer | null> =>
+    ipcRenderer.invoke('terminal:getBuffer', id),
+  terminalPickDirectory: (taskId: number): Promise<string | null> =>
+    ipcRenderer.invoke('terminal:pickDirectory', taskId),
+  terminalSetTaskWorkspace: (
+    taskId: number,
+    workspace: { working_dir?: string | null; start_command?: string | null }
+  ): Promise<void> => ipcRenderer.invoke('terminal:setTaskWorkspace', taskId, workspace),
+  onTerminalData: (callback: (id: string, chunk: string, seq: number) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, id: string, chunk: string, seq: number): void =>
+      callback(id, chunk, seq)
+    ipcRenderer.on('terminal:data', handler)
+    return () => ipcRenderer.removeListener('terminal:data', handler)
+  },
+  onTerminalExit: (callback: (id: string, exitCode: number) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, id: string, exitCode: number): void =>
+      callback(id, exitCode)
+    ipcRenderer.on('terminal:exit', handler)
+    return () => ipcRenderer.removeListener('terminal:exit', handler)
+  },
+  onTerminalRemoved: (callback: (id: string) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, id: string): void => callback(id)
+    ipcRenderer.on('terminal:removed', handler)
+    return () => ipcRenderer.removeListener('terminal:removed', handler)
+  }
 }
 
 // Types for statistics

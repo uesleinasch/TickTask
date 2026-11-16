@@ -327,7 +327,9 @@ export function initDatabase(): void {
     'jira_issue_type',
     'jira_issue_kind',
     'jira_parent_key',
-    'jira_parent_summary'
+    'jira_parent_summary',
+    'working_dir',
+    'start_command'
   ]) {
     try {
       db.exec(`ALTER TABLE tasks ADD COLUMN ${column} TEXT`)
@@ -1114,6 +1116,24 @@ export function updateTaskDrawing(id: number, drawing: string | null): void {
     'UPDATE tasks SET drawing = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
   )
   stmt.run(drawing, id)
+}
+
+export function setTaskWorkspace(
+  id: number,
+  workspace: { working_dir?: string | null; start_command?: string | null }
+): void {
+  if (workspace.working_dir !== undefined) {
+    db.prepare('UPDATE tasks SET working_dir = ? WHERE id = ?').run(
+      workspace.working_dir || null,
+      id
+    )
+  }
+  if (workspace.start_command !== undefined) {
+    db.prepare('UPDATE tasks SET start_command = ? WHERE id = ?').run(
+      workspace.start_command || null,
+      id
+    )
+  }
 }
 
 export function setTaskLocalExportPath(id: number, filePath: string | null): void {
