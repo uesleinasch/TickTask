@@ -154,7 +154,15 @@ Notas e Desenho da task. Decisões em `docs/adr/0001-cadernos.md`; tela em `docs
   em `notebookIpc.ts` — em paralelo, duas páginas criariam a mesma seção duas vezes. O SDK v4 não
   move página: pai diferente = arquivar e recriar. `replacePageBody` (em `notion.ts`) reescreve o
   corpo de task e de página e preserva blocos `child_page`.
-- Busca/menção de páginas, MCP e export local ainda não existem para páginas.
+- `notebookService.ts` concentra o que IPC e MCP compartilham: refresh, fila do Notion, exclusão
+  (apaga PNGs e arquiva no Notion). Escrita nova em caderno passa por ele, não direto pela query.
+- Busca em SQL sobre `notebook_pages.search_text` (texto puro derivado do JSON em
+  `updatePageNotes`, via `notesPlainText.ts`). A menção `@` sugere páginas; clicar numa menção abre
+  task, projeto ou `/notebooks?page=<id>` (`mention/mentionRoute.ts`).
+- MCP em `mcp/tools/notebooks.ts`; export local em `notebookExport.ts` (+ `notebookExportPlan.ts`,
+  puro), reaproveitando `copyNoteAssets`/`writeDrawingFiles` de `localExport.ts`.
+- `notion.ts` não pode chamar `app.getPath` no escopo do módulo: as tools do MCP o importam e o
+  `transport.test.ts` carrega todas elas sob o Node puro.
 
 ## Terminal embutido
 
