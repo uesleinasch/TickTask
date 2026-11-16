@@ -117,7 +117,9 @@ Rodapé do painel (só com filtro ativo): `Mostrando {tasks.length} de {totalTas
 ## ④ Barra de ações em massa
 
 Renderizada **sempre que houver ao menos uma tarefa carregada** — inclusive com nenhuma tarefa
-selecionada, quando mostra "0 selecionada(s)" e botões desabilitados.
+selecionada, quando mostra "0 selecionada(s)" e botões desabilitados. Com ao menos uma tarefa
+selecionada, a barra fica presa no topo da área rolável (`sticky top-0`), para as ações continuarem
+à mão enquanto se rola a lista; sem seleção, ela rola junto com o conteúdo.
 
 Cartão branco em duas metades (`flex-col xl:flex-row`):
 
