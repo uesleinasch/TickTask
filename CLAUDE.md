@@ -89,7 +89,7 @@ programmatic `scrollIntoView` (see `docs/ui/02-detalhe-da-tarefa.md`).
 ## Database
 
 - File: `app.getPath('userData')/ticktask.db`. Opened with `journal_mode = WAL` and `foreign_keys = ON`. `initDatabase()` runs at startup.
-- 13 tables: `tasks`, `time_entries`, `tags`, `task_tags`, `projects`, `contexts`, `task_contexts`, `weekly_reviews`, `task_dependencies`, `areas`, `goals`, `time_blocks`, `note_assets`.
+- 16 tables: `tasks`, `time_entries`, `tags`, `task_tags`, `projects`, `contexts`, `task_contexts`, `weekly_reviews`, `task_dependencies`, `areas`, `goals`, `time_blocks`, `note_assets`, `notebooks`, `notebook_sections`, `notebook_pages`.
 - **Migrations are imperative, inline in `initDatabase()`** — `CREATE TABLE IF NOT EXISTS` plus guarded `ALTER TABLE`s. Changing a `CHECK` constraint requires the create-new-table-and-copy dance (see the `tasks_new` rebuild around `src/main/database.ts:375`, used to widen the task `status` CHECK). There is no migration framework — follow the existing pattern.
 - All queries use better-sqlite3 prepared statements; multi-step writes use `db.transaction(...)`.
 
@@ -135,6 +135,21 @@ carregado com `React.lazy`: o pacote é grande e só a aba de desenho paga por e
 As fontes do Excalidraw são servidas pelo protocolo `ticktask-asset://` (host `excalidraw`), não
 por `file://` — o renderer roda em origem opaca em produção e o Chromium recusa carregar fontes
 dali. A CSP em `src/renderer/index.html` precisa listar o esquema em `font-src` e `img-src`.
+
+## Cadernos
+
+Tela `/notebooks`: Caderno → Seção → Página (até 2 níveis de subpágina), cada página com as abas
+Notas e Desenho da task. Decisões em `docs/adr/0001-cadernos.md`; tela em `docs/ui/17-cadernos.md`.
+
+- Schema e queries em `notebookQueries.ts` (puro, `SqliteLike`, testado), chamado de
+  `initDatabase()` por `ensureNotebookSchema`. Regras de árvore em `src/shared/notebookTree.ts`,
+  usadas pelo renderer e revalidadas no main. IPC em `notebookIpc.ts` (`notebook:*`, `section:*`,
+  `page:*`); mutações de estrutura emitem `notebooks:refresh`.
+- Notas, imagens e desenho têm um **dono** (`NotesOwner = { kind: 'task' | 'page', id }`), não um
+  `taskId`. Os editores recebem `owner`; `components/editor/notesOwner.ts` escolhe o canal.
+  `note_assets` tem `task_id` **ou** `page_id` (CHECK); o PNG de página fica em
+  `drawings/pages/<id>.png`. Código novo que grava nota/imagem/desenho deve receber o dono.
+- Sync com o Notion, busca/menção de páginas, MCP e export local ainda não existem para páginas.
 
 ## Terminal embutido
 
