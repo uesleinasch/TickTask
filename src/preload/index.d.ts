@@ -4,6 +4,7 @@ import type {
   TerminalBuffer,
   TerminalCreateResult,
   TerminalSession,
+  TerminalTabCustomization,
   JiraBoardSummary,
   JiraCredentialsInput,
   JiraFieldInput,
@@ -380,6 +381,7 @@ interface API {
   terminalResize: (id: string, cols: number, rows: number) => Promise<void>
   terminalDispose: (id: string) => Promise<void>
   terminalList: () => Promise<TerminalSession[]>
+  terminalCustomize: (id: string, patch: TerminalTabCustomization) => Promise<TerminalSession | null>
   terminalGetBuffer: (id: string) => Promise<TerminalBuffer | null>
   terminalPickDirectory: (taskId: number) => Promise<string | null>
   terminalSetTaskWorkspace: (

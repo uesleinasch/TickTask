@@ -1,11 +1,13 @@
 import { create } from 'zustand'
-import type { TerminalSession } from '@shared/types'
+import type { TerminalSession, TerminalTabCustomization } from '@shared/types'
 import { toast } from '@renderer/components/ui/sonner'
 import { readTerminalShell } from '@renderer/lib/terminalPrefs'
+import { activatePane, openInSplit, panesAfterRemoval, reconcilePanes } from './terminalPanes'
 
 interface TerminalState {
   sessions: TerminalSession[]
   activeId: string | null
+  splitId: string | null
   open: boolean
   maximized: boolean
   refresh: () => Promise<void>
@@ -13,10 +15,14 @@ interface TerminalState {
   toggle: () => void
   toggleMaximized: () => void
   activate: (id: string) => void
+  openSplit: (id: string) => void
+  splitNew: (taskId: number) => Promise<void>
+  closeSplit: () => void
   createSession: (taskId: number) => Promise<boolean>
   toggleForTask: (taskId: number) => Promise<boolean>
   close: (id: string) => Promise<void>
   restart: (id: string) => Promise<void>
+  customize: (id: string, patch: TerminalTabCustomization) => Promise<void>
   markExited: (id: string, exitCode: number) => void
   forget: (id: string) => void
 }
@@ -24,6 +30,7 @@ interface TerminalState {
 export const useTerminalStore = create<TerminalState>((set, get) => ({
   sessions: [],
   activeId: null,
+  splitId: null,
   open: false,
   maximized: false,
 
@@ -31,9 +38,10 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     const sessions = await window.api.terminalList()
     set((state) => ({
       sessions,
-      activeId: sessions.some((s) => s.id === state.activeId)
-        ? state.activeId
-        : (sessions[0]?.id ?? null)
+      ...reconcilePanes(
+        sessions.map((s) => s.id),
+        state
+      )
     }))
   },
 
@@ -43,7 +51,18 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
   toggleMaximized: () => set((state) => ({ open: true, maximized: !state.maximized })),
 
-  activate: (id) => set({ activeId: id, open: true }),
+  activate: (id) => set((state) => ({ ...activatePane(state, id), open: true })),
+
+  openSplit: (id) => set((state) => ({ ...openInSplit(state, id), open: true })),
+
+  splitNew: async (taskId) => {
+    const previous = get().activeId
+    const created = await get().createSession(taskId)
+    const newId = get().activeId
+    if (created && previous && newId) set({ activeId: previous, splitId: newId })
+  },
+
+  closeSplit: () => set({ splitId: null }),
 
   createSession: async (taskId) => {
     const result = await window.api.terminalCreate(taskId, { shell: readTerminalShell() })
@@ -71,7 +90,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     }
     const existing = sessions.find((s) => s.taskId === taskId)
     if (existing) {
-      set({ activeId: existing.id, open: true })
+      get().activate(existing.id)
       return true
     }
     return get().createSession(taskId)
@@ -85,8 +104,31 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   restart: async (id) => {
     const session = get().sessions.find((s) => s.id === id)
     if (!session) return
+    const before = { activeId: get().activeId, splitId: get().splitId }
     await get().close(id)
-    await get().createSession(session.taskId)
+    const created = await get().createSession(session.taskId)
+    const newId = get().activeId
+    if (created && newId && before.splitId) {
+      set({
+        activeId: before.activeId === id ? newId : before.activeId,
+        splitId: before.splitId === id ? newId : before.splitId
+      })
+    }
+    if (created && newId && (session.title || session.color || session.icon)) {
+      await get().customize(newId, {
+        title: session.title,
+        color: session.color,
+        icon: session.icon
+      })
+    }
+  },
+
+  customize: async (id, patch) => {
+    const updated = await window.api.terminalCustomize(id, patch)
+    if (!updated) return
+    set((state) => ({
+      sessions: state.sessions.map((s) => (s.id === id ? updated : s))
+    }))
   },
 
   markExited: (id, exitCode) =>
@@ -96,14 +138,14 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
   forget: (id) =>
     set((state) => {
-      const index = state.sessions.findIndex((s) => s.id === id)
-      if (index === -1) return state
+      if (!state.sessions.some((s) => s.id === id)) return state
+      const panes = panesAfterRemoval(
+        state.sessions.map((s) => s.id),
+        state,
+        id
+      )
       const sessions = state.sessions.filter((s) => s.id !== id)
-      const activeId =
-        state.activeId === id
-          ? (sessions[Math.min(index, sessions.length - 1)]?.id ?? null)
-          : state.activeId
       const open = sessions.length > 0 && state.open
-      return { sessions, activeId, open, maximized: open && state.maximized }
+      return { sessions, ...panes, open, maximized: open && state.maximized }
     })
 }))

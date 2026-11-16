@@ -5,6 +5,7 @@ import type {
   TerminalBuffer,
   TerminalCreateResult,
   TerminalSession,
+  TerminalTabCustomization,
   JiraBoardSummary,
   JiraCredentialsInput,
   JiraFieldInput,
@@ -513,6 +514,10 @@ const api = {
     ipcRenderer.invoke('terminal:resize', id, cols, rows),
   terminalDispose: (id: string): Promise<void> => ipcRenderer.invoke('terminal:dispose', id),
   terminalList: (): Promise<TerminalSession[]> => ipcRenderer.invoke('terminal:list'),
+  terminalCustomize: (
+    id: string,
+    patch: TerminalTabCustomization
+  ): Promise<TerminalSession | null> => ipcRenderer.invoke('terminal:customize', id, patch),
   terminalGetBuffer: (id: string): Promise<TerminalBuffer | null> =>
     ipcRenderer.invoke('terminal:getBuffer', id),
   terminalPickDirectory: (taskId: number): Promise<string | null> =>

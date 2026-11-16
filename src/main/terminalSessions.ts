@@ -1,4 +1,5 @@
-import type { TerminalBuffer, TerminalSession } from '@shared/types'
+import type { TerminalBuffer, TerminalSession, TerminalTabCustomization } from '@shared/types'
+import { normalizeTabColor, normalizeTabIcon } from '@shared/terminalTab'
 
 export interface PtyLike {
   readonly process: string
@@ -77,6 +78,13 @@ interface Session {
   exitCode: number | null
 }
 
+const TAB_TITLE_MAX = 60
+
+export function normalizeTabTitle(title: string | null): string | null {
+  const trimmed = (title ?? '').trim().slice(0, TAB_TITLE_MAX)
+  return trimmed || null
+}
+
 export function shellBasename(shell: string): string {
   return (
     shell
@@ -112,7 +120,10 @@ export class TerminalManager {
         taskId: input.taskId,
         taskName: input.taskName,
         cwd: input.cwd,
-        shell: input.shell
+        shell: input.shell,
+        title: null,
+        color: null,
+        icon: null
       },
       pty,
       shellName: shellBasename(input.shell),
@@ -154,6 +165,15 @@ export class TerminalManager {
     const session = this.sessions.get(id)
     if (!session) return null
     return { data: session.buffer.toString(), seq: session.seq }
+  }
+
+  customize(id: string, patch: TerminalTabCustomization): TerminalSession | null {
+    const session = this.sessions.get(id)
+    if (!session) return null
+    if (patch.title !== undefined) session.info.title = normalizeTabTitle(patch.title)
+    if (patch.color !== undefined) session.info.color = normalizeTabColor(patch.color)
+    if (patch.icon !== undefined) session.info.icon = normalizeTabIcon(patch.icon)
+    return this.describe(session)
   }
 
   list(): TerminalSession[] {
