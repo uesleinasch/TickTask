@@ -188,6 +188,8 @@ export interface Task {
   scheduled_end_time?: string | null
   due_time?: string | null
   external_url?: string | null
+  working_dir?: string | null
+  start_command?: string | null
   jira_key?: string | null
   jira_status?: string | null
   jira_space?: string | null
@@ -575,3 +577,22 @@ export const DEFAULT_CONTEXTS = [
   { name: '@casa', icon: '🏠', color: '#14b8a6' },
   { name: '@escritório', icon: '🏢', color: '#6366f1' }
 ]
+
+export interface TerminalSession {
+  id: string
+  taskId: number
+  taskName: string
+  cwd: string
+  shell: string
+  busy: boolean
+  exitCode: number | null
+}
+
+export interface TerminalBuffer {
+  data: string
+  seq: number
+}
+
+export type TerminalCreateResult =
+  | { ok: true; session: TerminalSession; shellFallback: boolean }
+  | { ok: false; error: string; reason: 'no-task' | 'no-dir' | 'bad-dir' | 'pty-unavailable' }

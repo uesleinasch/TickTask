@@ -5,6 +5,7 @@ interface WriteEffectDeps {
   autoSync: (id: number) => void
   syncTagChange: (taskIds: number[]) => void
   syncCalendar: (taskIds: number[]) => void
+  disposeTerminals: (taskIds: number[]) => void
 }
 
 // Injetado no boot em vez de importado direto: as tools de escrita (ainda a criar) vão importar
@@ -55,4 +56,13 @@ export function afterCalendarChange(taskIds: number[]): void {
   }
   if (taskIds.length === 0) return
   deps.syncCalendar([...new Set(taskIds)])
+}
+
+export function afterTasksDeleted(taskIds: number[]): void {
+  if (!deps) {
+    warnDepsMissing('o encerramento dos terminais das tasks apagadas')
+    return
+  }
+  if (taskIds.length === 0) return
+  deps.disposeTerminals(taskIds)
 }

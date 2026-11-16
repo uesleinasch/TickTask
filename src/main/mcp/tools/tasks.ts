@@ -29,7 +29,12 @@ import { mergeTaskTimes, taskTimeError } from '@shared/taskTime'
 import { isSafeHttpUrl } from '@shared/externalUrl'
 import { prosemirrorToMarkdown } from '../../notesMarkdown'
 import { needsConfirmation } from '../confirmGuard'
-import { afterCalendarChange, afterTaskWrite, broadcastRefresh } from '../effects'
+import {
+  afterCalendarChange,
+  afterTaskWrite,
+  afterTasksDeleted,
+  broadcastRefresh
+} from '../effects'
 import { fail, ok } from '../reply'
 import { resolveByName } from '../resolve'
 import type { ToolContext } from '../toolContext'
@@ -452,7 +457,9 @@ export function registerTaskTools(server: McpServer, ctx: ToolContext): void {
       const consumed = ctx.confirmStore.consume(args.confirm_token, operation)
       if (!consumed.ok) return fail(consumed.code, consumed.message)
 
-      const calendarIds = filterGcalSyncedIds([...ids, ...ids.flatMap((id) => getChildTaskIds(id))])
+      const removedIds = [...ids, ...ids.flatMap((id) => getChildTaskIds(id))]
+      const calendarIds = filterGcalSyncedIds(removedIds)
+      afterTasksDeleted(removedIds)
       deleteTasks(ids)
       // deleteTasks também apaga as subtarefas em cascata; a task pai deixou de existir,
       // então sincronizar no Notion não faz sentido — só avisamos a janela para recarregar.

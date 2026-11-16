@@ -1,6 +1,9 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type {
   GcalStatus,
+  TerminalBuffer,
+  TerminalCreateResult,
+  TerminalSession,
   JiraBoardSummary,
   JiraCredentialsInput,
   JiraFieldInput,
@@ -326,6 +329,25 @@ interface API {
   mcpGetStatus: () => Promise<McpStatus>
   mcpSetEnabled: (enabled: boolean) => Promise<McpStatus>
   mcpRegenerateToken: () => Promise<McpStatus>
+
+  // Terminal embutido
+  terminalCreate: (
+    taskId: number,
+    options: { shell?: string | null; cols?: number; rows?: number }
+  ) => Promise<TerminalCreateResult>
+  terminalWrite: (id: string, data: string) => Promise<void>
+  terminalResize: (id: string, cols: number, rows: number) => Promise<void>
+  terminalDispose: (id: string) => Promise<void>
+  terminalList: () => Promise<TerminalSession[]>
+  terminalGetBuffer: (id: string) => Promise<TerminalBuffer | null>
+  terminalPickDirectory: (taskId: number) => Promise<string | null>
+  terminalSetTaskWorkspace: (
+    taskId: number,
+    workspace: { working_dir?: string | null; start_command?: string | null }
+  ) => Promise<void>
+  onTerminalData: (callback: (id: string, chunk: string, seq: number) => void) => () => void
+  onTerminalExit: (callback: (id: string, exitCode: number) => void) => () => void
+  onTerminalRemoved: (callback: (id: string) => void) => () => void
 }
 
 declare global {
